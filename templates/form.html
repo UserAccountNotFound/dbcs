@@ -120,7 +120,7 @@
                                 <span class="ml-2">Авторы</span>
                             </label>
                         </div>
-                        <input type="text" id="products_details" name="products_details" placeholder="Précisez ici ce qui vous intéresse"
+                        <input type="text" id="products_details" name="products_details" placeholder="Пожалуйста, опишите, что вас интересует"
                             class="mt-4 w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
 
@@ -137,7 +137,7 @@
                             <label class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                                 <input type="radio" id="secure" name="purpose" value="secure"
                                     class="w-4 h-4 text-blue-600">
-                                <span class="ml-2">Создание личных ливиток</span>
+                                <span class="ml-2">Создание личных визиток</span>
                             </label>
                             <label class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                                 <input type="radio" id="other_purpose" name="purpose" value="other"
@@ -145,7 +145,7 @@
                                 <span class="ml-2">Другое</span>
                             </label>
                         </div>
-                        <input type="text" id="purpose_details" name="purpose_details" placeholder="Précisez votre objectif ici"
+                        <input type="text" id="purpose_details" name="purpose_details" placeholder="Пожалуйста, опишите свою цель"
                             class="mt-4 w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
 
             if (result.success) {
-                showToast('Votre formulaire a été envoyé avec succès!', 'success');
+                showToast('Ваша форма была успешно отправлена!', 'success');
                 form.reset();
                 // Reset display of detail fields
                 purposeDetailsInput.style.display = 'none';
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } finally {
             // Re-enable submit button
             submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Envoyer ma demande';
+            submitBtn.innerHTML = 'Отправить запрос';
         }
     });
 
