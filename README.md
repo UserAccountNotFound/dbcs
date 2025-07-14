@@ -23,13 +23,18 @@ cd /opt/dbcs
 
 3. Создаем виртуальное окружение и активируем его
 ```bash
-python -m venv .venv && \
+python3 -m venv .venv && \
 source .venv/bin/activate
 ```
 
 4. Копирууем фаил переременных и заполняем его:
 ```bash
-cp /opt/dbcs/_deploy/env.example /opt/dbcs/.env
+cp /opt/dbcs/_deploy/env.example /opt/dbcs/.env 
+```
+  4.1 
+``` python
+import os
+os.urandom(16).hex()
 ```
 
 5. Устанавливаем зависимости сервиса:
