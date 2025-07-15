@@ -1,5 +1,5 @@
 # User Data
-/usrData/avatars/*
+/static/avatars/*
 
 # Environments
 .env

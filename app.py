@@ -26,7 +26,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usrData')
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'avatars')
 app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -80,7 +80,7 @@ def login():
             login_user(user)
             return redirect(url_for('dashboard'))
         else:
-            flash('Invalid username or password')
+            flash('Нет такого аккаунта. Проверьте логин или пароль')
 
     return render_template('login.html')
 
@@ -103,7 +103,7 @@ def dashboard():
 def create_card():
     if request.method == 'POST':
         try:
-            unique_id = base64.urlsafe_b64encode(os.urandom(6)).decode('utf-8')
+            unique_id = base64.urlsafe_b64encode(os.urandom(64)).decode('utf-8')
 
             # Handle photo upload
             photo = request.files.get('photo')
@@ -111,7 +111,7 @@ def create_card():
             if photo:
                 filename = f"{unique_id}_{photo.filename}"
                 photo_path = f"avatars/{filename}"
-                photo.save(f"usrData/{photo_path}")
+                photo.save(f"static/{photo_path}")
 
             # Create new user
             new_user = BusinessCard(
@@ -221,8 +221,8 @@ def edit_card(unique_id):
 
                     # Save new photo
                     filename = f"{card.unique_id}_{photo.filename}"
-                    photo_path = f"photos/{filename}"
-                    os.makedirs(os.path.join('static', 'photos'), exist_ok=True)
+                    photo_path = f"avatars/{filename}"
+                    os.makedirs(os.path.join('static', 'avatars'), exist_ok=True)
                     photo.save(os.path.join('static', photo_path))
                     card.photo_path = photo_path
 
@@ -254,7 +254,7 @@ def delete_card(unique_id):
     # Delete associated photo if it exists
     if card.photo_path:
         try:
-            os.remove(f"static/{card.photo_path}")
+            os.remove(f"avatars/{card.photo_path}")
         except:
             pass
 
@@ -306,7 +306,7 @@ def order_form():
 
             return jsonify({
                 'success': True,
-                'message': 'Votre formulaire a été envoyé avec succès!'
+                'message': 'Ваша форма успешно отправлена!'
             })
 
         except Exception as e:
@@ -314,7 +314,7 @@ def order_form():
             app.logger.error(f'Order form submission error: {str(e)}')
             return jsonify({
                 'success': False,
-                'error': 'Une erreur est survenue lors de l\'envoi du formulaire.'
+                'error': 'Произошла ошибка \' при отправке формы.'
             }), 400
 
     return render_template('form.html')
@@ -374,16 +374,16 @@ def update_order_status(order_id):
     if new_status in ['pending', 'processing', 'completed', 'cancelled']:
         order.status = new_status
         db.session.commit()
-        flash('Status mis à jour avec succès!', 'success')
+        flash('Статус успешно обновлен!', 'success')
     else:
-        flash('Status invalide!', 'error')
+        flash('Статус недействителен!', 'error')
     return redirect(url_for('admin_orders'))
 
 
 @app.route('/admin/orders/<int:order_id>/details')
 @login_required
 def order_details(order_id):
-    app.logger.info(f"Received request for order {order_id}")  # Debug log
+    app.logger.info(f"Получен запрос: {order_id}")  # Debug log
 
     try:
         order = Order.query.get_or_404(order_id)
