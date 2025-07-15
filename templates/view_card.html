@@ -103,13 +103,14 @@
                             <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22] mr-3">
                                 <i class="fas fa-directions"></i>
                             </div>
-                            <span class="text-blue-600 font-medium">Местоположение на карте</span>
+                            <span class="text-blue-600 font-medium">Расположение на карте</span>
                         </a>
                     </div>
 
                     <!-- Social Media Links -->
                     <div class="mt-6 flex justify-center space-x-4">
-                        <!-- Social media links remain unchanged as they are brand names -->
+                        {% include '_tpl_social_media.html' %}
+                        <!-- Social media links remain unchanged as they are brand names 
                         {% if user.instagram %}
                         <a href="https://instagram.com/{{ user.instagram }}" target="_blank"
                            class="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 text-white hover:opacity-90 transition">
@@ -117,7 +118,7 @@
                         </a>
                         {% endif %}
 
-                        <!-- Other social media links remain the same -->
+                         Other social media links remain the same -->
                     </div>
                 </div>
             </div>
