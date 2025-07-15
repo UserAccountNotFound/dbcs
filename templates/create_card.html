@@ -142,7 +142,16 @@
             <div class="space-y-4">
                 <h3 class="text-lg font-medium text-gray-900">Социальные Сети (Опционально)</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <!-- Most common social media -->
+
+                    <div>
+                        <label for="telegram" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-telegram mr-2 text-blue-500"></i>Telegram
+                        </label>
+                        <input type="text" id="telegram" name="telegram"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="Имя пользователя Telegram">
+                    </div>
+
                     <div>
                         <label for="whatsapp" class="block text-sm font-medium text-gray-700">
                             <i class="fab fa-whatsapp mr-2 text-green-500"></i>WhatsApp
@@ -152,14 +161,6 @@
                                placeholder="Номер WhatsApp или ссылка">
                     </div>
 
-                    <div>
-                        <label for="instagram" class="block text-sm font-medium text-gray-700">
-                            <i class="fab fa-instagram mr-2 text-pink-500"></i>Instagram
-                        </label>
-                        <input type="text" id="instagram" name="instagram"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                               placeholder="Имя пользователя Instagram">
-                    </div>
                 </div>
 
                 <!-- Additional social media container -->
@@ -205,6 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const addSocialBtn = document.getElementById('add-social-btn');
 
     const socialMediaOptions = [
+        { id: 'instagram', name: 'Instagram', icon: 'fa-instagram', color: 'text-pink-500' },
         { id: 'facebook', name: 'Facebook', icon: 'fa-facebook', color: 'text-blue-600' },
         { id: 'linkedin', name: 'LinkedIn', icon: 'fa-linkedin', color: 'text-blue-700' },
         { id: 'youtube', name: 'YouTube', icon: 'fa-youtube', color: 'text-red-600' },
@@ -229,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectHTML = `
             <div class="flex-grow">
                 <select class="social-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Select Platform</option>
+                    <option value="">выбрать из списка</option>
                     ${availableSocials.map(social => `
                         <option value="${social.id}"
                                 data-icon="${social.icon}"

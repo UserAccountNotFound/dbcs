@@ -71,7 +71,7 @@
                             <div class="flex items-center space-x-2">
                                 <div class="flex-grow">
                                     <label for="phone_secondary" class="block text-sm font-medium text-gray-700">
-                                        Numéro de Téléphone Secondaire
+                                        Дополнительный номер телефона
                                     </label>
                                     <div class="mt-1 flex rounded-md shadow-sm">
                                         <input type="tel" id="phone_secondary" name="phone_secondary"
@@ -108,13 +108,13 @@
 
             <!-- Location Section -->
             <div class="space-y-1">
-                <label for="address" class="block text-sm font-medium text-gray-700">Adresse</label>
+                <label for="address" class="block text-sm font-medium text-gray-700">Адрес</label>
                 <input type="text"
                        name="address"
                        value = "{{card.address}}"
                        id="address"
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                       placeholder="Entrez votre adresse">
+                       placeholder="Введите свой адрес">
             </div>
             <div>
                 <label for="location" class="block text-sm font-medium text-gray-700">Lien de Localisation</label>
@@ -131,9 +131,17 @@
 
             <!-- Social Media Section -->
             <div class="space-y-4">
-                <h3 class="text-lg font-medium text-gray-900">Réseaux Sociaux (Optionnel)</h3>
+                <h3 class="text-lg font-medium text-gray-900">Социальные сети</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <!-- Most common social media -->
+                    <div>
+                        <label for="telegram" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-telegram mr-2 text-blue-500"></i>Telegram
+                        </label>
+                        <input type="text" id="telegram" name="telegram" value="{{ card.telegram or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+
                     <div>
                         <label for="whatsapp" class="block text-sm font-medium text-gray-700">
                             <i class="fab fa-whatsapp mr-2 text-green-500"></i>WhatsApp
@@ -142,17 +150,20 @@
                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     </div>
 
-                    <div>
-                        <label for="instagram" class="block text-sm font-medium text-gray-700">
-                            <i class="fab fa-instagram mr-2 text-pink-500"></i>Instagram
-                        </label>
-                        <input type="text" id="instagram" name="instagram" value="{{ card.instagram or '' }}"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
                 </div>
 
                 <!-- Additional social media container -->
                 <div id="additional-social-media" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {% if card.instagram %}
+                    <div>
+                        <label for="instagram" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-instagram mr-2 text-pink-500"></i>Instagram
+                        </label>
+                        <input type="text" id="instagram" name="instagram" value="{{ card.instagram }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    {% endif %}
+
                     {% if card.facebook %}
                     <div>
                         <label for="facebook" class="block text-sm font-medium text-gray-700">
