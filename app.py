@@ -26,7 +26,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static/photos')
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usrData')
 app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -110,8 +110,8 @@ def create_card():
             photo_path = None
             if photo:
                 filename = f"{unique_id}_{photo.filename}"
-                photo_path = f"photos/{filename}"
-                photo.save(f"static/{photo_path}")
+                photo_path = f"avatars/{filename}"
+                photo.save(f"usrData/{photo_path}")
 
             # Create new user
             new_user = BusinessCard(
@@ -126,6 +126,7 @@ def create_card():
                 location=request.form['location'],
                 photo_path=photo_path,
                 # Social media fields
+                telegram=request.form.get('telegram'),
                 instagram=request.form.get('instagram'),
                 whatsapp=request.form.get('whatsapp'),
                 twitter=request.form.get('twitter'),
@@ -141,7 +142,10 @@ def create_card():
             db.session.commit()
 
             # Generate QR code
-            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr = qrcode.QRCode(version=1,
+                               error_correction=qrcode.constants.ERROR_CORRECT_L, 
+                               box_size=10, 
+                               border=5)
             qr.add_data(f"{request.host_url}card/{unique_id}")
             qr.make(fit=True)
             qr_img = qr.make_image(fill_color="black", back_color="white")

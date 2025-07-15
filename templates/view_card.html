@@ -155,9 +155,9 @@
                             <div class="w-16 h-16 mx-auto bg-[#F15A22]/10 rounded-full flex items-center justify-center mb-4">
                                 <i class="fas fa-address-card text-[#F15A22] text-2xl"></i>
                             </div>
-                            <h2 class="text-xl font-semibold text-gray-900 mb-2">Enregistrer le Contact</h2>
+                            <h2 class="text-xl font-semibold text-gray-900 mb-2">Сохранить контакт</h2>
                             <p class="text-gray-600 mb-4">
-                                Téléchargez les coordonnées de {{ user.name }} directement sur votre téléphone en un clic.
+                                Загрузите контактную информацию для {{ user.name }} прямо на ваш телефон одним щелчком мыши.
                             </p>
                         </div>
                     {% endif %}
@@ -378,6 +378,7 @@
                 `URL:${window.location.href}`,
                 {% if user.location %}`ADR;type=WORK:;;${'{{ user.location }}'};;;`,{% endif %}
                 photoData ? `PHOTO;ENCODING=BASE64;TYPE=${imageType}:${photoData}` : '',
+                {% if user.telegram %}`X-SOCIALPROFILE;type=telegram:https://t.me/${'{{ user.telegram }}'}`,{% endif %}
                 {% if user.instagram %}`X-SOCIALPROFILE;type=instagram:https://instagram.com/${'{{ user.instagram }}'}`,{% endif %}
                 {% if user.whatsapp %}`X-SOCIALPROFILE;type=whatsapp:https://wa.me/${'{{ user.whatsapp }}'}`,{% endif %}
                 {% if user.facebook %}`X-SOCIALPROFILE;type=facebook:https://facebook.com/${'{{ user.facebook }}'}`,{% endif %}

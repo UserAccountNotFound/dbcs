@@ -48,6 +48,7 @@ class BusinessCard(db.Model):
     photo_path = db.Column(db.String(200))
 
     # Social Media Links
+    telegram = db.Column(db.String(100))
     instagram = db.Column(db.String(100))
     whatsapp = db.Column(db.String(100))
     twitter = db.Column(db.String(100))
@@ -87,11 +88,11 @@ class Order(db.Model):
     social_media_3 = db.Column(db.String(200))
     social_media_4 = db.Column(db.String(200))
 
-    # Feedback Information
-    source = db.Column(db.String(50), nullable=False)  # How they heard about us
-    source_details = db.Column(db.Text)  # Additional details about source
+    # Обратная связь
+    source = db.Column(db.String(50), nullable=False)  # Как они узнали о нас
+    source_details = db.Column(db.Text)  # Дополнительные сведения об источнике
 
-    # Status and Timestamps
+    # Статусы
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, cancelled
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

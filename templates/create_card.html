@@ -45,7 +45,7 @@
 
 <div class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Créez Votre Carte de Visite Numérique</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Заполните форму для создания цифровой визитной карточки</h1>
 
         <form action="{{ url_for('create_card') }}" method="post" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-6">
             <!-- Photo Upload Section -->
@@ -71,20 +71,20 @@
             <!-- Personal Information -->
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                    <label for="name" class="block text-sm font-medium text-gray-700">Nom Complet</label>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Имя</label>
                     <input type="text" id="name" name="name" required
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
                 <div>
-                    <label for="title" class="block text-sm font-medium text-gray-700">Titre du Poste</label>
+                    <label for="title" class="block text-sm font-medium text-gray-700">Должность</label>
                     <input type="text" id="title" name="title" required
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
                 <!-- Phone Numbers Section -->
                 <div class="space-y-4">
-                    <h3 class="text-lg font-medium text-gray-900">Numéros de Téléphone</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Номера телефонов</h3>
                     <div id="phone-numbers-container" class="space-y-4">
                         <!-- Primary Phone (Always visible) -->
                         <div class="phone-field">
@@ -118,19 +118,23 @@
 
             <!-- Location Section -->
             <div class="space-y-1">
-                <label for="address" class="block text-sm font-medium text-gray-700">Adresse</label>
+                <label for="address" class="block text-sm font-medium text-gray-700">Адрес</label>
                 <input type="text"
                        name="address"
                        id="address"
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                       placeholder="Entrez votre adresse">
+                       placeholder="Введите свой адрес">
             </div>
+
+            <!-- Maps Location Section -->
             <div class="mt-6">
-                <label for="location" class="block text-sm font-medium text-gray-700">Lien de Localisation</label>
+                <label for="location" class="block text-sm font-medium text-gray-700">Ссылка на местоположение</label>
                 <div class="mt-1">
-                    <input type="text" id="location" name="location" required
-                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                           placeholder="Entrez le lien Google Maps">
+                    <input type="text" 
+                           id="location" 
+                           name="location" 
+                           required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                           placeholder="Вставте ссылку на карты Google">
                 </div>
             </div>
 
@@ -259,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="mt-1 flex rounded-md shadow-sm">
                             <input type="text" id="${social.id}" name="${social.id}"
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                   placeholder="Enter ${social.name} profile link">
+                                   placeholder="Укажите свой профиль в ${social.name}">
                         </div>
                     </div>
                     <button type="button" class="remove-social-btn mt-6 text-red-600 hover:text-red-800">
@@ -492,14 +496,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 showQRModal(data.qr_code, data.card_url);
-                resetForm(); // Reset form after successful submission
+                resetForm(); // Очистка формы после создания
             } else {
                 alert('Error creating card: ' + data.error);
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while creating your card. Please try again.');
+            alert('При создании вашей визитки произошла ошибка. Попробуйте еще раз.');
         })
         .finally(() => {
             setLoading(false);

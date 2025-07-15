@@ -8,30 +8,24 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeLocationInput(input) {
-    // Helper text element
-    //const helperText = document.createElement('p');
-    //helperText.className = 'mt-1 text-sm text-gray-500';
-    //helperText.textContent = 'Share your location from Google Maps (e.g., https://maps.app.goo.gl/... or https://www.google.com/maps/...)';
-    //input.parentNode.appendChild(helperText);
-
     // Update placeholder
-    input.placeholder = 'Paste your Google Maps share link';
+    //input.placeholder = 'Вставте ссылку на карты Google';
 
     // Optional: Add a button to get maps link
     const helpButton = document.createElement('button');
     helpButton.type = 'button';
     helpButton.className = 'mt-2 text-sm text-blue-600 hover:text-blue-800';
-    helpButton.textContent = 'How to get your location link?';
+    helpButton.textContent = 'Как получить ссылку на ваше местоположение?';
     helpButton.onclick = showLocationHelp;
     input.parentNode.appendChild(helpButton);
 }
 
 function showLocationHelp() {
-    alert(`To get your location link:
-1. Open Google Maps
-2. Search for your location
-3. Click 'Share' or tap the location pin
-4. Copy the provided link`);
+    alert(`Чтобы получить ссылку на ваше местоположение:
+        1. Откройте Google Maps
+        2. Найдите ваше местонахождение location
+        3. Кликните 'Поделиться' нажмите на пин 'вашего' местоположения
+        4. Скопируйте предоставленную ссылку`);
 }
 
 // Image preview handler
