@@ -6,7 +6,7 @@
         <div class="lg:col-span-2">
             <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
                 <!-- Profile Header -->
-                <div class="relative h-32 bg-gradient-to-r from-[#F15A22] to-[#F15A22]/80">
+                <div class="relative h-32 bg-gradient-to-r from-[#D8C3A5] to-[#D8C3A5]/80">
                     <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
                         {% if user.photo_path %}
                         <img src="{{ url_for('static', filename=user.photo_path) }}"
@@ -32,7 +32,7 @@
                         <!-- Primary Phone -->
                         {% if user.phone_primary %}
                         <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#D8C3A5]/10 text-[#D8C3A5]">
                                 <i class="fas fa-phone"></i>
                             </div>
                             <a href="tel:{{ user.phone_primary }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
@@ -44,7 +44,7 @@
                         <!-- Secondary Phone -->
                         {% if user.phone_secondary %}
                         <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#D8C3A5]/10 text-[#D8C3A5]">
                                 <i class="fas fa-phone"></i>
                             </div>
                             <a href="tel:{{ user.phone_secondary }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
