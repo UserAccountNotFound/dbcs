@@ -11,6 +11,14 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone
 import json
 
+# Импортируем конфиг с перечнем месенджеров и социальных сетей
+try:
+    from csse import MESSAGE_n_SOCIAL_NETWORKS
+except ImportError:
+    # Fallback на случай если файл не найден
+    MESSAGE_n_SOCIAL_NETWORKS = []
+    print("Warning: social_config.py not found, using empty SOCIAL_NETWORKS")
+
 # Load environment variables
 load_dotenv()
 
@@ -246,8 +254,15 @@ def edit_card(unique_id):
             flash('An error occurred while updating the card. Please try again.', 'error')
             return render_template('edit_card.html', card=card)
 
+    # Фильтруем соцсети для JS (исключаем основные)
+    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key'] not in ['telegram', 'whatsapp']]
+    
     # GET request - display the form
-    return render_template('edit_card.html', card=card)
+    return render_template('edit_card.html', 
+                           card=card,
+                           MESSAGE_n_SOCIAL_NETWORKS=MESSAGE_n_SOCIAL_NETWORKS,
+                           mnsn_config=json.dumps(js_mnsn_config)
+                           )
 
 
 @app.route('/delete_card/<unique_id>', methods=['POST'])

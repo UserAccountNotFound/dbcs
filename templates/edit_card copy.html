@@ -129,47 +129,83 @@
                 </div>
             </div>
 
-            <!-- Социальные сети -->
+            <!-- Social Media Section -->
             <div class="space-y-4">
                 <h3 class="text-lg font-medium text-gray-900">Социальные сети</h3>
-                
-                <!-- Основные соцсети -->
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {% for social in MESSAGE_n_SOCIAL_NETWORKS if social.key in ['telegram', 'whatsapp'] %}
+                    <!-- Most common social media -->
                     <div>
-                        <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
-                            <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
+                        <label for="telegram" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-telegram mr-2 text-blue-500"></i>Telegram
                         </label>
-                        <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
-                            value="{{ card[social.key] or '' }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="{{ social.placeholder }}">
+                        <input type="text" id="telegram" name="telegram" value="{{ card.telegram or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     </div>
-                    {% endfor %}
+
+                    <div>
+                        <label for="whatsapp" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-whatsapp mr-2 text-green-500"></i>WhatsApp
+                        </label>
+                        <input type="text" id="whatsapp" name="whatsapp" value="{{ card.whatsapp or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+
                 </div>
 
-                <!-- Дополнительные соцсети -->
+                <!-- Additional social media container -->
                 <div id="additional-social-media" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {% for social in MESSAGE_n_SOCIAL_NETWORKS if social.key not in ['telegram', 'whatsapp'] and card[social.key] %}
+                    {% if card.instagram %}
                     <div>
-                        <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
-                            <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
+                        <label for="instagram" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-instagram mr-2 text-pink-500"></i>Instagram
                         </label>
-                        <div class="flex items-center space-x-2">
-                            <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
-                                value="{{ card[social.key] }}"
-                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <button type="button" class="remove-social-btn mt-6 text-red-600 hover:text-red-800">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
-                        </div>
+                        <input type="text" id="instagram" name="instagram" value="{{ card.instagram }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     </div>
-                    {% endfor %}
+                    {% endif %}
+
+                    {% if card.facebook %}
+                    <div>
+                        <label for="facebook" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-facebook mr-2 text-blue-600"></i>Facebook
+                        </label>
+                        <input type="text" id="facebook" name="facebook" value="{{ card.facebook }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    {% endif %}
+
+                    {% if card.linkedin %}
+                    <div>
+                        <label for="linkedin" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-linkedin mr-2 text-blue-700"></i>LinkedIn
+                        </label>
+                        <input type="text" id="linkedin" name="linkedin" value="{{ card.linkedin }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    {% endif %}
+
+                    {% if card.twitter %}
+                    <div>
+                        <label for="twitter" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-twitter mr-2 text-blue-400"></i>Twitter
+                        </label>
+                        <input type="text" id="twitter" name="twitter" value="{{ card.twitter }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    {% endif %}
+
+                    {% if card.snapchat %}
+                    <div>
+                        <label for="snapchat" class="block text-sm font-medium text-gray-700">
+                            <i class="fab fa-snapchat-ghost mr-2 text-yellow-400"></i>Snapchat
+                        </label>
+                        <input type="text" id="snapchat" name="snapchat" value="{{ card.snapchat }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    {% endif %}
                 </div>
 
-                <!-- Кнопка добавления -->
+                <!-- Add Social Media Button -->
                 <button type="button" id="add-social-btn"
                         class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Social Media Management 
+<!-- Social Media Management -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const socialContainer = document.getElementById('additional-social-media');
@@ -424,16 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addSocialBtn.style.display = 'none';
     }
 });
-</script> -->
-
-<script>
-    // Инициализация конфига месенджеров и социальных сетей для JS
-    document.addEventListener('DOMContentLoaded', function() {
-        window.socialConfig = JSON.parse('{{ mnsn_config | safe }}');
-    
-    });
 </script>
-
 
 <!-- Form Submission Handler -->
 <script>
