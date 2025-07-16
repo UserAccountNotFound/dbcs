@@ -420,6 +420,36 @@ def order_details(order_id):
         app.logger.error(f"Error in order_details: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
 
+@app.route('/nfc/read')
+@login_required
+def nfc_read():
+    return render_template('nfc_read.html')
+
+@app.route('/nfc/write')
+@login_required
+def nfc_write():
+    return render_template('nfc_write.html')
+
+@app.route('/api/nfc', methods=['POST'])
+@login_required
+def handle_nfc_data():
+    data = request.json
+    nfc_id = data.get('id')
+    nfc_content = data.get('content')
+    
+    if nfc_id:
+        if request.method == 'POST':
+            # Запись данных
+            nfc_data_store[nfc_id] = nfc_content
+            return jsonify({"status": "success", "message": "Data saved"})
+        else:
+            # Чтение данных (GET)
+            content = nfc_data_store.get(nfc_id, "No data found")
+            return jsonify({"status": "success", "content": content})
+    
+    return jsonify({"status": "error", "message": "Invalid NFC ID"})
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<!-- QR Code Modal -->
+<!-- Модальное окно QR-кода -->
 <div id="qr-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex flex-col items-center">
             <h3 class="text-2xl font-bold text-gray-900 mb-4">Ваша электронная визитка готова !</h3>
 
-            <!-- QR Code Display -->
+             <!-- Отображение QR-кода -->
             <div class="qr-code-container mb-4">
                 <img id="qr-image" src="" alt="Code QR" class="w-64 h-64">
             </div>
 
-            <!-- Share Link -->
+            <!-- Ссылка для общего доступа -->
             <div class="w-full px-4 mb-4">
                 <div class="relative">
                     <input type="text" id="share-link"
@@ -24,7 +24,7 @@
                 </div>
             </div>
 
-            <!-- Share Options -->
+            <!-- Опции для общего доступа -->
             <div class="flex space-x-4 mb-6">
                 <button onclick="shareCard('whatsapp')" class="p-2 bg-green-500 text-white rounded-full hover:bg-green-600">
                     <i class="fab fa-whatsapp text-xl"></i>
@@ -34,7 +34,7 @@
                 </button>
             </div>
 
-            <!-- Close Button -->
+            <!-- Кнопка закрытия -->
             <button onclick="closeModal()"
                     class="w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                 Закрыть
@@ -48,7 +48,7 @@
         <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Заполните форму для создания цифровой визитной карточки</h1>
 
         <form action="{{ url_for('create_card') }}" method="post" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-6">
-            <!-- Photo Upload Section -->
+            <!-- Секция загрузки фотографии -->
             <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700">Фотография профиля</label>
                 <div class="flex flex-col items-center space-y-4">
@@ -68,7 +68,7 @@
                 </div>
             </div>
 
-            <!-- Personal Information -->
+            <!-- Информация о владельце визитки -->
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                     <label for="name" class="block text-sm font-medium text-gray-700">Имя</label>
@@ -82,11 +82,11 @@
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
-                <!-- Phone Numbers Section -->
+                <!-- Секция телефонных номеров -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-medium text-gray-900">Номера телефонов</h3>
                     <div id="phone-numbers-container" class="space-y-4">
-                        <!-- Primary Phone (Always visible) -->
+                        <!-- Основной телефоный номер (всегда видимый) -->
                         <div class="phone-field">
                             <label for="phone_primary" class="block text-sm font-medium text-gray-700">
                                 Основной номер телефона *
@@ -99,7 +99,7 @@
                         </div>
                     </div>
 
-                    <!-- Add Phone Button -->
+                    <!-- Кнопка добавления телефона -->
                     <button type="button" id="add-phone-btn"
                             class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@
                 </div>
             </div>
 
-            <!-- Location Section -->
+            <!-- Секция адреса -->
             <div class="space-y-1">
                 <label for="address" class="block text-sm font-medium text-gray-700">Адрес</label>
                 <input type="text"
@@ -126,7 +126,7 @@
                        placeholder="Введите свой адрес">
             </div>
 
-            <!-- Maps Location Section -->
+            <!-- Секция расположения на карте -->
             <div class="mt-6">
                 <label for="location" class="block text-sm font-medium text-gray-700">Ссылка на местоположение</label>
                 <div class="mt-1">
@@ -138,7 +138,7 @@
                 </div>
             </div>
 
-            <!-- Social Media Section -->
+            <!-- Секция социальных сетей -->
             <div class="space-y-4">
                 <h3 class="text-lg font-medium text-gray-900">Социальные Сети (Опционально)</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -163,12 +163,12 @@
 
                 </div>
 
-                <!-- Additional social media container -->
+                <!-- Контейнер для дополнительных социальных сетей -->
                 <div id="additional-social-media" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <!-- Additional social media fields will be added here -->
+                    <!-- Здесь будут добавляться дополнительные поля социальных сетей -->
                 </div>
 
-                <!-- Add Social Media Button -->
+                <!-- Кнопка добавления социальной сети -->
                 <button type="button" id="add-social-btn"
                         class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,7 +190,7 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span class="ml-2">Génération en cours...</span>
+                        <span class="ml-2">Генерация...</span>
                     </span>
                 </button>
             </div>
@@ -198,7 +198,7 @@
     </div>
 </div>
 
-<!-- Social Media Management -->
+<!-- Управление социальными сетями -->
 <script>
     window.addedSocials = new Set();
 document.addEventListener('DOMContentLoaded', function() {
@@ -218,6 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
     //let addedSocials = new Set();
 
     function createSocialMediaSelector() {
+        // Фильтрация доступных социальных сетей (еще не добавленных)
         const availableSocials = socialMediaOptions.filter(social => !addedSocials.has(social.id));
 
         if (availableSocials.length === 0) {
@@ -290,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Phone Numbers Management -->
+<!-- Управление телефонными номерами -->
 <script>
     window.phoneCount = 1;
 document.addEventListener('DOMContentLoaded', function() {
@@ -300,9 +301,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const maxPhones = 4;
 
     const phoneTypes = {
-        2: { name: 'secondary', label: 'Secondary' },
-        3: { name: 'third', label: 'Third' },
-        4: { name: 'fourth', label: 'Fourth' }
+        2: { name: 'secondary', label: 'Второй' },
+        3: { name: 'third', label: 'Третий' },
+        4: { name: 'fourth', label: 'Четвертый' }
     };
 
     function createPhoneField(index) {
@@ -335,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.appendChild(fieldDiv);
 
-        // Add remove button handler
+        // Обработчик кнопки удаления
         fieldDiv.querySelector('.remove-phone-btn').addEventListener('click', function() {
             fieldDiv.remove();
             phoneCount--;
@@ -412,7 +413,7 @@ function shareCard(platform) {
             window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
             break;
         case 'email':
-            window.open(`mailto:?subject=Digital Business Card&body=${encodeURIComponent(text + '\n\n' + url)}`);
+            window.open(`mailto:?subject=Цифровая визитная карточка&body=${encodeURIComponent(text + '\n\n' + url)}`);
             break;
         case 'twitter':
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + ' ' + url)}`);

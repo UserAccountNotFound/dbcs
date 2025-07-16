@@ -10,20 +10,7 @@
                         <h1 class="text-xl font-bold text-gray-900">Менеджер визитных карточек</h1>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <a href="{{ url_for('admin_orders') }}"
-                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-clipboard-list mr-1.5"></i>Команды
-                    </a>
-                    <a href="{{ url_for('create_card') }}"
-                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-plus mr-1.5"></i>Создать новую карту
-                    </a>
-                    <a href="{{ url_for('logout') }}"
-                       class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        <i class="fas fa-sign-out-alt mr-1.5"></i>Выход
-                    </a>
-                </div>
+                {% include '_tpl_nav_menu.html' %}
             </div>
         </div>
     </nav>
@@ -89,15 +76,15 @@
                                 <a href="{{ url_for('view_card', unique_id=card.unique_id) }}"
                                    class="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                                    target="_blank">
-                                    <i class="fas fa-eye mr-1.5"></i>Voir
+                                    <i class="fas fa-eye mr-1.5"></i>Просмотр
                                 </a>
                                 <a href="{{ url_for('edit_card', unique_id=card.unique_id) }}"
                                    class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 text-xs sm:text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100">
-                                    <i class="fas fa-edit mr-1.5"></i>Modifier
+                                    <i class="fas fa-edit mr-1.5"></i>Изменить
                                 </a>
                                 <button onclick="confirmDelete('{{ card.unique_id }}')"
                                         class="inline-flex items-center px-2.5 py-1.5 border border-red-300 text-xs sm:text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100">
-                                    <i class="fas fa-trash-alt mr-1.5"></i>Supprimer
+                                    <i class="fas fa-trash-alt mr-1.5"></i>Удалить
                                 </button>
                             </div>
                         </div>
