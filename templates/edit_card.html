@@ -131,41 +131,41 @@
 
             <!-- Социальные сети -->
             <div class="space-y-4">
-                <h3 class="text-lg font-medium text-gray-900">Социальные сети</h3>
+                <h3 class="text-lg font-medium text-gray-900">Месенджеры и Социальные сети</h3>
                 
                 <!-- Основные соцсети -->
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {% for social in MESSAGE_n_SOCIAL_NETWORKS if social.key in ['telegram', 'whatsapp'] %}
-                    <div>
-                        <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
-                            <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
-                        </label>
-                        <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
-                            value="{{ card[social.key] or '' }}"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="{{ social.placeholder }}">
-                    </div>
+                        <div>
+                            <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
+                                <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
+                            </label>
+                            <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
+                                value="{{ card[social.key] or '' }}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                placeholder="{{ social.placeholder }}">
+                        </div>
                     {% endfor %}
                 </div>
 
                 <!-- Дополнительные соцсети -->
                 <div id="additional-social-media" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {% for social in MESSAGE_n_SOCIAL_NETWORKS if social.key not in ['telegram', 'whatsapp'] and card[social.key] %}
-                    <div>
-                        <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
-                            <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
-                        </label>
-                        <div class="flex items-center space-x-2">
-                            <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
-                                value="{{ card[social.key] }}"
-                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <button type="button" class="remove-social-btn mt-6 text-red-600 hover:text-red-800">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
+                        <div>
+                            <label for="{{ social.key }}" class="block text-sm font-medium text-gray-700">
+                                <i class="{{ social.icon }} mr-2 {{ social.class.split(' ')[0] }}"></i>{{ social.label }}
+                            </label>
+                            <div class="flex items-center space-x-2">
+                                <input type="text" id="{{ social.key }}" name="{{ social.key }}" 
+                                    value="{{ card[social.key] }}"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <button type="button" class="remove-social-btn mt-6 text-red-600 hover:text-red-800">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                    </div>
                     {% endfor %}
                 </div>
 
@@ -312,119 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-
-<!-- Social Media Management 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const socialContainer = document.getElementById('additional-social-media');
-    const addSocialBtn = document.getElementById('add-social-btn');
-
-    const socialMediaOptions = [
-        { id: 'facebook', name: 'Facebook', icon: 'fa-facebook', color: 'text-blue-600' },
-        { id: 'linkedin', name: 'LinkedIn', icon: 'fa-linkedin', color: 'text-blue-700' },
-        { id: 'youtube', name: 'YouTube', icon: 'fa-youtube', color: 'text-red-600' },
-        { id: 'tiktok', name: 'TikTok', icon: 'fa-tiktok', color: 'text-gray-900' },
-        { id: 'twitter', name: 'Twitter', icon: 'fa-twitter', color: 'text-blue-400' },
-        { id: 'snapchat', name: 'Snapchat', icon: 'fa-snapchat-ghost', color: 'text-yellow-400' }
-    ];
-
-    let addedSocials = new Set([
-        {% if card.facebook %}'facebook',{% endif %}
-        {% if card.linkedin %}'linkedin',{% endif %}
-        {% if card.twitter %}'twitter',{% endif %}
-        {% if card.snapchat %}'snapchat',{% endif %}
-        {% if card.youtube %}'youtube',{% endif %}
-        {% if card.tiktok %}'tiktok'{% endif %}
-    ].filter(Boolean));
-
-    function createSocialMediaSelector() {
-        const availableSocials = socialMediaOptions.filter(social => !addedSocials.has(social.id));
-
-        if (availableSocials.length === 0) {
-            addSocialBtn.style.display = 'none';
-            return;
-        }
-
-        const fieldDiv = document.createElement('div');
-        fieldDiv.className = 'relative flex items-center space-x-2';
-
-        const selectHTML = `
-            <div class="flex-grow">
-                <select class="social-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Select Platform</option>
-                    ${availableSocials.map(social => `
-                        <option value="${social.id}"
-                                data-icon="${social.icon}"
-                                data-color="${social.color}">
-                            ${social.name}
-                        </option>
-                    `).join('')}
-                </select>
-            </div>
-        `;
-
-        fieldDiv.innerHTML = selectHTML;
-        socialContainer.appendChild(fieldDiv);
-
-        const select = fieldDiv.querySelector('.social-select');
-        select.addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            const socialId = this.value;
-
-            if (socialId) {
-                const social = socialMediaOptions.find(s => s.id === socialId);
-                addedSocials.add(socialId);
-
-                const inputField = document.createElement('div');
-                inputField.className = 'relative flex items-center space-x-2';
-                inputField.innerHTML = `
-                    <div class="flex-grow">
-                        <label for="${social.id}" class="block text-sm font-medium text-gray-700">
-                            <i class="fab ${social.icon} mr-2 ${social.color}"></i>${social.name}
-                        </label>
-                        <div class="mt-1 flex rounded-md shadow-sm">
-                            <input type="text" id="${social.id}" name="${social.id}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                   placeholder="Enter ${social.name} profile link">
-                        </div>
-                    </div>
-                    <button type="button" class="remove-social-btn mt-6 text-red-600 hover:text-red-800">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
-                `;
-
-                fieldDiv.replaceWith(inputField);
-
-                inputField.querySelector('.remove-social-btn').addEventListener('click', function() {
-                    addedSocials.delete(socialId);
-                    inputField.remove();
-                    addSocialBtn.style.display = 'inline-flex';
-                });
-            }
-        });
-    }
-
-    // Add remove button handlers for existing social media fields
-    document.querySelectorAll('.remove-social-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const field = this.closest('.relative');
-            const socialId = field.querySelector('input').id;
-            addedSocials.delete(socialId);
-            field.remove();
-            addSocialBtn.style.display = 'inline-flex';
-        });
-    });
-
-    addSocialBtn.addEventListener('click', createSocialMediaSelector);
-
-    // Hide add button if all socials are already added
-    if (addedSocials.size >= socialMediaOptions.length) {
-        addSocialBtn.style.display = 'none';
-    }
-});
-</script> -->
 
 <script>
     // Инициализация конфига месенджеров и социальных сетей для JS

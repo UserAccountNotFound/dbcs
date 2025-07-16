@@ -19,6 +19,14 @@ MESSAGE_n_SOCIAL_NETWORKS = [
         'label': 'Whatsapp',
         'placeholder': 'Номер WhatsApp или ссылка'       
     },
+        {
+        'key': 'max',
+        'icon': 'fab fa-max',
+        'url': 'https://max.ru/u/',
+        'class': 'from-blue-500 to-blue-600',
+        'label': 'MAX',
+        'placeholder': 'Uid пользователя в MAX'       
+    },
     {
         'key': 'instagram',
         'icon': 'fab fa-instagram',
