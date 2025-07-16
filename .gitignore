@@ -35,6 +35,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+**/__pycache__/
+
 # Flask stuff:
 instance/
 .webassets-cache
