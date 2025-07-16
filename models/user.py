@@ -94,8 +94,8 @@ class Order(db.Model):
 
     # Статусы
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, cancelled
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     def __repr__(self):
         return f'<Order {self.id} by {self.name}>'

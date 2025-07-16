@@ -8,7 +8,7 @@ import os
 from models.user import db, Admin, BusinessCard, Order  # Remove User from import
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 # Load environment variables
@@ -19,11 +19,11 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False"""
 
-load_dotenv()
 print("Database URL:", os.getenv('DATABASE_URL'))
 print("Secret Key:", os.getenv('FLASK_SECRET_KEY'))
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714'
+app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714' # только для разработки
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'avatars')
@@ -31,9 +31,13 @@ app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
+#@app.context_processor
+#def inject_now():
+#    return {'now': datetime.utcnow()}
+
 @app.context_processor
 def inject_now():
-    return {'now': datetime.utcnow()}
+    return {'now': datetime.now(timezone.utc)}
 
 
 # Initialize Flask-Login
@@ -227,7 +231,7 @@ def edit_card(unique_id):
                     card.photo_path = photo_path
 
             # Update the modified timestamp
-            card.updated_at = datetime.utcnow()
+            card.updated_at = datetime.now(timezone.utc)
 
             # Commit changes to database
             db.session.commit()
