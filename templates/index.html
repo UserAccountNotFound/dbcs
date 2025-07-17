@@ -6,28 +6,21 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-full bg-[#EAE7DC] flex items-center justify-center">
-                        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="DBCS" class="object-contain w-10 h-10">
+                    <div class="w-28 h-16 flex items-center justify-center">
+                        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="DBCS" class="object-contain w-24 h-12">
                     </div>
                     <span class="text-xl font-bold text-gray-900 ml-2">Digital Bussines Card Service</span>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-4">
-
-                        <div class="dropdown inline-block relative">
-                            <a href="{{ url_for('order_form') }}"
-                               class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#EAE7DC] hover:bg-gray-100">
-                                <span class="mr-1">Регистрация</span>
-                            </a>
-                        </div>
-                        
-                        <div class="dropdown inline-block relative">
-                            <a href="{{ url_for('login') }}"
-                               class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#E85A4F] hover:bg-[#E98074]">
-                                <span class="mr-1">Вход</span>
-                            </a>
-                        </div>
-                                              
+                        <a href="{{ url_for('order_form') }}"
+                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#EAE7DC] hover:bg-gray-100">
+                            <span class="mr-1">Регистрация</span>
+                        </a>
+                        <a href="{{ url_for('login') }}"
+                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#E85A4F] hover:bg-[#E98074]">
+                            <span class="mr-1">Вход</span>
+                        </a>                                             
                     </div>
                 </div>
             </div>
@@ -49,53 +42,24 @@
                     </span>
                     </h1>
                     <p class="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg lg:text-base xl:text-lg">
-                        Если вам требуется создать уникальный дизайн визитных карт с <span class="text-orange-500">NFC</span> и/или <span class="text-orange-500">QR кодами</span> но нет возможности разбираться в тонкостях дизайна, верстки, програмирования и производства визитных карт, мы с радостью вам поможем.
+                        Если вам требуется создать уникальный дизайн визитных карт с <span class="text-orange-500">NFC</span> и/или <span class="text-orange-500">QR кодами</span> но нет возможности разбираться в тонкостях дизайна, верстки, программирования и производства визитных карт, мы с радостью вам поможем.
                     </p>
                 </div>
                 <div class="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
-                    <div class="relative mx-auto w-80 rounded-lg shadow-lg">
-                        <div class="relative block w-full bg-white rounded-lg overflow-hidden">
-                            <!-- Sample Business Card Preview -->
-                            <div class="p-6">
-                                <div class="text-center">
-                                    <!-- Logo -->
-                                    <div class="mb-2">
-                                        <img src="{{ url_for('static', filename='images/logo.svg') }}"
-                                             alt="DBCS"
-                                             class="h-8 mx-auto">
-                                    </div>
-
-                                    <!-- Save Contact Section -->
-                                    <div class="mb-6">
-                                        <div class="w-16 h-16 mx-auto bg-[#F15A22]/10 rounded-full flex items-center justify-center mb-4">
-                                            <i class="fas fa-address-card text-[#F15A22] text-2xl"></i>
-                                        </div>
-                                        <h2 class="text-xl font-semibold text-gray-900 mb-2">Сохранить контакт</h2>
-                                        <p class="text-gray-600 mb-4">
-                                            Делитесь контактами в одно касание.
-                                        </p>
-                                    </div>
-
-                                    <!-- Download Button (Static) -->
-                                    <div class="w-full bg-[#F15A22] text-white rounded-lg p-3 mb-3">
-                                        <div class="flex flex-col items-center">
-                                            <i class="fas fa-download text-xl mb-1"></i>
-                                            <span class="text-sm font-medium">Сохранить в контактах</span>
-                                            <div class="flex items-center space-x-2 mt-1">
-                                                <i class="fab fa-apple"></i>
-                                                <span class="text-xs">&</span>
-                                                <i class="fab fa-android"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Info Text -->
-                                    <p class="text-xs text-gray-500 mt-2">
-                                        Это создаст полную карточку контакта со всеми деталями, социальными сетями и информацией о местоположении.
-                                    </p>
-                                </div>
-                            </div>
+                    <!-- Карусель -->
+                    <div class="relative mx-auto w-80 h-[400px] rounded-lg shadow-lg overflow-hidden">
+                        <!-- Контейнер слайдов -->
+                        <div class="relative w-full h-full">
+                            {% include '_ext_tpl_carousel.html'%}
                         </div>
+
+                        <!-- Навигационные точки -->
+                        <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
+                            <button onclick="showSlide(0)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot active:bg-[#F15A22] active:scale-150"></button>
+                            <button onclick="showSlide(1)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot"></button>
+                            <button onclick="showSlide(2)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot"></button>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -106,8 +70,8 @@
     <div class="bg-white py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center">
-                <h2 class="text-4xl font-black text-gray-900 mb-2">Почему стоит выбрать Digital Bussines Card Service ?</h2>
-                <p class="text-lg text-gray-600 font-light">Сервис упрощающий комуникацию людей</p>
+                <h2 class="text-4xl font-black text-gray-900 mb-2">Почему стоит выбрать Digital Bussines Card Service?</h2>
+                <p class="text-lg text-gray-600 font-light">Сервис упрощающий коммуникацию людей</p>
             </div>
             <div class="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <!-- Feature 1 -->
@@ -131,7 +95,7 @@
                     <div class="ml-16">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Открытый исходный код (Open Source)</h3>
                         <p class="text-base text-gray-600 leading-relaxed">
-                            Проект распрострняется под GNU General Public License (GPL) v3.0 - исходный код которого доступен для просмотра, изменения и распространения.
+                            Проект распространяется под GNU General Public License (GPL) v3.0 - исходный код которого доступен для просмотра, изменения и распространения.
                         </p>
                     </div>
                 </div>
@@ -144,7 +108,7 @@
                     <div class="ml-16">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Минимальное время внедрения</h3>
                         <p class="text-base text-gray-600 leading-relaxed">
-                            Требования минимального количество ресурсов ресурсов для локального развертывания.
+                            Требования минимального количества ресурсов для локального развертывания.
                         </p>
                     </div>
                 </div>
@@ -153,4 +117,64 @@
     </div>
 </div>
 
+<script>
+// Инициализация карусели
+let currentSlide = 0;
+const slides = document.querySelectorAll('[id^="slide"]');
+const dots = document.querySelectorAll('.dot');
+let interval;
+
+function showSlide(index) {
+    // Скрываем все слайды
+    slides.forEach(slide => {
+        slide.classList.remove('opacity-100');
+        slide.classList.add('opacity-0');
+    });
+    
+    // Показываем выбранный слайд
+    slides[index].classList.remove('opacity-0');
+    slides[index].classList.add('opacity-100');
+    
+    // Обновляем точки
+    dots.forEach(dot => dot.classList.remove('bg-[#F15A22]', 'scale-150'));
+    dots[index].classList.add('bg-[#F15A22]', 'scale-150');
+    
+    currentSlide = index;
+}
+
+function nextSlide() {
+    const nextIndex = (currentSlide + 1) % slides.length;
+    showSlide(nextIndex);
+    resetInterval();
+}
+
+function prevSlide() {
+    const prevIndex = (currentSlide - 1 + slides.length) % slides.length;
+    showSlide(prevIndex);
+    resetInterval();
+}
+
+function startInterval() {
+    interval = setInterval(nextSlide, 5000);
+}
+
+function resetInterval() {
+    clearInterval(interval);
+    startInterval();
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+    showSlide(0);
+    startInterval();
+    
+    // Навигация по точкам
+    dots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+            showSlide(index);
+            resetInterval();
+        });
+    });
+});
+</script>
 {% endblock %}
