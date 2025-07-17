@@ -40,16 +40,12 @@ app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
-#@app.context_processor
-#def inject_now():
-#    return {'now': datetime.utcnow()}
-
 @app.context_processor
 def inject_now():
     return {'now': datetime.now(timezone.utc)}
 
 
-# Initialize Flask-Login
+# Инициализация Flask-Login
 login_manager = LoginManager(app)
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -101,6 +97,28 @@ def robots():
         """
     
     return Response(rules.strip(), mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap():
+    site_url = os.getenv("SITE_URL", "https://example.local")  # fallback, если не задан
+    
+    """Генерация sitemap.xml"""
+    # Основные URL сайта
+    pages = [
+        {"url": "", "lastmod": datetime.now(timezone.utc), "changefreq": "daily", "priority": "1.0"},
+        {"url": "about", "lastmod": datetime.now(timezone.utc), "changefreq": "monthly", "priority": "0.8"},
+        {"url": "contact", "lastmod": datetime.now(timezone.utc), "changefreq": "yearly", "priority": "0.5"},
+    ]
+
+    # Формируем XML
+    sitemap_xml = render_template(
+        'sitemap_template.xml',
+        pages=pages,
+        site_url=site_url  # Замените на ваш домен
+    )
+    
+    return Response(sitemap_xml, mimetype='application/xml')
 
 
 @app.route('/login', methods=['GET', 'POST'])
