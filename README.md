@@ -1,6 +1,6 @@
 ![Stability](https://img.shields.io/badge/stability-work_in_progress-lightgrey?style=flat&color=ffff00)
 
-![GitHub repo size](https://img.shields.io/github/repo-size/UserAccountNotFound/dbcs)
+![GitHub repo size](https://img.shields.io/github/repo-size/UserAccountNotFound/dbcs?style=flat)
 
 # dbcs
 digital business card service
