@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, Response, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 import qrcode
@@ -31,6 +31,7 @@ print("Database URL:", os.getenv('DATABASE_URL'))
 print("Secret Key:", os.getenv('FLASK_SECRET_KEY'))
 
 app = Flask(__name__)
+# Определяем префикс для переменных среды
 app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714' # только для разработки
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
@@ -77,6 +78,30 @@ def create_tables():
         db.session.add(admin)
         db.session.commit()
 
+@app.route('/robots.txt') # инструкции для поисковых роботов
+def robots():
+    # Получаем настройки из .env
+    is_production = os.getenv("FLASK_ENV") == "production"
+    site_url = os.getenv("SITE_URL", "https://example.local")  # fallback, если не задан
+    
+    # Правила для продакшена
+    if is_production:
+        rules = f"""
+        User-agent: *
+        Allow: /
+        Disallow: /admin/
+        Disallow: /card/
+        Sitemap: {site_url}/sitemap.xml
+        """
+    # В разработке запрещаем индексацию
+    else:
+        rules = """
+        User-agent: *
+        Disallow: /
+        """
+    
+    return Response(rules.strip(), mimetype='text/plain')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -95,7 +120,6 @@ def login():
             flash('Нет такого аккаунта. Проверьте логин или пароль')
 
     return render_template('login.html')
-
 
 @app.route('/logout')
 @login_required
