@@ -49,7 +49,7 @@ def inject_now():
 
 
 # Initialize Flask-Login
-login_manager = LoginManager()
+login_manager = LoginManager(app)
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 db.init_app(app)
