@@ -1,41 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen bg-gradient-to-b from-orange-50 to-white">
+<div class="min-h-screen bg-gradient-to-br from-[#EAE7DC] to-white">
     <!-- Navigation -->
-    <nav class="bg-white shadow-sm">
+    <nav class="bg-gradient-to-br from-[#D8C3A5] to-[#EAE7DC] shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+                    <div class="w-12 h-12 rounded-full bg-[#EAE7DC] flex items-center justify-center">
                         <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="DBCS" class="object-contain w-10 h-10">
                     </div>
                     <span class="text-xl font-bold text-gray-900 ml-2">Digital Bussines Card Service</span>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-4">
-                        <div class="relative">
-                            <button onclick="toggleDropdown()"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600">
-                                Вход
-                            </button>
-                            <div id="accountDropdown"
-                                 class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
-                                <div class="py-1">
-                                    <a href="{{ url_for('login') }}"
-                                       onclick="closeDropdown()"
-                                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50">
-                                        У меня есть учетная запись
-                                    </a>
-                                    <a href="{{ url_for('order_form') }}"
-                                       onclick="closeDropdown()"
-                                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50">
-                                        У меня нет учетной записи
-                                    </a>
-                                </div>
-                            </div>
+
+                        <div class="dropdown inline-block relative">
+                            <a href="{{ url_for('order_form') }}"
+                               class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#EAE7DC] hover:bg-gray-100">
+                                <span class="mr-1">Регистрация</span>
+                            </a>
                         </div>
+                        
+                        <div class="dropdown inline-block relative">
+                            <a href="{{ url_for('login') }}"
+                               class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#E85A4F] hover:bg-[#E98074]">
+                                <span class="mr-1">Вход</span>
+                            </a>
+                        </div>
+                                              
                     </div>
-                    </div>
+                </div>
             </div>
         </div>
     </nav>
@@ -167,32 +161,5 @@
         </div>
     </div>
 </div>
-
-
-<script>
-    function closeDropdown() {
-        const dropdown = document.getElementById('accountDropdown');
-        dropdown.classList.add('hidden');
-    }
-
-    function toggleDropdown() {
-        const dropdown = document.getElementById('accountDropdown');
-        dropdown.classList.toggle('hidden');
-
-        // Закрытие выпадающего списка при нажатии
-        function handleClickOutside(e) {
-            const dropdown = document.getElementById('accountDropdown');
-            const button = e.target.closest('button');
-            if (!button && !dropdown.contains(e.target)) {
-                dropdown.classList.add('hidden');
-                document.removeEventListener('click', handleClickOutside);
-            }
-        }
-
-        setTimeout(() => {
-            document.addEventListener('click', handleClickOutside);
-        }, 0);
-    }
-</script>
 
 {% endblock %}
