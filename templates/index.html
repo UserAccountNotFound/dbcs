@@ -14,7 +14,7 @@
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-4">
                         <a href="{{ url_for('order_form') }}"
-                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#EAE7DC] hover:bg-gray-100">
+                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-transparent hover:bg-[#EAE7DC]">
                             <span class="mr-1">Регистрация</span>
                         </a>
                         <a href="{{ url_for('login') }}"
@@ -33,16 +33,19 @@
             <div class="lg:grid lg:grid-cols-12 lg:gap-8">
                 <div class="sm:text-center md:max-w-2xl md:mx-auto lg:col-span-6 lg:text-left">
                     <h1>
-                        <span class="block text-sm font-semibold uppercase tracking-wide text-orange-600">
+                        <span class="block text-sm font-semibold uppercase tracking-wide text-[#E85A4F]">
                             Добро пожаловать в Сервис цифровых визитных карт
                         </span>
                     <span class="mt-1 block text-4xl tracking-tight font-extrabold sm:text-5xl xl:text-6xl">
-                        <span class="block text-gray-900">Цифровые решения</span>
-                        <span class="block text-orange-600"> - новые возможности</span>
+                        <span class="block text-gray-900">Цифровые решения </span>
+                        <span class="block text-[#E85A4F]"> для профессионалов</span>
                     </span>
                     </h1>
                     <p class="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg lg:text-base xl:text-lg">
-                        Если вам требуется создать уникальный дизайн визитных карт с <span class="text-orange-500">NFC</span> и/или <span class="text-orange-500">QR кодами</span> но нет возможности разбираться в тонкостях дизайна, верстки, программирования и производства визитных карт, мы с радостью вам поможем.
+                        Создаем будущее деловых коммуникаций, заменяя устаревшие бумажные визитки современными цифровыми решениями.
+                    </p>
+                    <p class="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg lg:text-base xl:text-lg">
+                        Упрощаем обмен контактами, делая его быстрым и удобным с помощью технологий NFC и QR-кодов.
                     </p>
                 </div>
                 <div class="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 lg:flex lg:items-center">
@@ -55,7 +58,7 @@
 
                         <!-- Навигационные точки -->
                         <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
-                            <button onclick="showSlide(0)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot active:bg-[#F15A22] active:scale-150"></button>
+                            <button onclick="showSlide(0)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot active:bg-[#E85A4F] active:scale-150"></button>
                             <button onclick="showSlide(1)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot"></button>
                             <button onclick="showSlide(2)" class="w-2 h-2 rounded-full bg-gray-300 focus:outline-none transition-all duration-300 dot"></button>
                         </div>
@@ -76,7 +79,7 @@
             <div class="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <!-- Feature 1 -->
                 <div class="relative transform transition-all duration-300 hover:scale-105">
-                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-orange-500 text-white">
+                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-[#E85A4F] text-white">
                         <i class="fas fa-qrcode"></i>
                     </div>
                     <div class="ml-16">
@@ -89,20 +92,20 @@
 
                 <!-- Feature 2 -->
                 <div class="relative transform transition-all duration-300 hover:scale-105">
-                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-orange-500 text-white">
+                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-[#E85A4F] text-white">
                         <i class="fas fa-tags"></i>
                     </div>
                     <div class="ml-16">
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Открытый исходный код (Open Source)</h3>
                         <p class="text-base text-gray-600 leading-relaxed">
-                            Проект распространяется под GNU General Public License (GPL) v3.0 - исходный код которого доступен для просмотра, изменения и распространения.
+                            Проект распространяется под Apache License Version 2.0 - исходный код которого доступен для просмотра, изменения и распространения.
                         </p>
                     </div>
                 </div>
 
                 <!-- Feature 3 -->
                 <div class="relative transform transition-all duration-300 hover:scale-105">
-                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-orange-500 text-white">
+                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-[#E85A4F] text-white">
                         <i class="fas fa-lightbulb"></i>
                     </div>
                     <div class="ml-16">
