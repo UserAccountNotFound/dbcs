@@ -359,7 +359,16 @@ def index():
 @app.route('/card/<unique_id>')
 def view_card(unique_id):
     card = BusinessCard.query.filter_by(unique_id=unique_id).first_or_404()
-    return render_template('view_card.html', user=card)
+
+    # Фильтруем соцсети для JS (исключаем основные)
+    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key']]
+    
+    # GET request - display the form
+    return render_template('view_card.html', 
+                           user=card,
+                           MESSAGE_n_SOCIAL_NETWORKS=MESSAGE_n_SOCIAL_NETWORKS,
+                           mnsn_config=json.dumps(js_mnsn_config)
+                           )
 
 
 @app.route('/admin/orders')
