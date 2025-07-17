@@ -106,9 +106,10 @@ def logout():
 
 @app.route('/dashboard')
 @login_required
-def dashboard():
+def dashboard():   
     cards = BusinessCard.query.order_by(BusinessCard.created_at.desc()).all()
-    return render_template('dashboard.html', cards=cards)
+    template_name = 'dashboard_admin.html' if current_user.is_admin else 'dashboard_user.html'
+    return render_template(template_name, cards=cards)
 
 
 @app.route('/create_card', methods=['GET', 'POST'])
