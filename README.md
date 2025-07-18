@@ -68,7 +68,7 @@ sudo systemctl status dbcs
 Кроме меня это ни кому не нужно.
 
 ## License
-Проект распространяется по GNU General Public License (GPL) v3.0 - подробности смотрите в файле LICENSE.
+Проект распространяется под Apache License Version 2.0 - подробности смотрите в файле LICENSE.
 
 ## Acknowledgments
 Особая благодарность всем проектам с открытым исходным кодом,
