@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Write to NFC Tag</h1>
+<h1>Запись NFC меток</h1>
 <p>Введите данные, которые вы хотите записать на NFC-метку, затем поднесите ее к своему устройству.</p>
 
 <div>
-    <label for="nfc-data">Data to write:</label>
+    <label for="nfc-data">Данные для записи:</label>
     <input type="text" id="nfc-data" placeholder="Введите данные записи">
-    <button id="write-btn">Write to NFC</button>
+    <button id="write-btn">Записать NFC метку</button>
 </div>
 
 <div id="write-status" style="margin-top: 20px;"></div>

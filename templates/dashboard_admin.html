@@ -1,72 +1,122 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen bg-gray-100">
+<div class="min-h-screen bg-gradient-to-br from-[#EAE7DC] to-white">
     <!-- Navigation -->
-    <nav class="bg-white shadow">
+    <nav class="bg-[#D8C3A5]/40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-wrap justify-between h-auto sm:h-16 py-2 sm:py-0">
+            <div class="flex justify-between h-16">
+                <!-- Логотип и название -->
                 <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <h1 class="text-xl font-bold text-gray-900">Личный кабинет</h1>
+                    <div class="w-28 h-16 flex items-center justify-center">
+                        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="DBCS" class="object-contain w-24 h-12">
                     </div>
+                    <span class="hidden sm:inline text-xl font-bold text-gray-900 ml-2">Панель управления</span>
                 </div>
 
-                <div class="flex items-center space-x-2">
+                <!-- Мобильное меню (бургер) -->
+                <div class="flex md:hidden items-center">
+                    <button id="mobile-menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-[#E85A4F] focus:outline-none">
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
 
-                    <div class="dropdown inline-block relative">
-                        <button class="bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded inline-flex items-center">
-                        <span class="mr-1">Настройка системы</span>
-                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/> </svg>
-                        </button>
-                        <ul class="dropdown-menu absolute hidden text-gray-700 pt-1">
-                        <li class=""><a class="rounded-t bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap" href="{{ url_for('nfc_read') }}">У меня есть учетная запись</a></li>
-                        <li class=""><a class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap" href="{{ url_for('order_form') }}">У меня нет учетной записи (Регистрация)</a></li>
-                        <li class=""><a class="rounded-b bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap" href="#">Three is the magic number</a></li>
-                        </ul>
-                    </div>
-
+                <!-- Десктопное меню -->
+                <div class="hidden md:flex items-center space-x-1">
+                    <!-- Меню аналитики-->
                     <div class="relative group">
-                        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                <i class="fas fa-cog mr-1.5"></i>Управление сервисом
-                                <i class="fas fa-chevron-down ml-1.5 text-xs"></i>
+                        <button class="inline-flex items-center px-4 py-2 text-base font-medium text-gray-700 hover:text-[#E85A4F] focus:outline-none transition-colors duration-200">
+                            <span>Аналитика</span>
+                            <svg class="ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
                         </button>
-                        <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden group-hover:block">
-                            <a href="{{ url_for('nfc_read') }}"
-                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                <i class="fas fa-clipboard-list mr-1.5"></i>Управление пользователями
-                            </a>
-                            <a href="{{ url_for('nfc_read') }}"
-                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                <i class="fas fa-clipboard-list mr-1.5"></i>Управление группами
-                            </a>
-                            <a href="{{ url_for('nfc_read') }}"
-                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                <i class="fas fa-clipboard-list mr-1.5"></i>Операции с NFC
-                            </a>
-                            <a href="{{ url_for('admin_orders') }}"
-                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                <i class="fas fa-clipboard-list mr-1.5"></i>Управление заказами
-                            </a>
+                        <div class="absolute left-0 mt-2 w-56 origin-top-left rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                            <div class="py-1">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Статус/Статистика ОС</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Статистика по пользователям</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Статистика посещению vCard</a>
+                            </div>
                         </div>
                     </div>
 
-                            
-                    <a href="{{ url_for('admin_orders') }}"
-                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-clipboard-list mr-1.5"></i>Команды
-                    </a>
+                    <!-- Меню настроек -->
+                    <div class="relative group">
+                        <button class="inline-flex items-center px-4 py-2 text-base font-medium text-gray-700 hover:text-[#E85A4F] focus:outline-none transition-colors duration-200">
+                            <span>Управление Системой</span>
+                            <svg class="ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div class="absolute left-0 mt-2 w-56 origin-top-left rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                            <div class="py-1">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Управление польвователями</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Группы/Организации</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Шаблоны</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-[#EAE7DC]">Импорт/Экспорт</a>
+                            </div>
+                        </div>
+                    </div>
 
-                    <a href="{{ url_for('create_card') }}"
-                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-plus mr-1.5"></i>Создать новую карту
-                    </a>
-
-                    <a href="{{ url_for('logout') }}"
-                       class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        <i class="fas fa-sign-out-alt mr-1.5"></i>Выход
-                    </a>
+                    <!-- Отдельные кнопки  -->
+                    <div class="flex items-center space-x-4 ml-4">
+                        <a href="{{ url_for('create_card') }}"
+                           class="inline-flex items-center px-4 py-2 text-base font-medium rounded-md shadow-sm text-gray-700 bg-transparent hover:bg-[#EAE7DC] transition-colors duration-200">
+                            <span class="mr-1">Создать карту</span>
+                        </a>
+                        <a href="{{ url_for('logout') }}"
+                           class="inline-flex items-center px-4 py-2 text-base font-medium rounded-md shadow-sm text-white bg-[#E85A4F] hover:bg-[#E98074] transition-colors duration-200">
+                            <span class="mr-1">Выход</span>
+                        </a>
+                    </div>
                 </div>
+            </div>
+        </div>
 
+        <!-- Мобильное меню (скрытое по умолчанию) -->
+        <div id="mobile-menu" class="hidden md:hidden pb-3 px-2">
+            <!-- Статистика с аккордеоном -->
+            <div class="mb-2">
+                <button onclick="toggleMobileSubmenu('mobile-home-submenu')" class="flex justify-between items-center w-full px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[#EAE7DC] hover:text-[#E85A4F] transition-colors duration-200">
+                    <span>Аналитика</span>
+                    <svg id="mobile-home-arrow" class="h-5 w-5 transform transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="mobile-home-submenu" class="hidden pl-4 mt-1 space-y-1">
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Статус/Статистика ОС</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Статистика по пользователям</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Статистика посещению vCard</a>
+                </div>
+            </div>
+
+            <!-- Меню настроек с аккордеоном -->
+            <div class="mb-2">
+                <button onclick="toggleMobileSubmenu('mobile-services-submenu')" class="flex justify-between items-center w-full px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[#EAE7DC] hover:text-[#E85A4F] transition-colors duration-200">
+                    <span>Управление Системой</span>
+                    <svg id="mobile-services-arrow" class="h-5 w-5 transform transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="mobile-services-submenu" class="hidden pl-4 mt-1 space-y-1">
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Управление польвователями</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Группы/Организации</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Шаблоны</a>
+                    <a href="#" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-[#EAE7DC]">Импорт/Экспорт</a>
+                </div>
+            </div>
+
+            <!-- Отдельные кнопки -->
+            <div class="mt-4 space-y-2">
+                <a href="{{ url_for('create_card') }}"
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[#EAE7DC] hover:text-[#E85A4F] transition-colors duration-200">
+                    Регистрация
+                </a>
+                <a href="{{ url_for('logout') }}"
+                   class="block px-3 py-2 rounded-md text-base font-medium text-white bg-[#E85A4F] hover:bg-[#E98074] transition-colors duration-200">
+                    Выход
+                </a>
             </div>
         </div>
     </nav>
@@ -134,6 +184,14 @@
                                    target="_blank">
                                     <i class="fas fa-eye mr-1.5"></i>Просмотр
                                 </a>
+                                <a href="{{ url_for('nfc_write', unique_id=card.unique_id) }}"
+                                   class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 text-xs sm:text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100">
+                                    <i class="fa-brands fa-nfc-symbol mr-1.5"></i>NFC
+                                </a>
+                                <a href="#"
+                                   class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 text-xs sm:text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100">
+                                    <i class="fas fa-qrcode mr-1.5"></i>QRCODE
+                                </a>                                
                                 <a href="{{ url_for('edit_card', unique_id=card.unique_id) }}"
                                    class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 text-xs sm:text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100">
                                     <i class="fas fa-edit mr-1.5"></i>Изменить
@@ -188,6 +246,43 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Мобильное меню
+    document.getElementById('mobile-menu-button').addEventListener('click', function() {
+        const menu = document.getElementById('mobile-menu');
+        menu.classList.toggle('hidden');
+    });
+
+    // Функция для переключения подменю в мобильной версии
+    function toggleMobileSubmenu(submenuId) {
+        const submenu = document.getElementById(submenuId);
+        const arrow = document.getElementById(submenuId.replace('submenu', 'arrow'));
+        
+        submenu.classList.toggle('hidden');
+        arrow.classList.toggle('rotate-180');
+    }
+
+    // Закрытие меню при клике вне его области
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('mobile-menu');
+        const button = document.getElementById('mobile-menu-button');
+        
+        if (!menu.contains(event.target) && !button.contains(event.target)) {
+            menu.classList.add('hidden');
+            
+            // Закрываем все подменю
+            document.querySelectorAll('[id$="-submenu"]').forEach(submenu => {
+                submenu.classList.add('hidden');
+            });
+            
+            // Возвращаем стрелки в исходное положение
+            document.querySelectorAll('[id$="-arrow"]').forEach(arrow => {
+                arrow.classList.remove('rotate-180');
+            });
+        }
+    });
+</script>
 
 <script>
 function confirmDelete(uniqueId) {
