@@ -2,27 +2,51 @@
 {% block content %}
 <div class="min-h-screen bg-gradient-to-br from-[#EAE7DC] to-white">
     <!-- Navigation -->
-    <nav class="bg-gradient-to-br from-[#D8C3A5] to-[#EAE7DC] shadow-sm">
+    <nav class="bg-[#D8C3A5]/40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
+                <!-- Логотип и название -->
                 <div class="flex items-center">
                     <div class="w-28 h-16 flex items-center justify-center">
                         <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="DBCS" class="object-contain w-24 h-12">
                     </div>
-                    <span class="text-xl font-bold text-gray-900 ml-2">Digital Bussines Card Service</span>
+                    <span class="hidden sm:inline text-xl font-bold text-gray-900 ml-2">Digital Bussines Card Service</span>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <div class="flex items-center space-x-4">
-                        <a href="{{ url_for('order_form') }}"
-                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-transparent hover:bg-[#EAE7DC]">
-                            <span class="mr-1">Регистрация</span>
-                        </a>
-                        <a href="{{ url_for('login') }}"
-                           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-[#E85A4F] hover:bg-[#E98074]">
-                            <span class="mr-1">Вход</span>
-                        </a>                                             
-                    </div>
+
+                <!-- Мобильное меню (бургер) -->
+                <div class="flex md:hidden items-center">
+                    <button id="mobile-menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-[#E85A4F] focus:outline-none">
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
                 </div>
+
+                <!-- Десктопное меню -->
+                <div class="hidden md:flex items-center space-x-4">
+                    <a href="{{ url_for('order_form') }}"
+                       class="inline-flex items-center px-4 py-2 md:px-6 md:py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-gray-700 bg-transparent hover:bg-[#EAE7DC] transition-colors duration-200">
+                        <span class="mr-1">Регистрация</span>
+                    </a>
+                    <a href="{{ url_for('login') }}"
+                       class="inline-flex items-center px-4 py-2 md:px-6 md:py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-[#E85A4F] hover:bg-[#E98074] transition-colors duration-200">
+                        <span class="mr-1">Вход</span>
+                    </a>                                             
+                </div>
+            </div>
+        </div>
+
+        <!-- Мобильное меню (скрытое по умолчанию) -->
+        <div id="mobile-menu" class="hidden md:hidden pb-3 px-2">
+            <div class="flex flex-col space-y-2">
+                <a href="{{ url_for('order_form') }}"
+                   class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-[#EAE7DC] hover:text-[#E85A4F] transition-colors duration-200">
+                    Регистрация
+                </a>
+                <a href="{{ url_for('login') }}"
+                   class="block px-3 py-2 rounded-md text-base font-medium text-white bg-[#E85A4F] hover:bg-[#E98074] transition-colors duration-200">
+                    Вход
+                </a>
             </div>
         </div>
     </nav>
@@ -36,9 +60,9 @@
                         <span class="block text-sm font-semibold uppercase tracking-wide text-[#E85A4F]">
                             Добро пожаловать в Сервис цифровых визитных карт
                         </span>
-                        <span class="mt-1 block text-4xl tracking-tight font-extrabold sm:text-5xl xl:text-6xl">
+                        <span class="mt-1 block text-3xl tracking-tight font-extrabold sm:text-5xl xl:text-6xl">
                             <span class="block text-gray-900">Цифровые решения </span>
-                            <span class="block text-right text-[#E85A4F]">для профессионалов</span>
+                            <span class="block text-[#E85A4F]">для профессионалов</span>
                         </span>
                     </h1>
                     <div class="flex items-start">
@@ -153,64 +177,85 @@
     </div>
 </div>
 
+
+
+
+
 <script>
-// Инициализация карусели
-let currentSlide = 0;
-const slides = document.querySelectorAll('[id^="slide"]');
-const dots = document.querySelectorAll('.dot');
-let interval;
-
-function showSlide(index) {
-    // Скрываем все слайды
-    slides.forEach(slide => {
-        slide.classList.remove('opacity-100');
-        slide.classList.add('opacity-0');
+    // Мобильное меню
+    document.getElementById('mobile-menu-button').addEventListener('click', function() {
+        const menu = document.getElementById('mobile-menu');
+        menu.classList.toggle('hidden');
     });
-    
-    // Показываем выбранный слайд
-    slides[index].classList.remove('opacity-0');
-    slides[index].classList.add('opacity-100');
-    
-    // Обновляем точки
-    dots.forEach(dot => dot.classList.remove('bg-[#F15A22]', 'scale-150'));
-    dots[index].classList.add('bg-[#F15A22]', 'scale-150');
-    
-    currentSlide = index;
-}
 
-function nextSlide() {
-    const nextIndex = (currentSlide + 1) % slides.length;
-    showSlide(nextIndex);
-    resetInterval();
-}
+    // Закрытие меню при клике вне его области
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('mobile-menu');
+        const button = document.getElementById('mobile-menu-button');
+        
+        if (!menu.contains(event.target) && !button.contains(event.target)) {
+            menu.classList.add('hidden');
+        }
+    });
 
-function prevSlide() {
-    const prevIndex = (currentSlide - 1 + slides.length) % slides.length;
-    showSlide(prevIndex);
-    resetInterval();
-}
 
-function startInterval() {
-    interval = setInterval(nextSlide, 5000);
-}
+    // Инициализация карусели
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('[id^="slide"]');
+    const dots = document.querySelectorAll('.dot');
+    let interval;
 
-function resetInterval() {
-    clearInterval(interval);
-    startInterval();
-}
+    function showSlide(index) {
+        // Скрываем все слайды
+        slides.forEach(slide => {
+            slide.classList.remove('opacity-100');
+            slide.classList.add('opacity-0');
+        });
+        
+        // Показываем выбранный слайд
+        slides[index].classList.remove('opacity-0');
+        slides[index].classList.add('opacity-100');
+        
+        // Обновляем точки
+        dots.forEach(dot => dot.classList.remove('bg-[#F15A22]', 'scale-150'));
+        dots[index].classList.add('bg-[#F15A22]', 'scale-150');
+        
+        currentSlide = index;
+    }
 
-// Инициализация
-document.addEventListener('DOMContentLoaded', () => {
-    showSlide(0);
-    startInterval();
-    
-    // Навигация по точкам
-    dots.forEach((dot, index) => {
-        dot.addEventListener('click', () => {
-            showSlide(index);
-            resetInterval();
+    function nextSlide() {
+        const nextIndex = (currentSlide + 1) % slides.length;
+        showSlide(nextIndex);
+        resetInterval();
+    }
+
+    function prevSlide() {
+        const prevIndex = (currentSlide - 1 + slides.length) % slides.length;
+        showSlide(prevIndex);
+        resetInterval();
+    }
+
+    function startInterval() {
+        interval = setInterval(nextSlide, 5000);
+    }
+
+    function resetInterval() {
+        clearInterval(interval);
+        startInterval();
+    }
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', () => {
+        showSlide(0);
+        startInterval();
+        
+        // Навигация по точкам
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', () => {
+                showSlide(index);
+                resetInterval();
+            });
         });
     });
-});
 </script>
 {% endblock %}
