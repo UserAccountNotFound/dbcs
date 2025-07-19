@@ -23,22 +23,23 @@ except ImportError:
 load_dotenv()
 
 """"app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False"""
+"""
 
 print("Database URL:", os.getenv('DATABASE_URL'))
 print("Secret Key:", os.getenv('FLASK_SECRET_KEY'))
 
 app = Flask(__name__)
 # Определяем префикс для переменных среды
-app.config['SECRET_KEY'] = '23eea57342560ce4c7e0a2c9884c1714' # только для разработки
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', '23eea57342560ce4c7e0a2c9884c1714' ) # fallback, если нет переменной
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'avatars')
 app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+nfc_data_store = {}
 
 @app.context_processor
 def inject_now():
@@ -160,13 +161,22 @@ def create_card():
         try:
             unique_id = base64.urlsafe_b64encode(os.urandom(64)).decode('utf-8')
 
+            social_data = {}
+            for social in MESSAGE_n_SOCIAL_NETWORKS:
+                key = social['key']
+                value = request.form.get(key)
+                if value:  # Сохраняем только если значение есть
+                    social_data[key] = value
+
             # Handle photo upload
             photo = request.files.get('photo')
             photo_path = None
-            if photo:
-                filename = f"{unique_id}_{photo.filename}"
+            if photo and photo.filename:  # Добавлена проверка на filename
+                filename = f"{unique_id}_{photo.filename}"                      # убрать имя файла!?!? подумать!!!
+                # Создаем папку avatars, если её нет
+                os.makedirs(os.path.join('static', 'avatars'), exist_ok=True)
                 photo_path = f"avatars/{filename}"
-                photo.save(f"static/{photo_path}")
+                photo.save(os.path.join('static', photo_path))  # Исправлен путь
 
             # Create new user
             new_user = BusinessCard(
@@ -177,20 +187,11 @@ def create_card():
                 phone_third=request.form.get('phone_third'),
                 phone_fourth=request.form.get('phone_fourth'),
                 email=request.form['email'],
-                address=request.form['address'],  # Add this line here
+                address=request.form['address'],
                 location=request.form['location'],
                 photo_path=photo_path,
-                # Social media fields
-                telegram=request.form.get('telegram'),
-                instagram=request.form.get('instagram'),
-                whatsapp=request.form.get('whatsapp'),
-                twitter=request.form.get('twitter'),
-                snapchat=request.form.get('snapchat'),
-                facebook=request.form.get('facebook'),
-                linkedin=request.form.get('linkedin'),
-                youtube=request.form.get('youtube'),
-                tiktok=request.form.get('tiktok'),
-                unique_id=unique_id
+                unique_id=unique_id, # собственно адрес визитки
+                **social_data  # Распаковываем все социальные сети
             )
 
             db.session.add(new_user)
@@ -198,9 +199,9 @@ def create_card():
 
             # Generate QR code
             qr = qrcode.QRCode(version=1,
-                               error_correction=qrcode.constants.ERROR_CORRECT_L, 
-                               box_size=10, 
-                               border=5)
+                             error_correction=qrcode.constants.ERROR_CORRECT_L, 
+                             box_size=10, 
+                             border=5)
             qr.add_data(f"{request.host_url}card/{unique_id}")
             qr.make(fit=True)
             qr_img = qr.make_image(fill_color="black", back_color="white")
@@ -217,21 +218,20 @@ def create_card():
             })
 
         except Exception as e:
+            db.session.rollback()  # откат транзакции при ошибке
+            app.logger.error(f"Error creating card: {str(e)}")  # Логирование ошибки
             return jsonify({
                 'success': False,
                 'error': str(e)
             }), 400
 
-    # Фильтруем соцсети для JS (исключаем основные)
-    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key'] not in ['telegram', 'whatsapp']]
+    # Фильтруем соцсети для JS
+    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key']]
     
     # GET request - display the form
     return render_template('create_card.html', 
-                           MESSAGE_n_SOCIAL_NETWORKS=MESSAGE_n_SOCIAL_NETWORKS,
-                           mnsn_config=json.dumps(js_mnsn_config)
-                           )
-
-
+                         MESSAGE_n_SOCIAL_NETWORKS=MESSAGE_n_SOCIAL_NETWORKS,
+                         mnsn_config=json.dumps(js_mnsn_config))
 
 
 @app.route('/edit_card/<unique_id>', methods=['GET', 'POST'])
@@ -261,17 +261,10 @@ def edit_card(unique_id):
             elif not card.location:
                 card.location = "Location not specified"
 
-            # Handle social media fields
-
-            card.telegram = request.form.get('telegram')
-            card.whatsapp = request.form.get('whatsapp')
-            card.instagram = request.form.get('instagram')
-            card.facebook = request.form.get('facebook')
-            card.linkedin = request.form.get('linkedin')
-            card.twitter = request.form.get('twitter')
-            card.snapchat = request.form.get('snapchat')
-            card.youtube = request.form.get('youtube')
-            card.tiktok = request.form.get('tiktok')
+            # обработчик изменений в полях соцсетей
+            for social in MESSAGE_n_SOCIAL_NETWORKS:
+                key = social['key']
+                setattr(card, key, request.form.get(key))
 
             # Handle photo upload if provided
             if 'photo' in request.files:
@@ -307,7 +300,7 @@ def edit_card(unique_id):
             return render_template('edit_card.html', card=card)
 
     # Фильтруем соцсети для JS (исключаем основные)
-    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key'] not in ['telegram', 'whatsapp']]
+    js_mnsn_config = [s for s in MESSAGE_n_SOCIAL_NETWORKS if s['key']]
     
     # GET request - display the form
     return render_template('edit_card.html', 
