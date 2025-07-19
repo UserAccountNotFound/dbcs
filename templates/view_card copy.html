@@ -131,6 +131,7 @@
                              class="h-8 mx-auto">
                     </div>
 
+                        {% if current_user.is_authenticated and current_user.is_admin %}
                         <!-- Admin View with QR Code -->
                         <h2 class="text-lg font-semibold text-gray-900 mb-4">Поделиться визиткой</h2>
                         <div class="flex flex-col items-center justify-center mb-6">
@@ -145,6 +146,18 @@
                                 Распечатать QR-код
                             </button>
                         </div>
+                        {% else %}
+                        <!-- User-friendly save contact message -->
+                        <div class="mb-6">
+                            <div class="w-16 h-16 mx-auto bg-[#F15A22]/10 rounded-full flex items-center justify-center mb-4">
+                                <i class="fas fa-address-card text-[#F15A22] text-2xl"></i>
+                            </div>
+                            <h2 class="text-xl font-semibold text-gray-900 mb-2">Сохранить контакт</h2>
+                            <p class="text-gray-600 mb-4">
+                                Сохраните контактную информацию {{ user.name }} в свой телефон.
+                            </p>
+                        </div>
+                    {% endif %}
 
                     <!-- vCard Download Button -->
                     <button onclick="handleVCardDownload()"
@@ -158,6 +171,11 @@
                         </div>
                     </button>
 
+                    {% if not current_user.is_authenticated %}
+                    <p class="text-xs text-gray-500 mt-3">
+                        Это создаст полную карточку контакта со всеми данными, фотографией, ссылками социальных сетей и информацией о местонахождении.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -177,6 +195,8 @@
 
 <!-- QR Code Generation Script -->
 <script>
+    // Generate QR Code - Only for admin
+    {% if current_user.is_authenticated and current_user.is_admin %}
     window.onload = function() {
         new QRCode(document.getElementById("qrcode"), {
             text: window.location.href,
@@ -184,6 +204,7 @@
             height: 180
         });
     }
+    {% endif %}
 </script>
 
 <!-- Print QR Code Script -->
