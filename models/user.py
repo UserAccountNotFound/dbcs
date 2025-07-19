@@ -49,6 +49,8 @@ class BusinessCard(db.Model):
 
     # Social Media Links
     telegram = db.Column(db.String(100))
+    rus_max = db.Column(db.String(100))
+    wechat = db.Column(db.String(100))
     instagram = db.Column(db.String(100))
     whatsapp = db.Column(db.String(100))
     twitter = db.Column(db.String(100))
@@ -89,7 +91,7 @@ class Order(db.Model):
     social_media_4 = db.Column(db.String(200))
 
     # Обратная связь
-    source = db.Column(db.String(50), nullable=False)  # Как они узнали о нас
+    source = db.Column(db.String(50), nullable=False)  # Как узнали о нас
     source_details = db.Column(db.Text)  # Дополнительные сведения об источнике
 
     # Статусы

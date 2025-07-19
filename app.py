@@ -6,7 +6,7 @@ from io import BytesIO
 import base64
 import os
 import json
-from models.user import db, Admin, BusinessCard, Order  # Remove User from import
+from models.user import db, Admin, BusinessCard, Order
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -134,7 +134,7 @@ def robots():
 def sitemap():
     site_url = os.getenv("SITE_URL", "https://dbcs.example.local")  # fallback, если не задан
     
-    """Генерация sitemap.xml"""
+    # Генерация sitemap.xml
     # Основные URL сайта
     pages = [
         {"url": "", "lastmod": datetime.now(timezone.utc), "changefreq": "daily", "priority": "1.0"},

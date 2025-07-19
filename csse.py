@@ -20,11 +20,11 @@ MESSAGE_n_SOCIAL_NETWORKS = [
         'placeholder': 'Номер WhatsApp или ссылка'       
     },
         {
-        'key': 'max',
+        'key': 'rus_max',
         'icon': 'fab fa-max',
         'url': 'https://max.ru/u/',
         'class': 'from-blue-500 to-blue-600',
-        'label': 'MAX',
+        'label': 'VK MAX',
         'placeholder': 'Uid пользователя в MAX'       
     },
     {
