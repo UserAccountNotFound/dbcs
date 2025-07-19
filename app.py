@@ -5,11 +5,15 @@ import qrcode
 from io import BytesIO
 import base64
 import os
+import json
 from models.user import db, Admin, BusinessCard, Order  # Remove User from import
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from datetime import datetime, timezone
-import json
+from werkzeug.utils import secure_filename
+
+# Load environment variables
+load_dotenv()
 
 # Импортируем конфиг с перечнем месенджеров и социальных сетей
 try:
@@ -19,8 +23,9 @@ except ImportError:
     MESSAGE_n_SOCIAL_NETWORKS = []
     print("Warning: social_config.py не найден, отсутствуют значения для точек входа Месенджеров и Соц.Сетей")
 
-# Load environment variables
-load_dotenv()
+# Разрешенные расширения для аватарок
+ALLOWED_PHOTO_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_MIME_TYPES = {'image/png', 'image/jpeg', 'image/gif'}
 
 """"app = Flask(__name__)
 
@@ -32,14 +37,35 @@ print("Secret Key:", os.getenv('FLASK_SECRET_KEY'))
 
 app = Flask(__name__)
 # Определяем префикс для переменных среды
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', '23eea57342560ce4c7e0a2c9884c1714' ) # fallback, если нет переменной
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex()) # случайный ключ - fallback, если не задан в .env
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////' + os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                                      'business_cards.db')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'avatars')
 app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Максимальный размер аватарок
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 
 nfc_data_store = {}
+
+#def allowed_file(filename):
+#    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PHOTO_EXTENSIONS
+def allowed_file(file_obj_or_name):
+    if isinstance(file_obj_or_name, str):
+        # Если передано имя файла (строка)
+        filename = file_obj_or_name
+        if not filename:
+            return False
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        return ext in ALLOWED_PHOTO_EXTENSIONS
+    else:
+        # Если передан объект файла
+        if not (file_obj_or_name and file_obj_or_name.filename):
+            return False
+        ext = file_obj_or_name.filename.rsplit('.', 1)[1].lower() if '.' in file_obj_or_name.filename else ''
+        mime = getattr(file_obj_or_name, 'mimetype', '')
+        return ext in ALLOWED_PHOTO_EXTENSIONS and mime in ALLOWED_MIME_TYPES
+
 
 @app.context_processor
 def inject_now():
@@ -72,8 +98,12 @@ def create_tables():
     if not Admin.query.first():
         admin = Admin(username='admin', email='admin@example.com')
         admin.set_password('admin')  # Написать функцию генерации деволтового пароля!
-        db.session.add(admin)
-        db.session.commit()
+        try:
+            db.session.add(admin)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise
 
 @app.route('/robots.txt') # инструкции для поисковых роботов
 def robots():
@@ -171,12 +201,22 @@ def create_card():
             # Handle photo upload
             photo = request.files.get('photo')
             photo_path = None
-            if photo and photo.filename:  # Добавлена проверка на filename
-                filename = f"{unique_id}_{photo.filename}"                      # убрать имя файла!?!? подумать!!!
-                # Создаем папку avatars, если её нет
-                os.makedirs(os.path.join('static', 'avatars'), exist_ok=True)
-                photo_path = f"avatars/{filename}"
-                photo.save(os.path.join('static', photo_path))  # Исправлен путь
+            if photo and photo.filename:
+                if not allowed_file(photo):  # Проверяем объект файла
+                    flash('Недопустимый тип файла. Разрешены только: ' + ', '.join(ALLOWED_PHOTO_EXTENSIONS))
+                    return redirect(request.url)
+                # Получаем расширение файла
+                file_ext = photo.filename.rsplit('.', 1)[1].lower()
+                filename = secure_filename(f"{unique_id}.{file_ext}")
+                photo_path = os.path.join('avatars', filename)
+                
+                try:
+                    os.makedirs(os.path.join('static', 'avatars'), exist_ok=True)
+                    photo.save(os.path.join('static', photo_path))
+                except Exception as e:
+                    app.logger.error(f"Ошибка сохранения файла: {str(e)}")
+                    flash('Ошибка при сохранении файла', 'error')
+                    return redirect(request.url)
 
             # Create new user
             new_user = BusinessCard(
@@ -194,9 +234,13 @@ def create_card():
                 **social_data  # Распаковываем все социальные сети
             )
 
-            db.session.add(new_user)
-            db.session.commit()
-
+            try:
+                db.session.add(new_user)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                raise
+            
             # Generate QR code
             qr = qrcode.QRCode(version=1,
                              error_correction=qrcode.constants.ERROR_CORRECT_L, 
@@ -237,7 +281,7 @@ def create_card():
 @app.route('/edit_card/<unique_id>', methods=['GET', 'POST'])
 @login_required
 def edit_card(unique_id):
-    # Get the existing card or return 404 if not found
+    # Извлекаем существующую визитку или возвращаем 404 ошибку
     card = BusinessCard.query.filter_by(unique_id=unique_id).first_or_404()
 
     if request.method == 'POST':
@@ -266,30 +310,44 @@ def edit_card(unique_id):
                 key = social['key']
                 setattr(card, key, request.form.get(key))
 
-            # Handle photo upload if provided
+            # обработчик изменений аватарок
+#            if 'photo' in request.files:
+#                photo = request.files['photo']
+#                if photo and photo.filename and allowed_file(photo.filename):
             if 'photo' in request.files:
                 photo = request.files['photo']
                 if photo and photo.filename:
-                    # Delete old photo if it exists
+                    if not allowed_file(photo):  # Проверяем объект файла
+                        flash('Недопустимый тип файла', 'error')
+                        return render_template('edit_card.html', card=card)
+                    # Удаляем старую фотографию, если она есть
                     if card.photo_path:
                         old_photo_path = os.path.join('static', card.photo_path)
                         if os.path.exists(old_photo_path):
                             os.remove(old_photo_path)
-
-                    # Save new photo
-                    filename = f"{card.unique_id}_{photo.filename}"
-                    photo_path = f"avatars/{filename}"
+                    
+                    # Получаем расширение файла
+                    file_ext = photo.filename.rsplit('.', 1)[1].lower()
+                    # Присваеваем новое имя файлу
+                    filename = secure_filename(f"{unique_id}.{file_ext}")
+                    photo_path = os.path.join('avatars', filename)
                     os.makedirs(os.path.join('static', 'avatars'), exist_ok=True)
                     photo.save(os.path.join('static', photo_path))
                     card.photo_path = photo_path
 
-            # Update the modified timestamp
+            # Обновляем время изменения визитки 
             card.updated_at = datetime.now(timezone.utc)
 
-            # Commit changes to database
-            db.session.commit()
-            flash('Digital Business card updated successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            # Запись изменений в БД
+            try:    
+                db.session.commit()
+                flash('Визитная карточка успешно обновлена!', 'success')
+                return redirect(url_for('dashboard'))
+            except Exception as e:
+                db.session.rollback()
+                raise
+            
+
 
         except Exception as e:
             # Log the error for debugging
@@ -315,16 +373,23 @@ def edit_card(unique_id):
 def delete_card(unique_id):
     card = BusinessCard.query.filter_by(unique_id=unique_id).first_or_404()
 
-    # Delete associated photo if it exists
+    # Удаляем аватарку если она была
     if card.photo_path:
         try:
-            os.remove(f"avatars/{card.photo_path}")
-        except:
-            pass
+            old_photo_path = os.path.join('static', card.photo_path)
+            if os.path.exists(old_photo_path):
+                os.remove(old_photo_path)
+        except Exception as e:
+            app.logger.error(f"Error deleting photo: {str(e)}")
 
-    db.session.delete(card)
-    db.session.commit()
-    flash('Card deleted successfully!')
+    try:
+        db.session.delete(card)
+        db.session.commit()
+        flash('Визитная карточка удалена!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting card: {str(e)}")
+        flash('Ошибка при удалении визитной карточки', 'error')
     return redirect(url_for('dashboard'))
 
 
@@ -365,8 +430,12 @@ def order_form():
             )
 
             # Add and commit to database
-            db.session.add(new_order)
-            db.session.commit()
+            try:    
+                db.session.add(new_order)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                raise
 
             return jsonify({
                 'success': True,
