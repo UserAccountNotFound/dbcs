@@ -78,7 +78,7 @@ def create_tables():
 def robots():
     # Получаем настройки из .env
     is_production = os.getenv("FLASK_ENV") == "production"
-    site_url = os.getenv("SITE_URL", "https://example.local")  # fallback, если не задан
+    site_url = os.getenv("SITE_URL", "https://dbcs.example.local")  # fallback, если нет переменной
     
     # Правила для продакшена
     if is_production:
@@ -101,7 +101,7 @@ def robots():
 
 @app.route('/sitemap.xml')
 def sitemap():
-    site_url = os.getenv("SITE_URL", "https://example.local")  # fallback, если не задан
+    site_url = os.getenv("SITE_URL", "https://dbcs.example.local")  # fallback, если не задан
     
     """Генерация sitemap.xml"""
     # Основные URL сайта
