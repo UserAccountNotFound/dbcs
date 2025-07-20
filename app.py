@@ -180,7 +180,15 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():   
-    cards = BusinessCard.query.order_by(BusinessCard.created_at.desc()).all()
+    if current_user.is_admin:
+        # Для администратора - все карточки с сортировкой по дате создания
+        cards = BusinessCard.query.order_by(BusinessCard.created_at.desc()).all()
+    else:
+        # Для обычного пользователя - только его карточки с сортировкой
+        cards = BusinessCard.query.filter_by(user_id=current_user.id)\
+                                 .order_by(BusinessCard.created_at.desc())\
+                                 .all()
+    
     template_name = 'dashboard_admin.html' if current_user.is_admin else 'dashboard_user.html'
     return render_template(template_name, cards=cards)
 
