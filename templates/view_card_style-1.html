@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-[#EAE7DC] to-white py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Card Details -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <!-- Profile Header -->
+                <div class="relative h-32 bg-gradient-to-r from-[#D8C3A5] to-[#D8C3A5]/80">
+                    <div class="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
+                        {% if user.photo_path %}
+                        <img src="{{ url_for('static', filename=user.photo_path) }}"
+                             alt="{{ user.name }}"
+                             class="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg">
+                        {% else %}
+                        <div class="w-24 h-24 rounded-full border-4 border-white bg-gray-200 flex items-center justify-center">
+                            <i class="fas fa-user text-3xl text-gray-400"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Profile Info -->
+                <div class="pt-16 px-6 pb-6">
+                    <div class="text-center">
+                        <h1 class="text-2xl font-bold text-gray-900">{{ user.name }}</h1>
+                        <p class="text-blue-600 font-medium mt-1">{{ user.title }}</p>
+                    </div>
+
+                    <!-- Contact Information -->
+                    <div class="mt-6 space-y-4">
+                        <!-- Primary Phone -->
+                        {% if user.phone_primary %}
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#D8C3A5]/10 text-[#D8C3A5]">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <a href="tel:{{ user.phone_primary }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
+                                {{ user.phone_primary }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Secondary Phone -->
+                        {% if user.phone_secondary %}
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#D8C3A5]/10 text-[#D8C3A5]">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <a href="tel:{{ user.phone_secondary }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
+                                {{ user.phone_secondary }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Third Phone -->
+                        {% if user.phone_third %}
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <a href="tel:{{ user.phone_third }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
+                                {{ user.phone_third }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Fourth Phone -->
+                        {% if user.phone_fourth %}
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <a href="tel:{{ user.phone_fourth }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
+                                {{ user.phone_fourth }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Email -->
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <a href="mailto:{{ user.email }}" class="ml-3 text-gray-700 hover:text-blue-600 transition">
+                                {{ user.email }}
+                            </a>
+                        </div>
+
+                        <!-- Адрес -->
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22]">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <span class="ml-3 text-gray-700">{{ user.address }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Локация -->
+                    <div class="mt-6">
+                        <a href="{{ user.location }}" target="_blank"
+                           class="w-full flex items-center justify-center px-4 py-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition duration-200">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-[#F15A22]/10 text-[#F15A22] mr-3">
+                                <i class="fas fa-directions"></i>
+                            </div>
+                            <span class="text-blue-600 font-medium">Расположение на карте</span>
+                        </a>
+                    </div>
+
+                    <!-- Социальные сети -->
+                    <div class="mt-6 flex justify-center space-x-4">
+                        {% for social in MESSAGE_n_SOCIAL_NETWORKS if user[social.key] %}
+                            <a href="{{ social.url }}{{ user[social.key] }}" target="_blank"
+                               class="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br {{ social.class }} text-white hover:opacity-90 transition">
+                                <i class="{{ social.icon }}"></i>
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="text-center">
+                    <!-- Logo placement -->
+                    <div class="mb-2">
+                        <img src="{{ url_for('static', filename='images/logo.svg') }}"
+                             alt="DBCS"
+                             class="h-8 mx-auto">
+                    </div>
+
+                        {% if current_user.is_authenticated and current_user.is_admin %}
+                        <!-- Admin View with QR Code -->
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">Поделиться визиткой</h2>
+                        <div class="flex flex-col items-center justify-center mb-6">
+                            <div id="qrcode" class="mb-2"></div>
+                            <p class="text-base font-medium text-gray-900 mt-2">{{ user.name }}</p>
+                            <p class="text-sm text-gray-500">{{ user.title }}</p>
+                        </div>
+                        <div class="space-y-3">
+                            <button onclick="handlePrintQR()"
+                                    class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                <i class="fas fa-print mr-2"></i>
+                                Распечатать QR-код
+                            </button>
+                        </div>
+                        {% else %}
+                        <!-- User-friendly save contact message -->
+                        <div class="mb-6">
+                            <div class="w-16 h-16 mx-auto bg-[#F15A22]/10 rounded-full flex items-center justify-center mb-4">
+                                <i class="fas fa-address-card text-[#F15A22] text-2xl"></i>
+                            </div>
+                            <h2 class="text-xl font-semibold text-gray-900 mb-2">Сохранить контакт</h2>
+                            <p class="text-gray-600 mb-4">
+                                Сохраните контактную информацию {{ user.name }} в свой телефон.
+                            </p>
+                        </div>
+                    {% endif %}
+
+                    <!-- vCard Download Button -->
+                    <button onclick="handleVCardDownload()"
+                            class="w-full flex flex-col items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg text-white bg-[#F15A22] hover:opacity-90 transition-colors duration-200">
+                        <i class="fas fa-download text-xl mb-1"></i>
+                        <span>Сохранить в контактах</span>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <i class="fab fa-apple"></i>
+                            <span class="text-xs opacity-90">&</span>
+                            <i class="fab fa-android"></i>
+                        </div>
+                    </button>
+
+                    {% if not current_user.is_authenticated %}
+                    <p class="text-xs text-gray-500 mt-3">
+                        Это создаст полную карточку контакта со всеми данными, фотографией, ссылками социальных сетей и информацией о местонахождении.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+    // Инициализация конфига месенджеров и социальных сетей для JS
+    document.addEventListener('DOMContentLoaded', function() {
+        window.socialConfig = JSON.parse('{{ mnsn_config | safe }}');
+    
+    });
+</script>
+
+
+<!-- QR Code Generation Script -->
+<script>
+    // Generate QR Code - Only for admin
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    window.onload = function() {
+        new QRCode(document.getElementById("qrcode"), {
+            text: window.location.href,
+            width: 180,
+            height: 180
+        });
+    }
+    {% endif %}
+</script>
+
+<!-- Print QR Code Script -->
+<script>
+    function handlePrintQR() {
+        // Create a new window for printing
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>QR Code - ${document.title}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        margin: 0;
+                        padding: 20px;
+                    }
+                    .container {
+                        text-align: center;
+                    }
+                    .qr-code {
+                        margin-bottom: 20px;
+                    }
+                    .info {
+                        font-family: Arial, sans-serif;
+                        margin-top: 20px;
+                    }
+                    @media print {
+                        body {
+                            min-height: auto;
+                            padding: 0;
+                        }
+                        .container {
+                            page-break-inside: avoid;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="qr-code">
+                        ${document.getElementById('qrcode').innerHTML}
+                    </div>
+                    <div class="info">
+                        <h2 style="margin: 0;">${'{{ user.name }}'}</h2>
+                        <p style="margin: 5px 0; color: #666;">${'{{ user.title }}'}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // Create a blob and generate URL
+        const blob = new Blob([printContent], { type: 'text/html' });
+        const printUrl = URL.createObjectURL(blob);
+
+        // Create an iframe for printing (this works better on mobile)
+        const printFrame = document.createElement('iframe');
+        printFrame.style.display = 'none';
+        document.body.appendChild(printFrame);
+
+        printFrame.src = printUrl;
+        printFrame.onload = function() {
+            try {
+                printFrame.contentWindow.print();
+
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(printFrame);
+                    URL.revokeObjectURL(printUrl);
+                }, 1000);
+            } catch (e) {
+                console.error('Print failed:', e);
+                alert('Could not print. Please try saving as PDF instead.');
+            }
+        };
+    }
+</script>
+
+<!-- vCard Download Script -->
+<script>
+    async function getImageFromExistingImg() {
+        return new Promise((resolve) => {
+            const existingImg = document.querySelector('img[alt="{{ user.name }}"]');
+            if (!existingImg) {
+                console.error('Could not find existing image');
+                resolve(null);
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const MAX_SIZE = 400;
+            let width = existingImg.naturalWidth;
+            let height = existingImg.naturalHeight;
+
+            if (width > height && width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+            } else if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(existingImg, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    console.error('Failed to create blob from canvas');
+                    resolve(null);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64String = reader.result;
+                    const base64Data = base64String.includes(',') ?
+                        base64String.split(',')[1] : base64String;
+                    resolve({ data: base64Data, type: blob.type });
+                };
+                reader.onerror = () => {
+                    console.error('Error reading blob');
+                    resolve(null);
+                };
+                reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.8);
+        });
+    }
+
+    async function handleVCardDownload() {
+        try {
+            let photoData = '';
+            let imageType = 'JPEG';
+
+            {% if user.photo_path %}
+            try {
+                console.log('Getting photo from existing image element');
+                const imageResult = await getImageFromExistingImg();
+                if (imageResult) {
+                    photoData = imageResult.data;
+                    imageType = imageResult.type.split('/')[1].toUpperCase();
+                    console.log('Successfully got photo data from existing image');
+                }
+            } catch (error) {
+                console.error('Error processing photo:', error);
+                photoData = ''; // Reset photo data on error
+            }
+            {% endif %}
+
+            // Format phone numbers
+            const phones = {
+                primary: '{{ user.phone_primary }}',
+                secondary: '{{ user.phone_secondary }}',
+                third: '{{ user.phone_third }}',
+                fourth: '{{ user.phone_fourth }}'
+            };
+
+            // Create vCard content
+            const vCardContent = [
+                'BEGIN:VCARD',
+                'VERSION:3.0',
+                `FN:${'{{ user.name }}'}`,
+                `TITLE:${'{{ user.title }}'}`,
+                phones.primary ? `TEL;type=CELL;type=pref:${phones.primary.replace(/[^\d+]/g, '')}` : '',
+                phones.secondary ? `TEL;type=CELL;type=home:${phones.secondary.replace(/[^\d+]/g, '')}` : '',
+                phones.third ? `TEL;type=CELL;type=work:${phones.third.replace(/[^\d+]/g, '')}` : '',
+                phones.fourth ? `TEL;type=CELL;type=other:${phones.fourth.replace(/[^\d+]/g, '')}` : '',
+                `EMAIL:${'{{ user.email }}'}`,
+                `URL:${window.location.href}`,
+                {% if user.location %}`ADR;type=WORK:;;${'{{ user.location }}'};;;`,{% endif %}
+                photoData ? `PHOTO;ENCODING=BASE64;TYPE=${imageType}:${photoData}` : '',
+                {% if user.telegram %}`X-SOCIALPROFILE;type=telegram:https://t.me/${'{{ user.telegram }}'}`,{% endif %}
+                {% if user.instagram %}`X-SOCIALPROFILE;type=instagram:https://instagram.com/${'{{ user.instagram }}'}`,{% endif %}
+                {% if user.whatsapp %}`X-SOCIALPROFILE;type=whatsapp:https://wa.me/${'{{ user.whatsapp }}'}`,{% endif %}
+                {% if user.facebook %}`X-SOCIALPROFILE;type=facebook:https://facebook.com/${'{{ user.facebook }}'}`,{% endif %}
+                {% if user.linkedin %}`X-SOCIALPROFILE;type=linkedin:https://linkedin.com/in/${'{{ user.linkedin }}'}`,{% endif %}
+                {% if user.twitter %}`X-SOCIALPROFILE;type=twitter:https://twitter.com/${'{{ user.twitter }}'}`,{% endif %}
+                {% if user.youtube %}`X-SOCIALPROFILE;type=youtube:https://youtube.com/${'{{ user.youtube }}'}`,{% endif %}
+                {% if user.tiktok %}`X-SOCIALPROFILE;type=tiktok:https://tiktok.com/@${'{{ user.tiktok }}'}`,{% endif %}
+                {% if user.snapchat %}`X-SOCIALPROFILE;type=snapchat:https://snapchat.com/add/${'{{ user.snapchat }}'}`,{% endif %}
+                'END:VCARD'
+            ].filter(Boolean).join('\n');
+
+            // Create and trigger download
+            const blob = new Blob([vCardContent], { type: 'text/vcard;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${'{{ user.name }}'.replace(/\s+/g, '_')}_card.vcf`;
+
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            console.log('vCard download completed successfully');
+        } catch (error) {
+            console.error('Error creating vCard:', error);
+            alert('Une erreur est survenue lors de la création de la carte de visite. Veuillez réessayer.');
+        }
+    }
+</script>
+{% endblock %}

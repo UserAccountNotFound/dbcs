@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Read NFC Tag</h1>
+<p>Поднесите NFC-метку к своему телефону, чтобы прочитать ее содержимое.</p>
+<div id="nfc-status">Ожидание NFC-метки...</div>
+<div id="nfc-content" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; display: none;"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (!("NDEFReader" in window)) {
+        document.getElementById('nfc-status').textContent = 
+            "Ваш браузер не поддерживает Web NFC. Попробуйте Chrome на Android.";
+        return;
+    }
+
+    const nfcReader = new NDEFReader();
+    
+    nfcReader.scan()
+        .then(() => {
+            nfcReader.onreading = event => {
+                const statusDiv = document.getElementById('nfc-status');
+                const contentDiv = document.getElementById('nfc-content');
+                
+                statusDiv.textContent = "NFC-метка обнаружена!";
+                contentDiv.style.display = "block";
+                contentDiv.innerHTML = "<strong>Tag ID:</strong> " + event.serialNumber + "<br>";
+                
+                for (const record of event.message.records) {
+                    contentDiv.innerHTML += `<strong>Record type:</strong> ${record.recordType}<br>`;
+                    contentDiv.innerHTML += `<strong>Data:</strong> ${JSON.stringify(record.data)}<br><br>`;
+                }
+                
+                // Отправляем данные на сервер
+                fetch('/api/nfc', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: event.serialNumber,
+                        content: Array.from(event.message.records.map(r => r.data))
+                    })
+                });
+            };
+            
+            nfcReader.onreadingerror = () => {
+                document.getElementById('nfc-status').textContent = 
+                    "Ошибка чтения NFC-метки. Попробуйте еще раз.";
+            };
+        })
+        .catch(error => {
+            document.getElementById('nfc-status').textContent = 
+                "Ошибка при доступе к памяти NFC-метки: " + error;
+        });
+});
+</script>
+{% endblock %}

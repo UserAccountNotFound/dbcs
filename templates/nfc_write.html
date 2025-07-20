@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Запись NFC меток</h1>
+<p>Введите данные, которые вы хотите записать на NFC-метку, затем поднесите ее к своему устройству.</p>
+
+<div>
+    <label for="nfc-data">Данные для записи:</label>
+    <input type="text" id="nfc-data" placeholder="Введите данные записи">
+    <button id="write-btn">Записать NFC метку</button>
+</div>
+
+<div id="write-status" style="margin-top: 20px;"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (!("NDEFReader" in window)) {
+        document.getElementById('write-status').textContent = 
+            "Ваш браузер не поддерживает Web NFC. Попробуйте Chrome на Android.";
+        return;
+    }
+
+    const writeButton = document.getElementById('write-btn');
+    const writeStatus = document.getElementById('write-status');
+    const nfcDataInput = document.getElementById('nfc-data');
+    
+    writeButton.addEventListener('click', async () => {
+        const data = nfcDataInput.value.trim();
+        if (!data) {
+            writeStatus.textContent = "Please enter some data to write.";
+            return;
+        }
+        
+        try {
+            const nfcWriter = new NDEFReader();
+            
+            writeStatus.textContent = "Готовность к записи - поднесите NFC-метку к задней крышке телефона....";
+            
+            await nfcWriter.write({
+                records: [{ recordType: "text", data }]
+            });
+            
+            writeStatus.textContent = "Данные успешно записаны на NFC-метку!";
+            
+            // Сохраняем информацию о записи на сервер
+            fetch('/api/nfc', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    content: data,
+                    action: "write"
+                })
+            });
+            
+        } catch (error) {
+            writeStatus.textContent = "Ошибка записи NFC-метки: " + error;
+        }
+    });
+});
+</script>
+{% endblock %}
