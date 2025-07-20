@@ -1,6 +1,6 @@
 // static/js/script.js
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize location input if it exists
+    // Инициализация поля ввода местоположения, если оно существует
     const locationInput = document.getElementById('location');
     if (locationInput) {
         initializeLocationInput(locationInput);
@@ -8,10 +8,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeLocationInput(input) {
-    // Update placeholder
+    // Обновление placeholder
     //input.placeholder = 'Вставте ссылку на карты Google';
 
-    // Optional: Add a button to get maps link
+    // Опционально: Добавление кнопки для получения ссылки на карты
     const helpButton = document.createElement('button');
     helpButton.type = 'button';
     helpButton.className = 'mt-2 text-sm text-blue-600 hover:text-blue-800';
@@ -28,7 +28,7 @@ function showLocationHelp() {
         4. Скопируйте предоставленную ссылку`);
 }
 
-// Image preview handler
+// Обработчик предпросмотра изображения
 function previewImage(input) {
     const preview = document.getElementById('preview-image');
     const defaultPhoto = document.getElementById('default-photo');
@@ -46,7 +46,7 @@ function previewImage(input) {
     }
 }
 
-// QR Modal functions
+// Функции модального окна QR-кода
 function showQRModal(qrCode, cardUrl) {
     const modal = document.getElementById('qr-modal');
     if (modal) {
@@ -80,14 +80,14 @@ function copyLink() {
 
 function shareCard(platform) {
     const url = document.getElementById('share-link').value;
-    const text = "Check out my digital business card!";
+    const text = "Моя электронная визитка";
 
     switch(platform) {
         case 'whatsapp':
             window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`);
             break;
         case 'email':
-            window.open(`mailto:?subject=Digital Business Card&body=${encodeURIComponent(text + '\n\n' + url)}`);
+            window.open(`mailto:?subject=Электронная визитная карта&body=${encodeURIComponent(text + '\n\n' + url)}`);
             break;
         case 'twitter':
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + ' ' + url)}`);

@@ -13,16 +13,16 @@ def create_admin():
     password = getpass.getpass("Enter password: ")
     confirm_password = getpass.getpass("Confirm password: ")
 
-    # Validate input
+    # Проверка введеных данных
     if not username or not email or not password:
-        print("Error: All fields are required")
+        print("Error: Все поля должны быть заполнены")
         return
 
     if password != confirm_password:
-        print("Error: Passwords don't match")
+        print("Error: Пароли не совпадают")
         return
 
-    # Check if username already exists
+    # Проверка, существования имени пользователя и почты
     with app.app_context():
         if UserSystem.query.filter_by(username=username).first():
             print("Error: Такой логин уже есть")
@@ -33,11 +33,11 @@ def create_admin():
             return
 
         try:
-            # Create new admin
-            admin = UserSystem(username=username, email=email)
+            # Создаем новую админскую учетку
+            admin = UserSystem(username=username, email=email, is_admin=1)
             admin.set_password(password)
 
-            # Save to database
+            # Сохраняем в БД
             db.session.add(admin)
             db.session.commit()
 

@@ -94,10 +94,10 @@ def load_user(user_id):
 @app.before_first_request
 def create_tables():
     db.create_all()
-    # Создаем администратора по умолчанию, если его нет
+    # Создаем администратора по умолчанию, если его нет 
     if not UserSystem.query.first():
-        admin = UserSystem(username='admin', email='admin@example.com')
-        admin.set_password('admin')  # TODO: Написать функцию генерации дефолтового пароля!
+        admin = UserSystem(username='admin', email='admin@example.com', is_admin=1)
+        admin.set_password('admin')  # TODO: Написать функцию генерации дефолтового пароля и вывода его в консоль!
         try:
             db.session.add(admin)
             db.session.commit()
