@@ -14,7 +14,7 @@
 
         <form action="{{ url_for('edit_card', unique_id=card.unique_id) }}" method="post" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-6">
             <!-- Скрытое поле для user_id -->
-            <input type="hidden" name="user_id" value="{{ current_user.id }}">
+
             
             <!-- Photo Upload Section -->
             <div class="space-y-2">
