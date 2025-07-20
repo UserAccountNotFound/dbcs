@@ -232,6 +232,7 @@ def create_card():
                 location=request.form['location'],
                 photo_path=photo_path,
                 unique_id=unique_id, # собственно адрес визитки
+                user_id=current_user.id, # id пользователя - создающего визитку
                 web_style=request.form.get('web_style'),  # Добавляем выбор стиля web страницы визитки, по дефолту 1
                 pdf_style=request.form.get('pdf_style'),  # Добавляем выбор стиля при печати в PDF
                 **social_data  # Распаковываем все социальные сети

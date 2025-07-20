@@ -13,8 +13,6 @@ class UserSystem(UserMixin, db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    #  Связь с таблицей визиток "один ко многим" 
-    business_cards = db.relationship('BusinessCard', backref='user', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -33,7 +31,6 @@ class UserSystem(UserMixin, db.Model):
 
     def get_id(self):
         return str(self.id)
-
 
 class BusinessCard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,9 +68,6 @@ class BusinessCard(db.Model):
     # Стили оформления
     web_style = db.Column(db.Integer)
     pdf_style = db.Column(db.Integer)
-
-    # Внешний ключ для связи с UserSystem
-    user_id = db.Column(db.Integer, db.ForeignKey('user_system.id'), nullable=False)
 
 
 class Order(db.Model):

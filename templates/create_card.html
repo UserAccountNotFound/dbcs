@@ -4,7 +4,7 @@
 <div id="qr-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex flex-col items-center">
-            <h3 class="text-2xl font-bold text-gray-900 mb-4">Ваша электронная визитка готова !</h3>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">Ваша электронная визитка готова!</h3>
 
              <!-- Отображение QR-кода -->
             <div class="qr-code-container mb-4">
@@ -45,7 +45,6 @@
 
 <div class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-
         <a href="{{ url_for('dashboard') }}" class="inline-flex items-center text-blue-600 hover:text-blue-700 mb-6">
             <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -56,6 +55,9 @@
         <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Заполните форму для создания цифровой визитной карточки</h1>
 
         <form action="{{ url_for('create_card') }}" method="post" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-6">
+            <!-- Скрытое поле для user_id -->
+            <input type="hidden" name="user_id" value="{{ current_user.id }}">
+            
             <!-- Секция загрузки фотографии -->
             <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700">Фотография профиля</label>
@@ -209,7 +211,6 @@
                             <option value="4">Элегантный</option>
                         </select>
                     </div>
-                    
                 </div>
             </div>
 
@@ -238,78 +239,73 @@
     // Инициализация конфига месенджеров и социальных сетей для JS
     document.addEventListener('DOMContentLoaded', function() {
         window.socialConfig = JSON.parse('{{ mnsn_config | safe }}');
-    
     });
 </script>
-
 
 <!-- Управление телефонными номерами -->
 <script>
     window.phoneCount = 1;
-document.addEventListener('DOMContentLoaded', function() {
-    const container = document.getElementById('phone-numbers-container');
-    const addButton = document.getElementById('add-phone-btn');
-    // let phoneCount = 1;
-    const maxPhones = 4;
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('phone-numbers-container');
+        const addButton = document.getElementById('add-phone-btn');
+        const maxPhones = 4;
 
-    const phoneTypes = {
-        2: { name: 'secondary', label: 'Второй' },
-        3: { name: 'third', label: 'Третий' },
-        4: { name: 'fourth', label: 'Четвертый' }
-    };
+        const phoneTypes = {
+            2: { name: 'secondary', label: 'Второй' },
+            3: { name: 'third', label: 'Третий' },
+            4: { name: 'fourth', label: 'Четвертый' }
+        };
 
-    function createPhoneField(index) {
-        const fieldDiv = document.createElement('div');
-        fieldDiv.className = 'phone-field relative';
+        function createPhoneField(index) {
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'phone-field relative';
 
-        const phoneType = phoneTypes[index];
+            const phoneType = phoneTypes[index];
 
-        fieldDiv.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <div class="flex-grow">
-                    <label for="phone_${phoneType.name}" class="block text-sm font-medium text-gray-700">
-                        ${phoneType.label} Phone Number
-                    </label>
-                    <div class="mt-1 flex rounded-md shadow-sm">
-                        <input type="tel"
-                               id="phone_${phoneType.name}"
-                               name="phone_${phoneType.name}"
-                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                               placeholder="Enter ${phoneType.label.toLowerCase()} phone number">
+            fieldDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <div class="flex-grow">
+                        <label for="phone_${phoneType.name}" class="block text-sm font-medium text-gray-700">
+                            ${phoneType.label} номер телефона
+                        </label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input type="tel"
+                                   id="phone_${phoneType.name}"
+                                   name="phone_${phoneType.name}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                   placeholder="Введите ${phoneType.label.toLowerCase()} номер телефона">
+                        </div>
                     </div>
+                    <button type="button" class="remove-phone-btn mt-6 text-red-600 hover:text-red-800">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
                 </div>
-                <button type="button" class="remove-phone-btn mt-6 text-red-600 hover:text-red-800">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
-            </div>
-        `;
+            `;
 
-        container.appendChild(fieldDiv);
+            container.appendChild(fieldDiv);
 
-        // Обработчик кнопки удаления
-        fieldDiv.querySelector('.remove-phone-btn').addEventListener('click', function() {
-            fieldDiv.remove();
-            phoneCount--;
-            addButton.style.display = 'inline-flex';
-        });
-    }
-
-    addButton.addEventListener('click', function() {
-        if (phoneCount < maxPhones) {
-            phoneCount++;
-            createPhoneField(phoneCount);
-
-            if (phoneCount >= maxPhones) {
-                addButton.style.display = 'none';
-            }
+            // Обработчик кнопки удаления
+            fieldDiv.querySelector('.remove-phone-btn').addEventListener('click', function() {
+                fieldDiv.remove();
+                phoneCount--;
+                addButton.style.display = 'inline-flex';
+            });
         }
+
+        addButton.addEventListener('click', function() {
+            if (phoneCount < maxPhones) {
+                phoneCount++;
+                createPhoneField(phoneCount);
+
+                if (phoneCount >= maxPhones) {
+                    addButton.style.display = 'none';
+                }
+            }
+        });
     });
-});
 </script>
-
-
 
 <!-- Обработчик предварительного просмотра изображений -->
 <script>
@@ -350,7 +346,7 @@ function copyLink() {
 
     const button = event.target;
     const originalText = button.textContent;
-    button.textContent = 'Copied!';
+    button.textContent = 'Скопировано!';
     setTimeout(() => {
         button.textContent = originalText;
     }, 2000);
@@ -358,7 +354,7 @@ function copyLink() {
 
 function shareCard(platform) {
     const url = document.getElementById('share-link').value;
-    const text = "Check out my digital business card!";
+    const text = "Посмотрите мою цифровую визитную карточку!";
 
     switch(platform) {
         case 'whatsapp':
@@ -434,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         setLoading(true);
 
-        const formData = new FormData(this);
+        const formData = new FormData(form);
 
         fetch('/create_card', {
             method: 'POST',
@@ -444,9 +440,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 showQRModal(data.qr_code, data.card_url);
-                resetForm(); // Очистка формы после создания
+                resetForm();
             } else {
-                alert('Error creating card: ' + data.error);
+                alert('Ошибка при создании визитки: ' + data.error);
             }
         })
         .catch(error => {
