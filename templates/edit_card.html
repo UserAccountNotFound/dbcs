@@ -13,6 +13,9 @@
         <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Редактировать визитную карточку</h1>
 
         <form action="{{ url_for('edit_card', unique_id=card.unique_id) }}" method="post" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-6">
+            <!-- Скрытое поле для user_id -->
+            <input type="hidden" name="user_id" value="{{ current_user.id }}">
+            
             <!-- Photo Upload Section -->
             <div class="space-y-2">
                 <label class="block text-sm font-medium text-gray-700">Фотография профиля</label>
@@ -39,20 +42,20 @@
             <!-- Personal Information -->
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                    <label for="name" class="block text-sm font-medium text-gray-700">Nom Complet</label>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Имя</label>
                     <input type="text" id="name" name="name" value="{{ card.name }}" required
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
                 <div>
-                    <label for="title" class="block text-sm font-medium text-gray-700">Titre du Poste</label>
+                    <label for="title" class="block text-sm font-medium text-gray-700">Должность</label>
                     <input type="text" id="title" name="title" value="{{ card.title }}" required
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
 
                 <!-- Phone Numbers Section -->
                 <div class="space-y-4">
-                    <h3 class="text-lg font-medium text-gray-900">Numéros de Téléphone</h3>
+                    <h3 class="text-lg font-medium text-gray-900">Номера телефонов</h3>
                     <div id="phone-numbers-container" class="space-y-4">
                         <!-- Primary Phone -->
                         <div class="phone-field">
@@ -111,17 +114,17 @@
                 <label for="address" class="block text-sm font-medium text-gray-700">Адрес</label>
                 <input type="text"
                        name="address"
-                       value = "{{card.address}}"
+                       value="{{ card.address }}"
                        id="address"
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                        placeholder="Введите свой адрес">
             </div>
             <div>
-                <label for="location" class="block text-sm font-medium text-gray-700">Lien de Localisation</label>
+                <label for="location" class="block text-sm font-medium text-gray-700">Ссылка на местоположение</label>
                 <div class="mt-1">
                     <input type="text" id="location" name="location"
                            value="{{ card.location }}"
-                           placeholder="Entrez le lien Google Maps (ex: https://maps.google.com/...)"
+                           placeholder="Вставьте ссылку Google Maps (например: https://maps.google.com/...)"
                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                     <p class="mt-1 text-sm text-gray-500">
                         Вставьте ссылку Google карт на свое местоположение
@@ -211,10 +214,8 @@
                             <option value="4" {% if card.pdf_style == 4 %}selected{% endif %}>Элегантный</option>
                         </select>
                     </div>
-                    
                 </div>
             </div>
-            
 
             <!-- Form Actions -->
             <div class="pt-4 flex justify-end space-x-4">
@@ -233,7 +234,7 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span class="ml-2">Регистрация...</span>
+                        <span class="ml-2">Сохранение...</span>
                     </span>
                 </button>
             </div>
@@ -280,9 +281,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const maxPhones = 4;
 
     const phoneTypes = {
-        2: { name: 'secondary', label: 'Secondary' },
-        3: { name: 'third', label: 'Third' },
-        4: { name: 'fourth', label: 'Fourth' }
+        2: { name: 'secondary', label: 'Дополнительный' },
+        3: { name: 'third', label: 'Третий' },
+        4: { name: 'fourth', label: 'Четвертый' }
     };
 
     // Update add button visibility based on initial phone count
@@ -300,14 +301,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="flex items-center space-x-2">
                 <div class="flex-grow">
                     <label for="phone_${phoneType.name}" class="block text-sm font-medium text-gray-700">
-                        ${phoneType.label} Phone Number
+                        ${phoneType.label} номер телефона
                     </label>
                     <div class="mt-1 flex rounded-md shadow-sm">
                         <input type="tel"
                                id="phone_${phoneType.name}"
                                name="phone_${phoneType.name}"
                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                               placeholder="Enter ${phoneType.label.toLowerCase()} phone number">
+                               placeholder="Введите ${phoneType.label.toLowerCase()} номер телефона">
                     </div>
                 </div>
                 <button type="button" class="remove-phone-btn mt-6 text-red-600 hover:text-red-800">
@@ -350,14 +351,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<!-- Social Networks Management -->
 <script>
     // Инициализация конфига месенджеров и социальных сетей для JS
-    document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
         window.socialConfig = JSON.parse('{{ mnsn_config | safe }}');
-    
-    });
+});
 </script>
-
 
 <!-- Form Submission Handler -->
 <script>
