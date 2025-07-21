@@ -74,7 +74,7 @@ class Config(object):
     if USE_SQLITE:
 
         # This will create a file in <app> FOLDER
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'dbcs_dbcs_db.sqlite3')
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'dbcs_db.sqlite3')
 
     # __DYNAMIC_DATATB__
     # __DYNAMIC_DATATB__END

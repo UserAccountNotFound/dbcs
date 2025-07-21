@@ -29,8 +29,8 @@ def password_validate(password):
     """ password validate """
     msg = ''
     while True:
-        if len(password) < 6:
-           msg = "Make sure your password is at lest 6 letters"
+        if len(password) < 8:
+           msg = "Make sure your password is at lest 8 letters"
            return msg
         elif re.search('[0-9]',password) is None:
             msg = "Make sure your password has a number in it"

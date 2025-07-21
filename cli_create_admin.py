@@ -1,7 +1,7 @@
 # create_admin.py
-from app import app, db
-from models.db_template import UserSystem
-import getpass
+from apps.authentication.models import Users
+from apps import db, login_manager
+from apps.authentication.util import hash_pass
 
 
 def create_admin():
@@ -24,18 +24,18 @@ def create_admin():
 
     # Проверка, существования имени пользователя и почты
     with app.app_context():
-        if UserSystem.query.filter_by(username=username).first():
+        if Users.query.filter_by(username=username).first():
             print("Error: Такой логин уже есть")
             return
 
-        if UserSystem.query.filter_by(email=email).first():
+        if Users.query.filter_by(email=email).first():
             print("Error: Такой Email уже есть")
             return
 
         try:
             # Создаем новую админскую учетку
-            admin = UserSystem(username=username, email=email, is_admin=1)
-            admin.set_password(password)
+            admin = Users(username=username, email=email, is_admin=1)
+            admin.hash_pass(password)
 
             # Сохраняем в БД
             db.session.add(admin)
