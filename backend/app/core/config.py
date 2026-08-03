@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     database_url: str
     secret_key: str
 
-    allowed_origins: list[str] = []
+    allowed_origins: str = ""
 
     public_base_url: str = "http://localhost:5173"
 
@@ -32,17 +32,6 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    @field_validator("allowed_origins", mode="before")
-    @classmethod
-    def parse_allowed_origins(cls, value: object) -> list[str]:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-
-        if value is None:
-            return []
-
-        return list(value)
-
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, value: str) -> str:
@@ -50,6 +39,21 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be at least 32 characters long.")
 
         return value
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        if not self.allowed_origins:
+            return []
+
+        origins: list[str] = []
+
+        for origin in self.allowed_origins.split(","):
+            cleaned = origin.strip().strip('"').strip("'")
+
+            if cleaned:
+                origins.append(cleaned)
+
+        return origins
 
 
 @lru_cache

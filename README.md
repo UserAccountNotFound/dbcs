@@ -13,5 +13,5 @@ digital business card service
 
 ```
 chmod +x ./deploy/scripts/deploy.sh
-./deploy/scripts/deploy.sh
+env ALLOW_GENERATED_DB_PASSWORD=1 WRITE_DB_CREDENTIALS_TO_ENV=1 bash ./deploy/scripts/deploy.sh
 ```

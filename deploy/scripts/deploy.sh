@@ -19,6 +19,21 @@
 #   sudo env MANAGE_MARIADB_SERVICE=0 bash deploy.sh
 #   sudo env APT_UPGRADE=1 PIP_UPGRADE=1 bash deploy.sh
 #   sudo env FORCE_ENV_OVERWRITE=1 bash deploy.sh
+#
+# Интерактивное создание MySQL-пользователя:
+#   sudo bash deploy.sh
+#
+# Неинтерактивное задание пользователя и пароля:
+#   sudo env DB_USER=dbcs_user DB_PASSWORD='MyStrongPassword' bash deploy.sh
+#
+# Сгенерировать пароль неинтерактивно:
+#   sudo env ALLOW_GENERATED_DB_PASSWORD=1 bash deploy.sh
+#
+# Сгенерировать пароль и записать его в backend/.env:
+#   sudo env ALLOW_GENERATED_DB_PASSWORD=1 WRITE_DB_CREDENTIALS_TO_ENV=1 bash deploy.sh
+#
+# Создать базу данных и выдать на неё права пользователю:
+#   sudo env MYSQL_GRANT_DATABASE=dbcs bash deploy.sh
 
 set -Eeuo pipefail
 
@@ -59,6 +74,28 @@ MANAGE_MARIADB_SERVICE="${MANAGE_MARIADB_SERVICE:-1}"
 # Если в requirements.txt есть нативный MySQL-драйвер, например mysqlclient:
 #   sudo env INSTALL_MYSQL_BUILD_DEPS=1 bash deploy.sh
 INSTALL_MYSQL_BUILD_DEPS="${INSTALL_MYSQL_BUILD_DEPS:-0}"
+
+# Параметры MySQL/MariaDB пользователя.
+DB_USER="${DB_USER:-}"
+DB_PASSWORD="${DB_PASSWORD:-}"
+MYSQL_USER_HOST="${MYSQL_USER_HOST:-localhost}"
+
+# Если задать MYSQL_GRANT_DATABASE, скрипт создаст базу данных
+# и выдаст пользователю ALL PRIVILEGES на неё.
+MYSQL_GRANT_DATABASE="${MYSQL_GRANT_DATABASE:-}"
+
+# Принудительно обновить пароль уже существующего пользователя.
+DB_FORCE_PASSWORD="${DB_FORCE_PASSWORD:-0}"
+
+# Записать DB_USER и DB_PASSWORD в backend/.env.
+WRITE_DB_CREDENTIALS_TO_ENV="${WRITE_DB_CREDENTIALS_TO_ENV:-0}"
+
+# Разрешить генерацию пароля в неинтерактивном режиме.
+ALLOW_GENERATED_DB_PASSWORD="${ALLOW_GENERATED_DB_PASSWORD:-0}"
+
+DB_PASSWORD_GENERATED=0
+DB_PASSWORD_APPLIED=0
+MYSQL_CMD=""
 
 APT_UPDATED=0
 
@@ -114,7 +151,7 @@ fi
 
 
 # ============================================================
-# Проверки
+# Общие проверки
 # ============================================================
 
 require_root() {
@@ -306,6 +343,86 @@ ensure_env_file() {
   chmod 600 "$ENV_FILE"
 }
 
+dotenv_escape() {
+  local s="${1:-}"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '%s' "$s"
+}
+
+update_env_file_with_db_credentials() {
+  if ! is_true "$WRITE_DB_CREDENTIALS_TO_ENV"; then
+    return 0
+  fi
+
+  if [[ "${DB_PASSWORD_APPLIED:-0}" -ne 1 ]]; then
+    log "Skipping .env DATABASE_URL update because MySQL password was not applied."
+    return 0
+  fi
+
+  if ! file_exists "$ENV_FILE"; then
+    die "Cannot update DATABASE_URL: $ENV_FILE does not exist"
+  fi
+
+  log "Updating DATABASE_URL in $ENV_FILE with user '$DB_USER' and generated password."
+
+  # Используем Python для надёжного парсинга и модификации URL
+  "$VENV_DIR/bin/python" <<PYTHON_EOF
+import re
+import sys
+from urllib.parse import urlparse, urlunparse
+
+env_file = "$ENV_FILE"
+db_user = "$DB_USER"
+db_password = "$DB_PASSWORD"
+
+with open(env_file, 'r') as f:
+    lines = f.readlines()
+
+updated = False
+for i, line in enumerate(lines):
+    if line.strip().startswith('DATABASE_URL='):
+        # Извлекаем значение URL
+        match = re.match(r'^DATABASE_URL=(.+)$', line.strip())
+        if match:
+            url_value = match.group(1).strip('"\'')
+            
+            # Парсим URL
+            parsed = urlparse(url_value)
+            
+            # Заменяем username и password
+            # Формат: scheme://user:pass@host:port/path?query
+            new_netloc = f"{db_user}:{db_password}@{parsed.hostname}"
+            if parsed.port:
+                new_netloc += f":{parsed.port}"
+            
+            new_url = urlunparse((
+                parsed.scheme,
+                new_netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            
+            # Обновляем строку
+            lines[i] = f'DATABASE_URL="{new_url}"\n'
+            updated = True
+            break
+
+if not updated:
+    print("[deploy][error] DATABASE_URL not found in .env file", file=sys.stderr)
+    sys.exit(1)
+
+with open(env_file, 'w') as f:
+    f.writelines(lines)
+
+print(f"[deploy] Updated DATABASE_URL with user '{db_user}'")
+PYTHON_EOF
+
+  log "DATABASE_URL updated successfully."
+}
+
 
 # ============================================================
 # MariaDB service
@@ -335,6 +452,281 @@ ensure_mariadb_service() {
   if ! systemctl is-active --quiet mariadb; then
     log "Starting mariadb.service"
     systemctl start mariadb
+  fi
+}
+
+
+# ============================================================
+# Генерация пароля
+# ============================================================
+
+generate_password() {
+  local chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  local password=''
+  local need=16
+
+  if command -v shuf >/dev/null 2>&1; then
+    while [[ ${#password} -lt $need ]]; do
+      password+="$(
+        printf '%s' "$chars" \
+          | fold -w1 \
+          | shuf --random-source=/dev/urandom --repeat -n $((need - ${#password})) \
+          | tr -d '\n'
+      )"
+    done
+  else
+    local hex=''
+    while [[ ${#hex} -lt 16 ]]; do
+      hex+="$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')"
+    done
+    password="${hex:0:16}"
+  fi
+
+  password="${password:0:$need}"
+  password="${password^^}"
+
+  printf '%s-%s-%s-%s\n' \
+    "${password:0:4}" \
+    "${password:4:4}" \
+    "${password:8:4}" \
+    "${password:12:4}"
+}
+
+
+# ============================================================
+# MySQL/MariaDB credentials
+# ============================================================
+
+prompt_db_username() {
+  local default_user="dbcs_user"
+  local input_user=""
+
+  if [[ -n "$DB_USER" ]]; then
+    return 0
+  fi
+
+  if [[ -t 0 ]]; then
+    read -rp "MySQL username [$default_user]: " input_user
+    DB_USER="${input_user:-$default_user}"
+  else
+    DB_USER="$default_user"
+    log "Non-interactive mode: using default MySQL username '$DB_USER'."
+  fi
+}
+
+prompt_or_generate_db_password() {
+  local generated_password=""
+  local input_password=""
+  local confirm_password=""
+
+  if [[ -n "$DB_PASSWORD" ]]; then
+    return 0
+  fi
+
+  generated_password="$(generate_password)"
+
+  if [[ -t 0 ]]; then
+    read -rsp "MySQL password for '$DB_USER' (leave empty to use generated default): " input_password
+    echo
+
+    if [[ -n "$input_password" ]]; then
+      read -rsp "Confirm MySQL password: " confirm_password
+      echo
+
+      if [[ "$input_password" != "$confirm_password" ]]; then
+        die "Passwords do not match."
+      fi
+
+      DB_PASSWORD="$input_password"
+    else
+      DB_PASSWORD="$generated_password"
+      DB_PASSWORD_GENERATED=1
+    fi
+  else
+    if is_true "$ALLOW_GENERATED_DB_PASSWORD" || is_true "$WRITE_DB_CREDENTIALS_TO_ENV"; then
+      DB_PASSWORD="$generated_password"
+      DB_PASSWORD_GENERATED=1
+      log "Non-interactive mode: generated MySQL password for '$DB_USER'."
+    else
+      die "Non-interactive mode: DB_PASSWORD is not set. Provide DB_PASSWORD or set ALLOW_GENERATED_DB_PASSWORD=1 / WRITE_DB_CREDENTIALS_TO_ENV=1."
+    fi
+  fi
+}
+
+validate_db_user_and_host() {
+  [[ -n "$DB_USER" ]] || die "DB_USER is empty"
+
+  [[ "$DB_USER" =~ ^[A-Za-z0-9_]{1,32}$ ]] \
+    || die "DB_USER may contain only letters, digits, underscore and max length 32"
+
+  [[ -n "$MYSQL_USER_HOST" ]] || die "MYSQL_USER_HOST is empty"
+
+  [[ "$MYSQL_USER_HOST" =~ ^[A-Za-z0-9_.%-]{1,255}$ ]] \
+    || die "Invalid MYSQL_USER_HOST"
+}
+
+validate_db_password() {
+  [[ -n "$DB_PASSWORD" ]] || die "DB_PASSWORD is empty"
+
+  if [[ "$DB_PASSWORD" == *$'\n'* || "$DB_PASSWORD" == *$'\r'* ]]; then
+    die "DB_PASSWORD must not contain newline characters"
+  fi
+}
+
+validate_mysql_grant_database() {
+  [[ "$MYSQL_GRANT_DATABASE" =~ ^[A-Za-z0-9_]{1,64}$ ]] \
+    || die "Invalid MYSQL_GRANT_DATABASE. Use letters, digits, underscore, max 64 chars."
+}
+
+
+# ============================================================
+# MySQL/MariaDB helpers
+# ============================================================
+
+mysql_escape_string() {
+  local s="${1:-}"
+  s="${s//\\/\\\\}"
+  s="${s//\'/\'\'}"
+  printf '%s' "$s"
+}
+
+detect_mysql_client() {
+  if command -v mariadb >/dev/null 2>&1; then
+    MYSQL_CMD="mariadb"
+  elif command -v mysql >/dev/null 2>&1; then
+    MYSQL_CMD="mysql"
+  else
+    die "MySQL/MariaDB client command not found"
+  fi
+}
+
+wait_for_mysql() {
+  local attempts=15
+  local delay=2
+  local i
+
+  for ((i = 1; i <= attempts; i++)); do
+    if "$MYSQL_CMD" -e "SELECT 1;" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    log "Waiting for MariaDB/MySQL to become ready... attempt $i/$attempts"
+    sleep "$delay"
+  done
+
+  die "MariaDB/MySQL is not ready. Cannot create MySQL user."
+}
+
+run_mysql_sql() {
+  local sql="$1"
+  local sql_file
+
+  sql_file="$(mktemp)"
+  chmod 600 "$sql_file"
+
+  printf '%s\n' "$sql" > "$sql_file"
+
+  if ! "$MYSQL_CMD" < "$sql_file"; then
+    rm -f "$sql_file"
+    die "MySQL SQL execution failed"
+  fi
+
+  rm -f "$sql_file"
+}
+
+ensure_mysql_user() {
+  detect_mysql_client
+  wait_for_mysql
+
+  prompt_db_username
+  validate_db_user_and_host
+
+  DB_PASSWORD_GENERATED=0
+  DB_PASSWORD_APPLIED=0
+
+  local escaped_user
+  local escaped_host
+
+  escaped_user="$(mysql_escape_string "$DB_USER")"
+  escaped_host="$(mysql_escape_string "$MYSQL_USER_HOST")"
+
+  local user_exists
+  user_exists="$(
+    "$MYSQL_CMD" -N -B -e "
+      SELECT COUNT(*)
+      FROM mysql.user
+      WHERE User='$escaped_user'
+        AND Host='$escaped_host';
+    "
+  )"
+
+  if [[ -z "$user_exists" ]]; then
+    user_exists=0
+  fi
+
+  local need_password=0
+  local password_applied=0
+  local sql=""
+
+  if [[ "$user_exists" -eq 0 ]]; then
+    need_password=1
+  else
+    log "MySQL user '$DB_USER'@'$MYSQL_USER_HOST' already exists."
+
+    if is_true "$DB_FORCE_PASSWORD"; then
+      need_password=1
+    elif [[ -t 0 ]]; then
+      local answer=""
+      read -rp "Update password for existing MySQL user '$DB_USER'@'$MYSQL_USER_HOST'? [y/N]: " answer
+
+      if [[ "${answer,,}" =~ ^(y|yes)$ ]]; then
+        need_password=1
+      fi
+    else
+      log "Skipping password update for existing MySQL user. Set DB_FORCE_PASSWORD=1 to force."
+    fi
+  fi
+
+  if [[ "$need_password" -eq 1 ]]; then
+    prompt_or_generate_db_password
+    validate_db_password
+
+    local escaped_password
+    escaped_password="$(mysql_escape_string "$DB_PASSWORD")"
+
+    if [[ "$user_exists" -eq 0 ]]; then
+      log "Creating MySQL user '$DB_USER'@'$MYSQL_USER_HOST'."
+      sql+="CREATE USER IF NOT EXISTS '$escaped_user'@'$escaped_host' IDENTIFIED BY '$escaped_password';"$'\n'
+    else
+      log "Updating password for MySQL user '$DB_USER'@'$MYSQL_USER_HOST'."
+      sql+="ALTER USER '$escaped_user'@'$escaped_host' IDENTIFIED BY '$escaped_password';"$'\n'
+    fi
+
+    password_applied=1
+    DB_PASSWORD_APPLIED=1
+  fi
+
+  if [[ -n "$MYSQL_GRANT_DATABASE" ]]; then
+    validate_mysql_grant_database
+
+    log "Granting privileges on database '$MYSQL_GRANT_DATABASE' to '$DB_USER'@'$MYSQL_USER_HOST'."
+
+    sql+="CREATE DATABASE IF NOT EXISTS \`$MYSQL_GRANT_DATABASE\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"$'\n'
+    sql+="GRANT ALL PRIVILEGES ON \`$MYSQL_GRANT_DATABASE\`.* TO '$escaped_user'@'$escaped_host';"$'\n'
+    sql+="FLUSH PRIVILEGES;"$'\n'
+  fi
+
+  if [[ -n "$sql" ]]; then
+    run_mysql_sql "$sql"
+  fi
+
+  if [[ "$DB_PASSWORD_GENERATED" -eq 1 && "$password_applied" -eq 1 ]]; then
+    if is_true "$WRITE_DB_CREDENTIALS_TO_ENV"; then
+      log "Generated MySQL password will be written to $ENV_FILE."
+    else
+      log "Generated MySQL password: $DB_PASSWORD"
+      log "Save it now. It will not be stored by this script unless WRITE_DB_CREDENTIALS_TO_ENV=1."
+    fi
   fi
 }
 
@@ -376,12 +768,16 @@ main() {
   maybe_upgrade_packages
   ensure_packages
 
+  ensure_mariadb_service
+
   ensure_venv
   ensure_pip
   install_python_dependencies
 
   ensure_env_file
-  ensure_mariadb_service
+
+  ensure_mysql_user
+  update_env_file_with_db_credentials
 
   set_owner_if_needed
 
