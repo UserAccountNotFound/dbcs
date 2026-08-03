@@ -1,3 +1,4 @@
+```
 dbcs/
 ├── backend/                  # Python API
 │   ├── app/
@@ -47,3 +48,4 @@ dbcs/
     ├── database.md
     └── api/
         └── redoc.md
+```
