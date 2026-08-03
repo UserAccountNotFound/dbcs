@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 #
 # deploy.sh
-# Идемпотентный скрипт развертывания backend-части DBCS для Debian.
+# Идемпотентный скрипт развертывания DBCS для Debian.
 #
+# Предполагается:
+# - backend находится в backend/
+# - есть backend/requirements.txt
+# - есть backend/.env.example
+# - используется standalone MariaDB, без Galera
 #
 # Использование:
 #   sudo bash deploy.sh
@@ -10,7 +15,9 @@
 # Примеры:
 #   sudo env APP_ROOT=/opt/dbcs bash deploy.sh
 #   sudo env APP_USER=dbcs bash deploy.sh
-#   sudo env APT_UPGRADE=1 PIP_UPGRADE=1 APP_USER=dbcs bash deploy.sh
+#   sudo env INSTALL_MYSQL_BUILD_DEPS=1 bash deploy.sh
+#   sudo env MANAGE_MARIADB_SERVICE=0 bash deploy.sh
+#   sudo env APT_UPGRADE=1 PIP_UPGRADE=1 bash deploy.sh
 #   sudo env FORCE_ENV_OVERWRITE=1 bash deploy.sh
 
 set -Eeuo pipefail
@@ -33,36 +40,31 @@ ENV_FILE="$BACKEND_DIR/.env"
 ENV_EXAMPLE_FILE="$BACKEND_DIR/.env.example"
 
 # Обновление системных пакетов по умолчанию отключено.
-# Для production обычно лучше управлять этим отдельно.
 APT_UPGRADE="${APT_UPGRADE:-0}"
 
 # Обновление pip по умолчанию отключено для большей идемпотентности.
 PIP_UPGRADE="${PIP_UPGRADE:-0}"
 
-# Если нужно принудительно перезаписать .env из .env.example:
-# FORCE_ENV_OVERWRITE=1
+# Перезапись .env только при явном включении.
 FORCE_ENV_OVERWRITE="${FORCE_ENV_OVERWRITE:-0}"
 
-# Если приложение должно работать от отдельного пользователя,
-# задай APP_USER, например:
+# Если приложение должно работать от отдельного пользователя:
 #   sudo env APP_USER=dbcs bash deploy.sh
 APP_USER="${APP_USER:-}"
 
-APT_UPDATED=0
+# Управление сервисом MariaDB.
+# По умолчанию включено, но если systemd недоступен, скрипт просто пропустит этот шаг.
+MANAGE_MARIADB_SERVICE="${MANAGE_MARIADB_SERVICE:-1}"
 
-REQUIRED_PACKAGES=(
-  git
-  curl
-  ca-certificates
-  python3
-  python3-venv
-  mariadb-server
-  mariadb-client
-)
+# Если в requirements.txt есть нативный MySQL-драйвер, например mysqlclient:
+#   sudo env INSTALL_MYSQL_BUILD_DEPS=1 bash deploy.sh
+INSTALL_MYSQL_BUILD_DEPS="${INSTALL_MYSQL_BUILD_DEPS:-0}"
+
+APT_UPDATED=0
 
 
 # ============================================================
-# Логирование и ошибки
+# Логирование и вспомогательные функции
 # ============================================================
 
 log() {
@@ -78,17 +80,42 @@ die() {
   exit 1
 }
 
-trap 'err "Deploy failed on line $LINENO"' ERR
-
-
-# ============================================================
-# Helpers
-# ============================================================
-
 is_true() {
   local value="${1:-}"
   [[ "${value,,}" =~ ^(1|true|yes|on)$ ]]
 }
+
+trap 'err "Deploy failed on line $LINENO"' ERR
+
+
+# ============================================================
+# Системные пакеты
+# ============================================================
+
+REQUIRED_PACKAGES=(
+  git
+  curl
+  ca-certificates
+  python3
+  python3-venv
+  mariadb-server
+  mariadb-client
+)
+
+# Опциональные пакеты для сборки нативных MySQL-библиотек.
+if is_true "$INSTALL_MYSQL_BUILD_DEPS"; then
+  REQUIRED_PACKAGES+=(
+    build-essential
+    pkg-config
+    default-libmysqlclient-dev
+    python3-dev
+  )
+fi
+
+
+# ============================================================
+# Проверки
+# ============================================================
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
@@ -110,6 +137,19 @@ require_file() {
 
 package_installed() {
   dpkg -s "$1" >/dev/null 2>&1
+}
+
+systemd_available() {
+  [[ -d /run/systemd/system ]] && command -v systemctl >/dev/null 2>&1
+}
+
+preflight_checks() {
+  dir_exists "$BACKEND_DIR" || die "Backend directory not found: $BACKEND_DIR"
+  require_file "$REQUIREMENTS_FILE"
+
+  if ! file_exists "$ENV_FILE" || is_true "$FORCE_ENV_OVERWRITE"; then
+    require_file "$ENV_EXAMPLE_FILE"
+  fi
 }
 
 
@@ -147,6 +187,24 @@ maybe_upgrade_packages() {
     --no-install-recommends
 }
 
+check_package_candidates() {
+  local unavailable=()
+  local pkg
+  local candidate
+
+  for pkg in "$@"; do
+    candidate="$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2; exit}')"
+
+    if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
+      unavailable+=("$pkg")
+    fi
+  done
+
+  if [[ ${#unavailable[@]} -gt 0 ]]; then
+    die "Packages not found in APT repositories: ${unavailable[*]}"
+  fi
+}
+
 ensure_packages() {
   local missing=()
   local pkg
@@ -163,6 +221,7 @@ ensure_packages() {
   fi
 
   apt_update_once
+  check_package_candidates "${missing[@]}"
 
   export DEBIAN_FRONTEND=noninteractive
 
@@ -176,7 +235,7 @@ ensure_packages() {
 
 
 # ============================================================
-# Python venv
+# Python virtualenv
 # ============================================================
 
 ensure_venv() {
@@ -249,6 +308,38 @@ ensure_env_file() {
 
 
 # ============================================================
+# MariaDB service
+# ============================================================
+
+ensure_mariadb_service() {
+  if ! is_true "$MANAGE_MARIADB_SERVICE"; then
+    log "Skipping MariaDB service management. Set MANAGE_MARIADB_SERVICE=1 to enable/start mariadb."
+    return 0
+  fi
+
+  if ! systemd_available; then
+    log "systemd is not available. Skipping MariaDB service management."
+    return 0
+  fi
+
+  if ! systemctl cat mariadb.service >/dev/null 2>&1; then
+    log "WARNING: mariadb.service not found. Skipping MariaDB service management."
+    return 0
+  fi
+
+  if ! systemctl is-enabled --quiet mariadb; then
+    log "Enabling mariadb.service"
+    systemctl enable mariadb
+  fi
+
+  if ! systemctl is-active --quiet mariadb; then
+    log "Starting mariadb.service"
+    systemctl start mariadb
+  fi
+}
+
+
+# ============================================================
 # Права доступа
 # ============================================================
 
@@ -272,20 +363,6 @@ set_owner_if_needed() {
 
 
 # ============================================================
-# Проверки перед деплоем
-# ============================================================
-
-preflight_checks() {
-  dir_exists "$BACKEND_DIR" || die "Backend directory not found: $BACKEND_DIR"
-  require_file "$REQUIREMENTS_FILE"
-
-  if ! file_exists "$ENV_FILE" || is_true "$FORCE_ENV_OVERWRITE"; then
-    require_file "$ENV_EXAMPLE_FILE"
-  fi
-}
-
-
-# ============================================================
 # Main
 # ============================================================
 
@@ -298,10 +375,14 @@ main() {
 
   maybe_upgrade_packages
   ensure_packages
+
   ensure_venv
   ensure_pip
   install_python_dependencies
+
   ensure_env_file
+  ensure_mariadb_service
+
   set_owner_if_needed
 
   log "Deployment completed successfully."
