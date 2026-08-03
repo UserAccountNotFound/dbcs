@@ -56,6 +56,8 @@ REQUIRED_PACKAGES=(
   ca-certificates
   python3
   python3-venv
+  mariadb-server
+  mariadb-client
 )
 
 
