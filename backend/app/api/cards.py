@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -9,8 +9,16 @@ from app.api.schemas.card import (
     CardUpdate,
 )
 from app.api.schemas.common import MessageResponse
+from app.api.schemas.stats import CardStatsResponse
+from app.core.urls import get_public_card_url
 from app.models import User
-from app.services import audit_service, card_service
+from app.services import (
+    audit_service,
+    card_service,
+    qr_service,
+    stats_service,
+    vcard_service,
+)
 from app.services.exceptions import (
     CardNotFoundError,
     TemplateNotFoundError,
@@ -79,6 +87,109 @@ def list_cards(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/{card_id}/stats",
+    response_model=CardStatsResponse,
+    summary="Статистика визитной карточки",
+)
+def get_card_stats(
+    card_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> CardStatsResponse:
+    try:
+        card = card_service.get_card(
+            db=db,
+            user=user,
+            card_id=card_id,
+        )
+    except CardNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card not found.",
+        ) from exc
+
+    return stats_service.get_card_stats(db, card)
+
+
+@router.get(
+    "/{card_id}/vcard.vcf",
+    response_class=Response,
+    summary="Экспорт vCard визитной карточки",
+)
+def export_card_vcard(
+    card_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        card = card_service.get_card(
+            db=db,
+            user=user,
+            card_id=card_id,
+        )
+    except CardNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card not found.",
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="card.export_vcard",
+        actor_user_id=user.id,
+        entity_type="card",
+        entity_id=card.id,
+        request=request,
+    )
+
+    content = vcard_service.build_vcard(card)
+
+    return Response(
+        content=content,
+        media_type="text/vcard; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{card.slug}.vcf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.get(
+    "/{card_id}/qrcode.svg",
+    response_class=Response,
+    summary="QR-код визитной карточки",
+)
+def get_card_qrcode(
+    card_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        card = card_service.get_card(
+            db=db,
+            user=user,
+            card_id=card_id,
+        )
+    except CardNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card not found.",
+        ) from exc
+
+    public_url = get_public_card_url(card.slug)
+    svg_content = qr_service.generate_qr_svg(public_url)
+
+    return Response(
+        content=svg_content,
+        media_type="image/svg+xml",
+        headers={
+            "Cache-Control": "no-store",
+        },
     )
 
 

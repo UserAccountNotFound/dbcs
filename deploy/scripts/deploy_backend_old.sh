@@ -49,9 +49,12 @@ check_root() {
 
 generate_secret() {
     #python3 -c 'import secrets; print(secrets.token_hex(32))'
-    python3 -c 'import secrets; print(secrets.token_urlsafe(64))' # более секурно
+    python -c 'import secrets; print(secrets.token_urlsafe(64))' # более секурно
 }
 
+# ==============================================================================
+# 1. Установка системных зависимостей и регенерация локалей
+# ==============================================================================
 # ==============================================================================
 # 1. Установка системных зависимостей и регенерация локалей
 # ==============================================================================
@@ -133,16 +136,12 @@ SECRET_KEY=
 DATABASE_URL=
 ALLOWED_ORIGINS=${PUBLIC_BASE_URL}
 PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
-API_V1_PREFIX=${API_PREFIX}/v1
+API_V1_PREFIX=${API_PREFIX}
 DOCS_ENABLED=false
 REDOC_ENABLED=true
 DB_ECHO=false
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
-SELF_REGISTRATION_ENABLED=false
-REFRESH_COOKIE_NAME=refresh_token
-REFRESH_COOKIE_SECURE=true
-REFRESH_COOKIE_SAMESITE=lax
 EOF
         fi
     fi
@@ -154,14 +153,13 @@ EOF
     NEW_SECRET=$(generate_secret)
     DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
     
-    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL
+    export ENV_FILE DB_URL NEW_SECRET
     
     python3 -c '
 import os
 env_file = os.environ["ENV_FILE"]
 db_url = os.environ["DB_URL"]
 new_secret = os.environ["NEW_SECRET"]
-public_url = os.environ["PUBLIC_BASE_URL"]
 
 with open(env_file, "r") as f:
     lines = f.readlines()
@@ -172,31 +170,11 @@ with open(env_file, "w") as f:
             f.write(f"DATABASE_URL={db_url}\n")
         elif line.startswith("SECRET_KEY=") and ("change-me" in line or line.strip() == "SECRET_KEY="):
             f.write(f"SECRET_KEY={new_secret}\n")
-        elif line.startswith("PUBLIC_BASE_URL="):
-            f.write(f"PUBLIC_BASE_URL={public_url}\n")
-        elif line.startswith("ALLOWED_ORIGINS="):
-            f.write(f"ALLOWED_ORIGINS={public_url}\n")
         else:
             f.write(line)
     # Если DATABASE_URL не было в файле, добавляем в конец
     if not any(line.startswith("DATABASE_URL=") for line in lines):
         f.write(f"\nDATABASE_URL={db_url}\n")
-
-    # Гарантируем наличие новых переменных для Auth/Cookies, если их нет
-    required_vars = {
-        "SELF_REGISTRATION_ENABLED": "false",
-        "REFRESH_COOKIE_NAME": "refresh_token",
-        "REFRESH_COOKIE_SECURE": "true",
-        "REFRESH_COOKIE_SAMESITE": "lax",
-        "API_V1_PREFIX": "/api/v1"
-    }
-    with open(env_file, "r") as f:
-        current_lines = f.readlines()
-        
-    with open(env_file, "a") as f:
-        for var, val in required_vars.items():
-            if not any(l.startswith(f"{var}=") for l in current_lines):
-                f.write(f"\n{var}={val}\n")
 '
 
     chmod 600 "$ENV_FILE"
@@ -261,6 +239,9 @@ EOF
 # ==============================================================================
 # 5. Настройка Python окружения и миграций
 # ==============================================================================
+# ==============================================================================
+# 5. Настройка Python окружения и миграций
+# ==============================================================================
 setup_python() {
     log_info "Настройка виртуального окружения Python..."
     
@@ -298,10 +279,10 @@ setup_python() {
             sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'initial schema'"
             
             # Проверяем, что файл миграции действительно создался.
-            # Это частая ошибка: если в alembic/env.py не импортированы SQLAlchemy модели,
+            # Это частая ошибка: если в migrations/env.py не импортированы SQLAlchemy модели,
             # autogenerate создаст пустой файл миграции, что приведет к ошибкам в будущем.
-            if ! find alembic/versions/ -type f -name "*.py" | grep -q .; then
-                log_error "Миграция не сгенерирована (папка alembic/versions/ пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'alembic/env.py' (target_metadata)."
+            if ! find migrations/versions/ -type f -name "*.py" | grep -q .; then
+                log_error "Миграция не сгенерирована (папка пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'migrations/env.py' (target_metadata)."
                 exit 1
             fi
         else
@@ -376,12 +357,6 @@ EOF
 setup_nginx() {
     log_info "Настройка Nginx..."
     
-    # Добавляем зоны rate limit в глобальный конфиг nginx, если их там еще нет
-    if ! grep -q "limit_req_zone.*auth_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зон Rate Limiting в глобальный nginx.conf..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;\n    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
-    fi
-    
     cat <<EOF > "$NGINX_CONF"
 server {
     listen 80;
@@ -393,32 +368,7 @@ server {
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-
-    # Строгий лимит на Auth (защита от брутфорса)
-    location ${API_PREFIX}/v1/auth/ {
-        limit_req zone=auth_limit burst=10 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Умеренный лимит на публичные визитки (защита от парсинга/DDoS)
-    location ${API_PREFIX}/v1/public/ {
-        limit_req zone=public_limit burst=20 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
 
     # Проксирование API на Gunicorn
     location ${API_PREFIX}/ {
@@ -465,7 +415,7 @@ verify_deployment() {
         log_info "API доступен по адресу: http://127.0.0.1:${APP_PORT}${API_PREFIX}/v1"
         log_info "ReDoc документация: http://127.0.0.1:${APP_PORT}/api/redoc"
     else
-        log_warn "Healthcheck не прошел. Проверь логи:"
+        log_warn "Healthcheck не прошел. Проверьте логи:"
         log_warn "journalctl -u ${APP_NAME}-backend.service -n 50"
         log_warn "cat ${LOG_DIR}/error.log"
     fi
