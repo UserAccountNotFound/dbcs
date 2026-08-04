@@ -2,6 +2,7 @@
 #
 # deploy.sh
 # Идемпотентный скрипт развертывания DBCS для Debian.
+# version 1.0.0-a
 #
 # Предполагается:
 # - backend находится в backend/
