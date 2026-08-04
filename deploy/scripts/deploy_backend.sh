@@ -64,7 +64,7 @@ install_dependencies() {
     
     apt-get update -qq
     
-    apt-get install -y -qq sudo locales python3 python3-venv python3-pip mariadb-client nginx curl rsync
+    apt-get install -y -qq sudo locales python3 python3-venv python3-pip mariadb-server mariadb-client nginx curl rsync
     
     log_info "Настройка системных локалей..."
     
