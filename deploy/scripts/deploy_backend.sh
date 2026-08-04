@@ -19,7 +19,8 @@ DB_HOST="127.0.0.1"
 DB_PORT="3306"
 DB_NAME="e_cards"
 DB_USER="ecard_user"
-DB_PASSWORD="EcardM3GaPassW0rd" # Заменить генератором паролей
+# ВНИМАНИЕ: Для продакшена используйте генератор (openssl rand -hex 16)
+DB_PASSWORD="EcardM3GaPassW0rd" 
 
 # Настройки приложения
 APP_PORT="8000"
@@ -47,24 +48,44 @@ check_root() {
 }
 
 generate_secret() {
-    # Генерирует криптографически стойкую случайную строку
     python3 -c 'import secrets; print(secrets.token_hex(32))'
 }
 
 # ==============================================================================
-# 1. Установка системных зависимостей
+# 1. Установка системных зависимостей и регенерация локалей
+# ==============================================================================
+# ==============================================================================
+# 1. Установка системных зависимостей и регенерация локалей
 # ==============================================================================
 install_dependencies() {
     log_info "Обновление списка пакетов и установка зависимостей..."
+    
+    # Временно сбрасываем локали в "C", чтобы подавить варнинги perl при работе apt
+    export LANG=C
+    export LC_ALL=C
+    
     apt-get update -qq
     
-    # sudo - для выполнения отдельных задач от имени администратора (root)
-    # python3-venv - для виртуального окружения
-    # mariadb-client - для проверки БД и выполнения SQL из скрипта
-    # nginx - веб-сервер
-    # curl - для healthcheck
-    apt-get install -y -qq sudo python3 python3-venv python3-pip mariadb-client nginx curl > /dev/null
-    log_info "Системные зависимости установлены."
+    apt-get install -y -qq sudo locales python3 python3-venv python3-pip mariadb-client nginx curl rsync
+    
+    log_info "Настройка системных локалей..."
+    
+    # 1. Раскомментируем нужные локали в /etc/locale.gen (если они там есть с #)
+    sed -i -e 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+    sed -i -e 's/^# *\(ru_RU.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+    
+    # 2. Генерируем локали на основе раскомментированных строк
+    locale-gen
+    
+    # 3. Устанавливаем локаль по умолчанию в системе
+    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+    
+    # 4. Экспортируем валидные локали в текущий сеанс bash, 
+    # чтобы оставшиеся шаги скрипта не выдавали perl warnings
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+    
+    log_info "Системные зависимости и локали успешно настроены."
 }
 
 # ==============================================================================
@@ -83,37 +104,35 @@ setup_user_and_dirs() {
     mkdir -p "$BACKEND_DIR"
     mkdir -p "$LOG_DIR"
     
-    # Копируем исходный код в BACKEND_DIR, если мы запускаем скрипт из другой папки
-    # (Предполагается, что скрипт лежит в корне исходников, которые нужно задеплоить)
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    if [[ "$SCRIPT_DIR" != "$BACKEND_DIR" ]]; then
-        log_info "Копирование файлов проекта в $BACKEND_DIR..."
-        rsync -a --exclude='.venv' --exclude='__pycache__' --exclude='.env' "$SCRIPT_DIR/" "$BACKEND_DIR/"
-    fi
+#    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+#    if [[ "$SCRIPT_DIR" != "$BACKEND_DIR" ]]; then
+#        log_info "Копирование файлов проекта в $BACKEND_DIR..."
+#        # Исключаем виртуальное окружение, кэш и локальные секреты
+#        rsync -a --exclude='.venv' --exclude='__pycache__' --exclude='.env' --exclude='.git' "$SCRIPT_DIR/" "$BACKEND_DIR/"
+#    fi
 
     chown -R "$APP_USER":"$APP_USER" "$BACKEND_DIR"
     chown -R "$APP_USER":"$APP_USER" "$LOG_DIR"
 }
 
 # ==============================================================================
-# 3. Настройка .env файла
+# 3. Настройка .env файла (Безопасная замена через Python)
 # ==============================================================================
 setup_env() {
     log_info "Проверка файла окружения (.env)..."
     
     if [[ ! -f "$ENV_FILE" ]]; then
-        log_warn "Файл $ENV_FILE не найден. Создаем из шаблона или генерируем базовый."
+        log_warn "Файл $ENV_FILE не найден. Создаем базовый из шаблона."
         
         if [[ -f "$ENV_EXAMPLE" ]]; then
             cp "$ENV_EXAMPLE" "$ENV_FILE"
         else
-            # Создаем минимальный .env, если шаблона нет
             cat <<EOF > "$ENV_FILE"
 APP_NAME="DBCS Service API"
 ENVIRONMENT=production
 DEBUG=false
 SECRET_KEY=
-DATABASE_URL=mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4
+DATABASE_URL=
 ALLOWED_ORIGINS=${PUBLIC_BASE_URL}
 PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
 API_V1_PREFIX=${API_PREFIX}
@@ -124,23 +143,42 @@ ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
 EOF
         fi
-        
-        # Генерируем SECRET_KEY, если он пустой или "change-me"
-        if grep -q "^SECRET_KEY=$" "$ENV_FILE" || grep -q "change-me" "$ENV_FILE"; then
-            log_info "Генерация нового SECRET_KEY..."
-            NEW_SECRET=$(generate_secret)
-            sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${NEW_SECRET}|" "$ENV_FILE"
-        fi
-        
-        # Обновляем DATABASE_URL на актуальный пароль
-        sed -i "s|^DATABASE_URL=.*|DATABASE_URL=mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4|" "$ENV_FILE"
-        
-        chmod 600 "$ENV_FILE"
-        chown "$APP_USER":"$APP_USER" "$ENV_FILE"
-        log_info "Файл .env создан и защищен (права 600)."
-    else
-        log_info "Файл .env уже существует. Пропускаем генерацию."
     fi
+    
+    # Генерируем секреты и подставляем URL базы через Python, 
+    # чтобы избежать проблем со спецсимволами в паролях (sed ломается от |, &, /)
+    log_info "Обновление секретов и DATABASE_URL в .env..."
+    
+    NEW_SECRET=$(generate_secret)
+    DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
+    
+    export ENV_FILE DB_URL NEW_SECRET
+    
+    python3 -c '
+import os
+env_file = os.environ["ENV_FILE"]
+db_url = os.environ["DB_URL"]
+new_secret = os.environ["NEW_SECRET"]
+
+with open(env_file, "r") as f:
+    lines = f.readlines()
+
+with open(env_file, "w") as f:
+    for line in lines:
+        if line.startswith("DATABASE_URL="):
+            f.write(f"DATABASE_URL={db_url}\n")
+        elif line.startswith("SECRET_KEY=") and ("change-me" in line or line.strip() == "SECRET_KEY="):
+            f.write(f"SECRET_KEY={new_secret}\n")
+        else:
+            f.write(line)
+    # Если DATABASE_URL не было в файле, добавляем в конец
+    if not any(line.startswith("DATABASE_URL=") for line in lines):
+        f.write(f"\nDATABASE_URL={db_url}\n")
+'
+
+    chmod 600 "$ENV_FILE"
+    chown "$APP_USER":"$APP_USER" "$ENV_FILE"
+    log_info "Файл .env создан/обновлен и защищен (права 600)."
 }
 
 # ==============================================================================
@@ -150,7 +188,7 @@ setup_database() {
     log_info "Проверка подключения к базе данных..."
     
     # Пытаемся подключиться под пользователем приложения
-    if mariadb -u "$DB_USER" -p"$DB_PASSWORD" -h "$DB_HOST" -e "USE $DB_NAME; SELECT 1;" &>/dev/null; then
+    if MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -e "USE $DB_NAME; SELECT 1;" &>/dev/null; then
         log_info "База данных и пользователь уже существуют и доступны."
         return 0
     fi
@@ -158,7 +196,6 @@ setup_database() {
     log_warn "Не удалось подключиться к БД. Требуется создание базы и пользователя."
     log_info "Пожалуйста, введите пароль root для MariaDB (символы не будут отображаться):"
     
-    # Включаем echo для скрытия ввода, но сохраняем строгий режим
     set +e
     read -r -s DB_ROOT_PASSWORD
     echo ""
@@ -171,10 +208,9 @@ setup_database() {
 
     log_info "Создание базы данных и пользователя..."
     
-    # Выполняем SQL команды. Используем here-doc.
-    # Обратите внимание: set +x отключает трассировку, чтобы пароль не попал в логи при отладке
-    set +x
-    mariadb -u root -p"$DB_ROOT_PASSWORD" <<EOF
+    set +x # Отключаем трассировку, чтобы пароль не попал в логи
+    export MYSQL_PWD="$DB_ROOT_PASSWORD"
+    mariadb -u root <<EOF
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
@@ -194,10 +230,14 @@ EOF
         log_error "Не удалось выполнить SQL команды. Проверьте пароль root MariaDB."
         exit 1
     fi
+    unset MYSQL_PWD
     
     log_info "База данных и пользователь успешно созданы."
 }
 
+# ==============================================================================
+# 5. Настройка Python окружения и миграций
+# ==============================================================================
 # ==============================================================================
 # 5. Настройка Python окружения и миграций
 # ==============================================================================
@@ -213,17 +253,49 @@ setup_python() {
 
     log_info "Установка зависимостей Python..."
     # Обновляем pip и устанавливаем зависимости от имени ecard
-    sudo -u "$APP_USER" .venv/bin/pip install --upgrade pip wheel > /dev/null
+    sudo -u "$APP_USER" .venv/bin/pip install --upgrade pip wheel -qq
     
     if [[ -f "requirements.txt" ]]; then
-        sudo -u "$APP_USER" .venv/bin/pip install -r requirements.txt > /dev/null
+        sudo -u "$APP_USER" .venv/bin/pip install -r requirements.txt -qq
     fi
     
     # Устанавливаем gunicorn для production
-    sudo -u "$APP_USER" .venv/bin/pip install gunicorn > /dev/null
+    sudo -u "$APP_USER" .venv/bin/pip install gunicorn -qq
+
+    # --- НАЧАЛО: Проверка структуры БД и генерация миграций ---
+    log_info "Проверка структуры базы данных..."
+    
+    # Получаем количество таблиц в целевой БД.
+    # Флаг -N убирает заголовки столбцов, чтобы в переменной было только число.
+    TABLE_COUNT=$(MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -D "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}';" 2>/dev/null || echo "0")
+
+    if [[ "$TABLE_COUNT" == "0" ]]; then
+        log_warn "База данных пуста (таблицы отсутствуют)."
+        
+        if [[ -f "alembic.ini" ]]; then
+            log_info "Генерация начальной миграции (autogenerate)..."
+            # Генерируем миграцию от имени пользователя приложения с загруженным .env
+            sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'initial schema'"
+            
+            # Проверяем, что файл миграции действительно создался.
+            # Это частая ошибка: если в migrations/env.py не импортированы SQLAlchemy модели,
+            # autogenerate создаст пустой файл миграции, что приведет к ошибкам в будущем.
+            if ! find migrations/versions/ -type f -name "*.py" | grep -q .; then
+                log_error "Миграция не сгенерирована (папка пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'migrations/env.py' (target_metadata)."
+                exit 1
+            fi
+        else
+            log_error "Файл alembic.ini не найден в $BACKEND_DIR!"
+            log_error "Убедитесь, что Alembic настроен в проекте локально и закоммичен в репозиторий."
+            exit 1
+        fi
+    else
+        log_info "Структура БД уже существует (найдено таблиц: $TABLE_COUNT)."
+    fi
+    # --- КОНЕЦ: Проверка структуры БД ---
 
     log_info "Применение миграций базы данных (Alembic)..."
-    # Запускаем alembic от имени ecard, передавая переменные окружения из .env
+    # Запускаем alembic от имени ecard, безопасно передавая переменные окружения
     sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic upgrade head"
     
     log_info "Миграции успешно применены."
@@ -264,6 +336,7 @@ TimeoutStopSec=10
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+PrivateTmp=true
 ReadWritePaths=${BACKEND_DIR} ${LOG_DIR}
 
 [Install]
@@ -283,11 +356,13 @@ EOF
 setup_nginx() {
     log_info "Настройка Nginx..."
     
-    # Создаем базовый конфиг для проксирования API
     cat <<EOF > "$NGINX_CONF"
 server {
     listen 80;
     server_name _; # Замените на ваш домен или IP
+
+    # Лимит на загрузку файлов (аватары, логотипы) - 10 Мегабайт
+    client_max_body_size 10M;
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -308,7 +383,7 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Запрет доступа к скрытым файлам (например, .env)
+    # Запрет доступа к скрытым файлам (например, .env, .git)
     location ~ /\. {
         deny all;
         access_log off;
@@ -317,13 +392,9 @@ server {
 }
 EOF
 
-    # Активируем конфиг
     ln -sf "$NGINX_CONF" "$NGINX_LINK"
-    
-    # Удаляем дефолтный сайт, если он мешает (опционально)
     rm -f /etc/nginx/sites-enabled/default
 
-    # Проверяем конфиг и перезапускаем
     nginx -t
     systemctl restart nginx
     
@@ -338,7 +409,6 @@ verify_deployment() {
     sleep 5
     
     log_info "Проверка healthcheck..."
-    # Пытаемся сделать запрос к локальному API через Nginx или напрямую
     if curl -s -f "http://127.0.0.1:${APP_PORT}${API_PREFIX}/v1/health" > /dev/null; then
         log_info "Backend успешно развернут и отвечает на запросы!"
         log_info "API доступен по адресу: http://127.0.0.1:${APP_PORT}${API_PREFIX}/v1"
@@ -369,5 +439,4 @@ main() {
     log_info "=== Развертывание завершено ==="
 }
 
-# Запуск
 main "$@"
