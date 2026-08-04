@@ -14,3 +14,7 @@ backend/
 ├── requirements.txt              # 644
 └── README_backend.md             # 644
 ```
+
+
+# Сервис визитных карточек app/services/card_service.py
+# Endpoints для визиток app/api/cards.py

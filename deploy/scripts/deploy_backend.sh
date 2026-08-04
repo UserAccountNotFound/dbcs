@@ -48,7 +48,8 @@ check_root() {
 }
 
 generate_secret() {
-    python3 -c 'import secrets; print(secrets.token_hex(32))'
+    #python3 -c 'import secrets; print(secrets.token_hex(32))'
+    python -c 'import secrets; print(secrets.token_urlsafe(64))' # более секурно
 }
 
 # ==============================================================================
