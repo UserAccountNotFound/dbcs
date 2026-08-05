@@ -33,12 +33,34 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function clearCaches() {
+    if ('caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter(name => 
+              name.includes('user-cards') || 
+              name.includes('public-cards') ||
+              name.includes('images')
+            )
+            .map(name => caches.delete(name))
+        );
+      } catch (e) {
+        console.error('Cache cleanup error:', e);
+      }
+    }
+  }
+
   async function logout() {
     try {
       await apiClient.post('/auth/logout');
-    } catch (e) {
-      // Игнорируем ошибки при логауте
+    } catch {
+      // Игнорируем ошибки сети при логауте
     } finally {
+      // Очищаем кэшированные данные перед выходом
+      await clearCaches();
+      
       accessToken.value = null;
       user.value = null;
       localStorage.removeItem('access_token');
