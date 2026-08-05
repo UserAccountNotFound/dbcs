@@ -10,6 +10,13 @@ export interface AdminUser {
   cards_count: number;
 }
 
+export interface AdminUserCreate {
+  email: string;
+  full_name: string;
+  password: string;
+  role: 'USER' | 'ADMIN' | 'SUPERADMIN';
+}
+
 export interface AdminUserListResponse {
   items: AdminUser[];
   total: number;
@@ -18,8 +25,11 @@ export interface AdminUserListResponse {
 }
 
 export interface AdminUserUpdate {
-  is_active?: boolean;
+  email?: string;
+  full_name?: string;
   role?: 'USER' | 'ADMIN' | 'SUPERADMIN';
+  is_active?: boolean;
+  password?: string;  // Cмена пароля при редактировании
 }
 
 export interface AdminCard {

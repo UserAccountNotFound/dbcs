@@ -1,6 +1,7 @@
 import apiClient from './client';
 import type {
   AdminUserListResponse,
+  AdminUserCreate,
   AdminUserUpdate,
   AdminUser,
   AdminCardListResponse,
@@ -11,6 +12,15 @@ import type {
 const ADMIN_ENDPOINT = '/admin';
 
 export const adminApi = {
+    async createUser(payload: AdminUserCreate): Promise<AdminUser> {
+    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/users`, payload);
+    return data;
+  },
+
+  async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`${ADMIN_ENDPOINT}/users/${userId}`);
+  },
+  
   async getUsers(limit = 20, offset = 0, search?: string): Promise<AdminUserListResponse> {
     const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/users`, {
       params: { limit, offset, search: search || undefined },
