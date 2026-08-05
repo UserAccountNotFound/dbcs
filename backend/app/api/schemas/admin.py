@@ -1,10 +1,12 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.enums import UserRole
 
 
 class AdminUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: EmailStr
     full_name: str
@@ -36,6 +38,8 @@ class AdminUserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=12, max_length=128)
 
 class AdminCardResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     slug: str
     title: str
@@ -54,6 +58,8 @@ class AdminCardListResponse(BaseModel):
 
 
 class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     action: str
     entity_type: str | None
