@@ -10,7 +10,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Digital Bussines Cards Service',
-        short_name: 'DBCS Cards',
+        short_name: 'DBCS',
         description: 'Cервис электронных визиток',
         theme_color: '#0f766e',
         background_color: '#ffffff',
