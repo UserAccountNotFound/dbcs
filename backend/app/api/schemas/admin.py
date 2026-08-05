@@ -22,11 +22,18 @@ class AdminUserListResponse(BaseModel):
     limit: int
     offset: int
 
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=12, max_length=128)
+    role: UserRole = UserRole.USER
 
 class AdminUserUpdate(BaseModel):
-    is_active: bool | None = None
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
     role: UserRole | None = None
-
+    is_active: bool | None = None
+    password: str | None = Field(default=None, min_length=12, max_length=128)
 
 class AdminCardResponse(BaseModel):
     id: str

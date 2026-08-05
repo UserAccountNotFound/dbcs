@@ -7,6 +7,7 @@ from app.api.schemas.admin import (
     AdminCardResponse,
     AdminUserListResponse,
     AdminUserResponse,
+    AdminUserCreate,
     AdminUserUpdate,
     AuditLogListResponse,
     AuditLogResponse,
@@ -37,6 +38,58 @@ def list_users(
         offset=offset,
     )
 
+@router.post("/users", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED, summary="Создать пользователя")
+def create_user(
+    payload: AdminUserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> AdminUserResponse:
+    try:
+        user = admin_service.create_user(db, payload)
+    except AdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.user_create",
+        actor_user_id=admin.id,
+        entity_type="user",
+        entity_id=user.id,
+        request=request,
+    )
+
+    return AdminUserResponse.model_validate(user)
+
+
+@router.delete("/users/{user_id}", summary="Удалить пользователя")
+def delete_user(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    try:
+        admin_service.delete_user(db, admin, user_id)
+    except AdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.user_delete",
+        actor_user_id=admin.id,
+        entity_type="user",
+        entity_id=user_id,
+        request=request,
+    )
+
+    return {"detail": "Пользователь удален."}
 
 @router.patch("/users/{user_id}", response_model=AdminUserResponse, summary="Обновить пользователя")
 def update_user(

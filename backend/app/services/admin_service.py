@@ -1,15 +1,56 @@
 from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 
-from app.api.schemas.admin import AdminUserUpdate
+from app.api.schemas.admin import AdminUserCreate, AdminUserUpdate
 from app.models import User, Card, CardVisit, AuditLog, UserRole
 from app.services.exceptions import ServiceError
 from app.services.public_card_service import SOURCE_CARD_VIEW, SOURCE_VCARD_DOWNLOAD
 
+from app.core.security import hash_password
+from app.db.base import utcnow
 
 class AdminError(ServiceError):
     pass
 
+def create_user(
+    db: Session,
+    payload: "AdminUserCreate",  # type: ignore
+) -> User:
+    # Проверяем, не занят ли email активным пользователем
+    existing = db.scalar(
+        select(User).where(
+            User.email == payload.email,
+            User.deleted_at.is_(None),
+        )
+    )
+    if existing:
+        raise AdminError("Пользователь с таким email уже существует.")
+
+    user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name,
+        role=payload.role,
+        is_active=True,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def delete_user(db: Session, admin: User, user_id: str) -> None:
+    if admin.id == user_id:
+        raise AdminError("Нельзя удалить самого себя.")
+
+    user = db.get(User, user_id)
+    if not user or user.deleted_at is not None:
+        raise AdminError("Пользователь не найден.")
+
+    user.deleted_at = utcnow()
+    user.is_active = False
+    db.commit()
 
 def get_users(
     db: Session,
@@ -17,7 +58,7 @@ def get_users(
     offset: int,
     search: str | None = None,
 ) -> tuple[list[User], int]:
-    query = select(User)
+    query = select(User).where(User.deleted_at.is_(None))
 
     if search:
         search_filter = f"%{search}%"
@@ -56,8 +97,7 @@ def get_users(
         user.cards_count = row[1] or 0  # type: ignore
         users.append(user)
 
-    # Общий счетчик для пагинации
-    count_query = select(func.count(User.id))
+    count_query = select(func.count(User.id)).where(User.deleted_at.is_(None))
     if search:
         search_filter = f"%{search}%"
         count_query = count_query.where(
@@ -85,14 +125,31 @@ def update_user(
             raise AdminError("Нельзя изменить собственную роль.")
 
     user = db.get(User, user_id)
-    if not user:
+    if not user or user.deleted_at is not None:
         raise AdminError("Пользователь не найден.")
+
+    # Проверка email на уникальность, если он меняется
+    if payload.email is not None and payload.email != user.email:
+        existing = db.scalar(
+            select(User).where(
+                User.email == payload.email,
+                User.deleted_at.is_(None),
+            )
+        )
+        if existing:
+            raise AdminError("Этот email уже занят другим пользователем.")
+        user.email = payload.email
+
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+
+    if payload.password is not None:
+        user.password_hash = hash_password(payload.password)
 
     if payload.is_active is not None:
         user.is_active = payload.is_active
     
     if payload.role is not None:
-        # Только SUPERADMIN может назначать роль SUPERADMIN
         if payload.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
             raise AdminError("Недостаточно прав для назначения роли SUPERADMIN.")
         user.role = payload.role
