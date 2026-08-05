@@ -35,7 +35,34 @@ const router = createRouter({
       path: '/public/card/:slug',
       name: 'public-card',
       component: () => import('../views/PublicCardView.vue')
-    }
+    },
+    {
+      path: '/admin',
+      component: () => import('../layouts/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('../views/admin/AdminDashboardView.vue'),
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('../views/admin/AdminUsersView.vue'),
+        },
+        {
+          path: 'cards',
+          name: 'admin-cards',
+          component: () => import('../views/admin/AdminCardsView.vue'),
+        },
+        {
+          path: 'audit',
+          name: 'admin-audit',
+          component: () => import('../views/admin/AdminAuditView.vue'),
+        },
+      ],
+    },
   ]
 });
 
@@ -53,6 +80,10 @@ router.beforeEach(async (to, _from, next) => {
   } 
   // Защита маршрутов для гостей (если уже залогинен — редирект на дашборд)
   else if (to.meta.requiresGuest && authStore.isAuthenticated) {
+    next({ name: 'dashboard' });
+  } 
+  // Доступность только для админов
+  else if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'dashboard' });
   } 
   else {

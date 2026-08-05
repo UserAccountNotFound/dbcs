@@ -46,5 +46,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, accessToken, isAuthenticated, login, fetchMe, logout };
+  const isAdmin = computed(() => 
+    user.value?.role === 'ADMIN' || user.value?.role === 'SUPERADMIN'
+  );
+
+  return { user, accessToken, isAuthenticated, isAdmin, login, fetchMe, logout };
 });
