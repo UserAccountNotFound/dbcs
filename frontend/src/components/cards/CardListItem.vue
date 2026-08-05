@@ -5,7 +5,7 @@ import { cardApi } from '../../api/cards';
 import { downloadBlob } from '../../utils/download';
 
 const props = defineProps<{ card: Card }>();
-const emit = defineEmits(['updated', 'deleted', 'edit', 'show-qr']);
+const emit = defineEmits(['updated', 'deleted', 'edit', 'show-qr', 'show-stats']);
 
 const isDeleting = ref(false);
 const isToggling = ref(false);
@@ -71,6 +71,7 @@ async function downloadVCard() {
     <div class="flex flex-wrap gap-2 mt-2">
       <button @click="$emit('edit', card.id)" class="btn-primary">Редактировать</button>
       <button @click="$emit('show-qr', card.id)" class="btn-secondary">QR</button>
+      <button @click="$emit('show-stats', card.id)" class="btn-secondary">📊</button>
       <button @click="downloadVCard" class="btn-secondary">vCard</button>
       <button @click="toggleActive" :disabled="isToggling" class="btn-secondary">
         {{ card.is_active ? 'Отключить' : 'Включить' }}

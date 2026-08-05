@@ -6,6 +6,7 @@ import { cardApi } from '../api/cards';
 import type { Card } from '../types/card';
 import CardListItem from '../components/cards/CardListItem.vue';
 import QrModal from '../components/cards/QrModal.vue';
+import StatsModal from '../components/cards/StatsModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -36,6 +37,15 @@ function handleEdit(cardId: string) {
 
 function handleShowQr(cardId: string) {
   qrCardId.value = cardId;
+}
+
+const statsCardId = ref<string | null>(null);
+const statsCardTitle = ref<string>('');
+
+function handleShowStats(cardId: string) {
+  const card = cards.value.find(c => c.id === cardId);
+  statsCardId.value = cardId;
+  statsCardTitle.value = card?.title || '';
 }
 </script>
 
@@ -77,6 +87,7 @@ function handleShowQr(cardId: string) {
           :card="card"
           @edit="handleEdit"
           @show-qr="handleShowQr"
+          @show-stats="handleShowStats"
           @updated="loadCards"
           @deleted="loadCards"
         />
@@ -84,5 +95,6 @@ function handleShowQr(cardId: string) {
     </main>
 
     <QrModal :card-id="qrCardId" @close="qrCardId = null" />
+    <StatsModal :card-id="statsCardId" :card-title="statsCardTitle" @close="statsCardId = null" />
   </div>
 </template>

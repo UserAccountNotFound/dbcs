@@ -1,5 +1,6 @@
 import apiClient from './client';
 import type { Card, CardListResponse, CardCreatePayload, CardUpdatePayload } from '../types/card';
+import type { CardStats } from '../types/stats';
 
 const CARDS_ENDPOINT = '/cards';
 
@@ -33,7 +34,12 @@ export const cardApi = {
     return data;
   },
 
-  // Скачиваем как Blob, чтобы передать Authorization header
+  // Статистика карточки
+  async getCardStats(cardId: string): Promise<CardStats> {
+    const { data } = await apiClient.get(`${CARDS_ENDPOINT}/${cardId}/stats`);
+    return data;
+  },
+
   async getQrCodeBlob(cardId: string): Promise<Blob> {
     const { data } = await apiClient.get(`${CARDS_ENDPOINT}/${cardId}/qrcode.svg`, {
       responseType: 'blob'
