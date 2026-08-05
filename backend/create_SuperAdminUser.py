@@ -23,7 +23,7 @@ from app.models.enums import UserRole
 def prompt_email() -> str:
     """Запрашивает email с валидацией."""
     while True:
-        email = input("📧 Email нового администратора: ").strip()
+        email = input(" Email нового администратора: ").strip()
         if not email:
             print("   ❌ Email не может быть пустым.")
             continue
@@ -46,12 +46,12 @@ def prompt_full_name() -> str:
 def prompt_password() -> str:
     """Запрашивает пароль с подтверждением (без отображения символов)."""
     while True:
-        password = getpass.getpass("🔑 Пароль (мин. 12 символов): ")
+        password = getpass.getpass(" Пароль (мин. 12 символов): ")
         if len(password) < 12:
             print("   ❌ Пароль должен быть не менее 12 символов.")
             continue
         
-        confirm = getpass.getpass("🔑 Подтвердите пароль: ")
+        confirm = getpass.getpass(" Подтвердите пароль: ")
         if password != confirm:
             print("   ❌ Пароли не совпадают.")
             continue
