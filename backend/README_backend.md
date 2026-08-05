@@ -18,3 +18,18 @@ backend/
 
 # Сервис визитных карточек app/services/card_service.py
 # Endpoints для визиток app/api/cards.py
+
+
+# Создание новой учетной записи SUPERADMIN в БД
+
+- Запуск скрипта от имени пользователя приложения
+```
+sudo -u ecard bash -c "cd /opt/dbcs/backend && set -a && source .env && set +a && .venv/bin/python create_SuperAdminUser.py"
+```
+- если в dev-режиме из-под root:
+```
+cd /opt/dbcs/backend
+source .venv/bin/activate
+set -a && source .env && set +a
+python create_superuser.py
+```
