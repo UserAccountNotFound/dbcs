@@ -206,13 +206,12 @@ def get_cards(
 
     total = db.scalar(count_query) or 0
 
-    results = (
+    results = db.execute(
         query
         .order_by(Card.created_at.desc())
         .limit(limit)
         .offset(offset)
-        .all()
-    )
+    ).all()
 
     cards_data = []
     for card, user_email, visits_count in results:
