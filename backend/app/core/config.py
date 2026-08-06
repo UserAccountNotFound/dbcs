@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "E-Card Service API"
+    app_name: str = "Digital Bussines Card Service API"
     environment: str = "development"
     debug: bool = False
 

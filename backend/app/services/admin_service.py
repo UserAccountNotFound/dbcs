@@ -2,55 +2,16 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.admin import AdminUserCreate, AdminUserUpdate
+from app.core.security import hash_password
+from app.db.base import utcnow
 from app.models import User, Card, CardVisit, AuditLog, UserRole
 from app.services.exceptions import ServiceError
 from app.services.public_card_service import SOURCE_CARD_VIEW, SOURCE_VCARD_DOWNLOAD
 
-from app.core.security import hash_password
-from app.db.base import utcnow
 
 class AdminError(ServiceError):
     pass
 
-def create_user(
-    db: Session,
-    payload: "AdminUserCreate",  # type: ignore
-) -> User:
-    # Проверяем, не занят ли email активным пользователем
-    existing = db.scalar(
-        select(User).where(
-            User.email == payload.email,
-            User.deleted_at.is_(None),
-        )
-    )
-    if existing:
-        raise AdminError("Пользователь с таким email уже существует.")
-
-    user = User(
-        email=payload.email,
-        password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        role=payload.role,
-        is_active=True,
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-def delete_user(db: Session, admin: User, user_id: str) -> None:
-    if admin.id == user_id:
-        raise AdminError("Нельзя удалить самого себя.")
-
-    user = db.get(User, user_id)
-    if not user or user.deleted_at is not None:
-        raise AdminError("Пользователь не найден.")
-
-    user.deleted_at = utcnow()
-    user.is_active = False
-    db.commit()
 
 def get_users(
     db: Session,
@@ -69,7 +30,6 @@ def get_users(
             )
         )
 
-    # Подсчет количества карточек для каждого пользователя
     cards_count_subq = (
         select(
             Card.user_id,
@@ -112,6 +72,33 @@ def get_users(
     return users, total
 
 
+def create_user(
+    db: Session,
+    payload: AdminUserCreate,
+) -> User:
+    existing = db.scalar(
+        select(User).where(
+            User.email == payload.email,
+            User.deleted_at.is_(None),
+        )
+    )
+    if existing:
+        raise AdminError("Пользователь с таким email уже существует.")
+
+    user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name,
+        role=payload.role,
+        is_active=True,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def update_user(
     db: Session,
     admin: User,
@@ -128,7 +115,6 @@ def update_user(
     if not user or user.deleted_at is not None:
         raise AdminError("Пользователь не найден.")
 
-    # Проверка email на уникальность, если он меняется
     if payload.email is not None and payload.email != user.email:
         existing = db.scalar(
             select(User).where(
@@ -157,6 +143,19 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+def delete_user(db: Session, admin: User, user_id: str) -> None:
+    if admin.id == user_id:
+        raise AdminError("Нельзя удалить самого себя.")
+
+    user = db.get(User, user_id)
+    if not user or user.deleted_at is not None:
+        raise AdminError("Пользователь не найден.")
+
+    user.deleted_at = utcnow()
+    user.is_active = False
+    db.commit()
 
 
 def get_cards(
@@ -255,13 +254,12 @@ def get_audit_logs(
 
     total = db.scalar(count_query) or 0
 
-    results = (
+    results = db.execute(
         query
         .order_by(AuditLog.created_at.desc())
         .limit(limit)
         .offset(offset)
-        .all()
-    )
+    ).all()
 
     logs = []
     for log, actor_email in results:
@@ -274,8 +272,8 @@ def get_audit_logs(
 
 
 def get_overview_stats(db: Session) -> dict:
-    total_users = db.scalar(select(func.count(User.id))) or 0
-    active_users = db.scalar(select(func.count(User.id)).where(User.is_active.is_(True))) or 0
+    total_users = db.scalar(select(func.count(User.id)).where(User.deleted_at.is_(None))) or 0
+    active_users = db.scalar(select(func.count(User.id)).where(User.is_active.is_(True), User.deleted_at.is_(None))) or 0
     
     total_cards = db.scalar(select(func.count(Card.id)).where(Card.deleted_at.is_(None))) or 0
     active_cards = db.scalar(
