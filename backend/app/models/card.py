@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.card_template import CardTemplate
     from app.models.card_visit import CardVisit
     from app.models.user import User
+    from app.models.file import File
 
 
 class Card(Base):
@@ -32,6 +33,18 @@ class Card(Base):
 
     template_id: Mapped[str | None] = mapped_column(
         ForeignKey("card_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    avatar_file_id: Mapped[str | None] = mapped_column(
+        ForeignKey("files.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    logo_file_id: Mapped[str | None] = mapped_column(
+        ForeignKey("files.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -93,7 +106,7 @@ class Card(Base):
         nullable=True,
     )
 
-    theme_json: Mapped[dict] = mapped_column(
+    theme: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
         default=dict,
@@ -127,6 +140,14 @@ class Card(Base):
         back_populates="cards",
     )
 
+    avatar_file: Mapped[Optional["File"]] = relationship(
+        foreign_keys=[avatar_file_id],
+    )
+
+    logo_file: Mapped[Optional["File"]] = relationship(
+        foreign_keys=[logo_file_id],
+    )
+    
     template: Mapped[Optional["CardTemplate"]] = relationship(
         back_populates="cards",
     )

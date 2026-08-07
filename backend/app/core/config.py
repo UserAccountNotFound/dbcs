@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pathlib import Path
 
 class Settings(BaseSettings):
     app_name: str = "Digital Bussines Card Service API"
@@ -20,6 +21,9 @@ class Settings(BaseSettings):
 
     public_base_url: str = "http://localhost:5173"
 
+    uploads_dir: Path = Path("/var/lib/dbcs/uploads")
+    max_upload_size_mb: int = 5
+    
     docs_enabled: bool = True
     redoc_enabled: bool = True
 

@@ -8,6 +8,7 @@ APP_NAME="dbcs"
 APP_USER="ecard"
 BACKEND_DIR="/opt/${APP_NAME}/backend"
 LOG_DIR="/var/log/${APP_NAME}"
+UPLOADS_DIR="/var/lib/${APP_NAME}/uploads"  # НОВОЕ: директория для загруженных файлов
 ENV_FILE="${BACKEND_DIR}/.env"
 ENV_EXAMPLE="${BACKEND_DIR}/.env.example"
 SYSTEMD_SERVICE="/etc/systemd/system/${APP_NAME}-backend.service"
@@ -26,6 +27,7 @@ DB_PASSWORD="EcardM3GaPassW0rd"
 APP_PORT="8000"
 PUBLIC_BASE_URL="http://localhost"
 API_PREFIX="/api"
+MAX_UPLOAD_SIZE_MB=5  # НОВОЕ: максимальный размер загружаемого файла
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -64,7 +66,8 @@ install_dependencies() {
     
     apt-get update -qq
     
-    apt-get install -y -qq sudo locales python3 python3-venv python3-pip mariadb-server mariadb-client nginx curl rsync
+    # libmagic1 нужен для python-magic (валидация MIME-типов загружаемых файлов)
+    apt-get install -y -qq sudo locales python3 python3-venv python3-pip libmagic1 mariadb-server mariadb-client nginx curl rsync
     
     log_info "Настройка системных локалей..."
     
@@ -102,6 +105,10 @@ setup_user_and_dirs() {
     mkdir -p "$BACKEND_DIR"
     mkdir -p "$LOG_DIR"
     
+    # НОВОЕ: Создаем директорию для загружаемых файлов вне webroot
+    # Это важно для безопасности: файлы не должны быть доступны через Nginx напрямую
+    mkdir -p "$UPLOADS_DIR"
+    
 #    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #    if [[ "$SCRIPT_DIR" != "$BACKEND_DIR" ]]; then
 #        log_info "Копирование файлов проекта в $BACKEND_DIR..."
@@ -111,6 +118,12 @@ setup_user_and_dirs() {
 
     chown -R "$APP_USER":"$APP_USER" "$BACKEND_DIR"
     chown -R "$APP_USER":"$APP_USER" "$LOG_DIR"
+    
+    # НОВОЕ: Выставляем права на директорию загрузок
+    # 700 - только владелец может читать/писать (защита от других системных пользователей)
+    chown -R "$APP_USER":"$APP_USER" "$UPLOADS_DIR"
+    chmod 700 "$UPLOADS_DIR"
+    log_info "Директория загрузок $UPLOADS_DIR создана и защищена."
 }
 
 # ==============================================================================
@@ -143,6 +156,8 @@ SELF_REGISTRATION_ENABLED=false
 REFRESH_COOKIE_NAME=refresh_token
 REFRESH_COOKIE_SECURE=true
 REFRESH_COOKIE_SAMESITE=lax
+UPLOADS_DIR=${UPLOADS_DIR}
+MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
 EOF
         fi
     fi
@@ -154,7 +169,7 @@ EOF
     NEW_SECRET=$(generate_secret)
     DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
     
-    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL
+    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL UPLOADS_DIR MAX_UPLOAD_SIZE_MB
     
     python3 -c '
 import os
@@ -162,6 +177,8 @@ env_file = os.environ["ENV_FILE"]
 db_url = os.environ["DB_URL"]
 new_secret = os.environ["NEW_SECRET"]
 public_url = os.environ["PUBLIC_BASE_URL"]
+uploads_dir = os.environ["UPLOADS_DIR"]
+max_upload_mb = os.environ["MAX_UPLOAD_SIZE_MB"]
 
 with open(env_file, "r") as f:
     lines = f.readlines()
@@ -176,19 +193,25 @@ with open(env_file, "w") as f:
             f.write(f"PUBLIC_BASE_URL={public_url}\n")
         elif line.startswith("ALLOWED_ORIGINS="):
             f.write(f"ALLOWED_ORIGINS={public_url}\n")
+        elif line.startswith("UPLOADS_DIR="):
+            f.write(f"UPLOADS_DIR={uploads_dir}\n")
+        elif line.startswith("MAX_UPLOAD_SIZE_MB="):
+            f.write(f"MAX_UPLOAD_SIZE_MB={max_upload_mb}\n")
         else:
             f.write(line)
     # Если DATABASE_URL не было в файле, добавляем в конец
     if not any(line.startswith("DATABASE_URL=") for line in lines):
         f.write(f"\nDATABASE_URL={db_url}\n")
 
-    # Гарантируем наличие новых переменных для Auth/Cookies, если их нет
+    # Гарантируем наличие новых переменных для Auth/Cookies и загрузки файлов, если их нет
     required_vars = {
         "SELF_REGISTRATION_ENABLED": "false",
         "REFRESH_COOKIE_NAME": "refresh_token",
         "REFRESH_COOKIE_SECURE": "true",
         "REFRESH_COOKIE_SAMESITE": "lax",
-        "API_V1_PREFIX": "/api/v1"
+        "API_V1_PREFIX": "/api/v1",
+        "UPLOADS_DIR": uploads_dir,
+        "MAX_UPLOAD_SIZE_MB": max_upload_mb
     }
     with open(env_file, "r") as f:
         current_lines = f.readlines()
@@ -327,6 +350,8 @@ setup_python() {
 setup_systemd() {
     log_info "Создание systemd сервиса..."
     
+    # НОВОЕ: добавляем UPLOADS_DIR в ReadWritePaths, 
+    # иначе сервис не сможет писать загруженные файлы из-за ProtectSystem=strict
     cat <<EOF > "$SYSTEMD_SERVICE"
 [Unit]
 Description=DBCS Backend API (FastAPI + Gunicorn)
@@ -357,7 +382,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=${BACKEND_DIR} ${LOG_DIR}
+ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} ${UPLOADS_DIR}
 
 [Install]
 WantedBy=multi-user.target
@@ -376,10 +401,22 @@ EOF
 setup_nginx() {
     log_info "Настройка Nginx..."
     
-    # Добавляем зоны rate limit в глобальный конфиг nginx, если их там еще нет
+    # Проверяем и добавляем каждую зону rate limit отдельно
+    # Это нужно, так как скрипт может запускаться многократно с разными версиями
+    
     if ! grep -q "limit_req_zone.*auth_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зон Rate Limiting в глобальный nginx.conf..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;\n    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
+        log_info "Добавление зоны Rate Limiting: auth_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;' /etc/nginx/nginx.conf
+    fi
+    
+    if ! grep -q "limit_req_zone.*public_limit" /etc/nginx/nginx.conf; then
+        log_info "Добавление зоны Rate Limiting: public_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
+    fi
+    
+    if ! grep -q "limit_req_zone.*uploads_limit" /etc/nginx/nginx.conf; then
+        log_info "Добавление зоны Rate Limiting: uploads_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=uploads_limit:10m rate=10r/m;' /etc/nginx/nginx.conf
     fi
     
     cat <<EOF > "$NGINX_CONF"
@@ -388,6 +425,7 @@ server {
     server_name _; # Замените на ваш домен или IP
 
     # Лимит на загрузку файлов (аватары, логотипы) - 10 Мегабайт
+    # Должен быть чуть больше MAX_UPLOAD_SIZE_MB в приложении (5MB) с запасом на overhead
     client_max_body_size 10M;
 
     # Security headers
@@ -406,6 +444,23 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Строгий лимит на загрузку файлов (защита от DoS)
+    location ${API_PREFIX}/v1/files/ {
+        limit_req zone=uploads_limit burst=5 nodelay;
+        limit_req_status 429;
+        
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Увеличенный таймаут для загрузки больших файлов
+        proxy_connect_timeout 90s;
+        proxy_send_timeout 90s;
+        proxy_read_timeout 90s;
     }
 
     # Умеренный лимит на публичные визитки (защита от парсинга/DDoS)
@@ -432,6 +487,12 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+    }
+
+    # Блокируем прямой доступ к директории загрузок через Nginx (на всякий случай)
+    location /uploads/ {
+        deny all;
+        return 404;
     }
 
     # Запрет доступа к скрытым файлам (например, .env, .git)
@@ -464,6 +525,7 @@ verify_deployment() {
         log_info "Backend успешно развернут и отвечает на запросы!"
         log_info "API доступен по адресу: http://127.0.0.1:${APP_PORT}${API_PREFIX}/v1"
         log_info "ReDoc документация: http://127.0.0.1:${APP_PORT}/api/redoc"
+        log_info "Директория загрузок: ${UPLOADS_DIR}"
     else
         log_warn "Healthcheck не прошел. Проверь логи:"
         log_warn "journalctl -u ${APP_NAME}-backend.service -n 50"

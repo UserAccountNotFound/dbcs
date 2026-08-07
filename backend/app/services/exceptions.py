@@ -24,3 +24,18 @@ class TemplateNotFoundError(ServiceError):
 
 class SlugGenerationError(ServiceError):
     pass
+
+class InvalidFileError(ServiceError):
+    pass
+
+
+class FileTooLargeError(ServiceError):
+    pass
+
+
+class UnsupportedFileTypeError(ServiceError):
+    pass
+
+
+class FileNotFoundError(ServiceError):
+    pass

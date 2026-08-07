@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import type { Card, CardCreatePayload, CardUpdatePayload, CardTheme } from '../../types/card';
+import ImageUploader from './ImageUploader.vue';
 
 const props = defineProps<{
   card?: Card;
@@ -32,6 +33,8 @@ const form = reactive<CardCreatePayload>({
   address: '',
   note: '',
   template_id: null,
+  avatar_file_id: null,
+  logo_file_id: null,
   theme: { ...defaultTheme }
 });
 
@@ -40,6 +43,8 @@ watch(() => props.card, (newCard) => {
   if (newCard) {
     form.title = newCard.title;
     form.full_name = newCard.full_name;
+    form.avatar_file_id = newCard.avatar_file_id || null;
+    form.logo_file_id = newCard.logo_file_id || null;
     form.job_title = newCard.job_title || '';
     form.department = newCard.department || '';
     form.company = newCard.company || '';
@@ -114,6 +119,23 @@ function handleSubmit() {
       <div class="md:col-span-2">
         <label class="block text-sm font-medium text-gray-700">Заметка</label>
         <textarea v-model="form.note" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"></textarea>
+      </div>
+    </div>
+
+    <!-- Изображения -->
+    <div class="border-t pt-4">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">Изображения</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ImageUploader 
+          v-model="form.avatar_file_id"
+          label="Аватар (фото)"
+          aspect-ratio="square"
+        />
+        <ImageUploader 
+          v-model="form.logo_file_id"
+          label="Логотип компании"
+          aspect-ratio="wide"
+        />
       </div>
     </div>
 

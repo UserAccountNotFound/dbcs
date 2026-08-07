@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: b53df2ab0225
+Revision ID: 0ab151e859dd
 Revises: 
-Create Date: 2026-08-04 12:56:03.931521
+Create Date: 2026-08-07 22:24:53.823886
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'b53df2ab0225'
+revision: str = '0ab151e859dd'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -44,6 +44,7 @@ def upgrade() -> None:
     sa.Column('mfa_enabled', sa.Boolean(), nullable=False),
     sa.Column('mfa_secret_encrypted', sa.String(length=512), nullable=True),
     sa.Column('last_login_at', sa.DateTime(), nullable=True),
+    sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_users'))
@@ -79,10 +80,27 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_auth_sessions_refresh_token_hash'), 'auth_sessions', ['refresh_token_hash'], unique=True)
     op.create_index(op.f('ix_auth_sessions_user_id'), 'auth_sessions', ['user_id'], unique=False)
+    op.create_table('files',
+    sa.Column('id', sa.String(length=36), nullable=False),
+    sa.Column('owner_user_id', sa.String(length=36), nullable=False),
+    sa.Column('storage_key', sa.String(length=255), nullable=False),
+    sa.Column('original_name', sa.String(length=512), nullable=False),
+    sa.Column('mime_type', sa.String(length=100), nullable=False),
+    sa.Column('size_bytes', sa.BigInteger(), nullable=False),
+    sa.Column('sha256', sa.String(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['owner_user_id'], ['users.id'], name=op.f('fk_files_owner_user_id_users'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_files'))
+    )
+    op.create_index(op.f('ix_files_owner_user_id'), 'files', ['owner_user_id'], unique=False)
+    op.create_index(op.f('ix_files_sha256'), 'files', ['sha256'], unique=False)
+    op.create_index(op.f('ix_files_storage_key'), 'files', ['storage_key'], unique=True)
     op.create_table('cards',
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('user_id', sa.String(length=36), nullable=False),
     sa.Column('template_id', sa.String(length=36), nullable=True),
+    sa.Column('avatar_file_id', sa.String(length=36), nullable=True),
+    sa.Column('logo_file_id', sa.String(length=36), nullable=True),
     sa.Column('slug', sa.String(length=64), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=False),
     sa.Column('full_name', sa.String(length=255), nullable=False),
@@ -94,15 +112,19 @@ def upgrade() -> None:
     sa.Column('website', sa.String(length=2048), nullable=True),
     sa.Column('address', sa.String(length=512), nullable=True),
     sa.Column('note', sa.Text(), nullable=True),
-    sa.Column('theme_json', sa.JSON(), nullable=False),
+    sa.Column('theme', sa.JSON(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['avatar_file_id'], ['files.id'], name=op.f('fk_cards_avatar_file_id_files'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['logo_file_id'], ['files.id'], name=op.f('fk_cards_logo_file_id_files'), ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['template_id'], ['card_templates.id'], name=op.f('fk_cards_template_id_card_templates'), ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_cards_user_id_users'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_cards'))
     )
+    op.create_index(op.f('ix_cards_avatar_file_id'), 'cards', ['avatar_file_id'], unique=False)
+    op.create_index(op.f('ix_cards_logo_file_id'), 'cards', ['logo_file_id'], unique=False)
     op.create_index(op.f('ix_cards_slug'), 'cards', ['slug'], unique=True)
     op.create_index(op.f('ix_cards_template_id'), 'cards', ['template_id'], unique=False)
     op.create_index(op.f('ix_cards_user_id'), 'cards', ['user_id'], unique=False)
@@ -131,7 +153,13 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_cards_user_id'), table_name='cards')
     op.drop_index(op.f('ix_cards_template_id'), table_name='cards')
     op.drop_index(op.f('ix_cards_slug'), table_name='cards')
+    op.drop_index(op.f('ix_cards_logo_file_id'), table_name='cards')
+    op.drop_index(op.f('ix_cards_avatar_file_id'), table_name='cards')
     op.drop_table('cards')
+    op.drop_index(op.f('ix_files_storage_key'), table_name='files')
+    op.drop_index(op.f('ix_files_sha256'), table_name='files')
+    op.drop_index(op.f('ix_files_owner_user_id'), table_name='files')
+    op.drop_table('files')
     op.drop_index(op.f('ix_auth_sessions_user_id'), table_name='auth_sessions')
     op.drop_index(op.f('ix_auth_sessions_refresh_token_hash'), table_name='auth_sessions')
     op.drop_table('auth_sessions')

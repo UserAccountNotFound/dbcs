@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from app.api.schemas.card import CardCreate, CardTheme, CardUpdate
 from app.core.slugs import generate_unique_slug
 from app.db.base import utcnow
-from app.models import Card, CardTemplate, User
+from app.models import Card, CardTemplate, User, File
 from app.services.exceptions import (
     CardNotFoundError,
     TemplateNotFoundError,
+    InvalidFileError,
 )
 
 
@@ -55,10 +56,23 @@ def create_card(
 ) -> Card:
     _ensure_template_exists_and_active(db, payload.template_id)
 
+    # Проверяем, что файлы принадлежат пользователю
+    if payload.avatar_file_id:
+        file = db.get(File, payload.avatar_file_id)
+        if not file or file.owner_user_id != user.id:
+            raise InvalidFileError("Avatar file not found or not owned by user.")
+    
+    if payload.logo_file_id:
+        file = db.get(File, payload.logo_file_id)
+        if not file or file.owner_user_id != user.id:
+            raise InvalidFileError("Logo file not found or not owned by user.")
+
     card = Card(
         user_id=user.id,
         slug=generate_unique_slug(db),
         template_id=payload.template_id,
+        avatar_file_id=payload.avatar_file_id,
+        logo_file_id=payload.logo_file_id,
         title=payload.title,
         full_name=payload.full_name,
         job_title=payload.job_title,
@@ -69,7 +83,7 @@ def create_card(
         website=payload.website,
         address=payload.address,
         note=payload.note,
-        theme_json=payload.theme.model_dump(),
+        theme=payload.theme.model_dump(),
         is_active=True,
     )
 
@@ -130,13 +144,30 @@ def update_card(
         _ensure_template_exists_and_active(db, template_id)
         card.template_id = template_id
 
+    # Обработка файлов
+    if "avatar_file_id" in update_data:
+        avatar_file_id = update_data.pop("avatar_file_id")
+        if avatar_file_id:
+            file = db.get(File, avatar_file_id)
+            if not file or file.owner_user_id != user.id:
+                raise InvalidFileError("Avatar file not found or not owned by user.")
+        card.avatar_file_id = avatar_file_id
+
+    if "logo_file_id" in update_data:
+        logo_file_id = update_data.pop("logo_file_id")
+        if logo_file_id:
+            file = db.get(File, logo_file_id)
+            if not file or file.owner_user_id != user.id:
+                raise InvalidFileError("Logo file not found or not owned by user.")
+        card.logo_file_id = logo_file_id
+
     if "theme" in update_data:
         update_data.pop("theme")
 
         if payload.theme is not None:
-            card.theme_json = payload.theme.model_dump()
+            card.theme = payload.theme.model_dump()
         else:
-            card.theme_json = CardTheme().model_dump()
+            card.theme = CardTheme().model_dump()
 
     for field_name, value in update_data.items():
         setattr(card, field_name, value)

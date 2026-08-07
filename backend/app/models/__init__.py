@@ -6,6 +6,7 @@ from app.models.card import Card
 from app.models.auth_session import AuthSession
 from app.models.card_visit import CardVisit
 from app.models.audit_log import AuditLog
+from app.models.file import File
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "AuthSession",
     "CardVisit",
     "AuditLog",
+    "File",
 ]

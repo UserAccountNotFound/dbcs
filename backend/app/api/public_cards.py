@@ -10,6 +10,8 @@ from app.core.urls import get_public_card_url
 from app.services import public_card_service, qr_service, vcard_service
 from app.services.exceptions import CardNotFoundError
 
+from fastapi.responses import FileResponse
+from app.services import file_service
 
 router = APIRouter(prefix="/public/cards", tags=["Public Cards"])
 
@@ -41,6 +43,79 @@ def get_public_card(
 
     return build_public_card_response(card)
 
+
+@router.get(
+    "/{slug}/avatar",
+    summary="Аватар публичной визитки",
+)
+def get_public_card_avatar(
+    slug: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        card = public_card_service.get_active_public_card(db, slug)
+    except CardNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card not found.",
+        ) from exc
+    
+    if not card.avatar_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avatar not set.",
+        )
+    
+    try:
+        file_path = file_service.get_file_path(card.avatar_file)
+    except file_service.FileNotFoundServiceError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avatar file missing.",
+        )
+    
+    return FileResponse(
+        path=file_path,
+        media_type=card.avatar_file.mime_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get(
+    "/{slug}/logo",
+    summary="Логотип публичной визитки",
+)
+def get_public_card_logo(
+    slug: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        card = public_card_service.get_active_public_card(db, slug)
+    except CardNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card not found.",
+        ) from exc
+    
+    if not card.logo_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Logo not set.",
+        )
+    
+    try:
+        file_path = file_service.get_file_path(card.logo_file)
+    except file_service.FileNotFoundServiceError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Logo file missing.",
+        )
+    
+    return FileResponse(
+        path=file_path,
+        media_type=card.logo_file.mime_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 @router.get(
     "/{slug}/vcard.vcf",

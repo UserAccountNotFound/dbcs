@@ -21,41 +21,30 @@ PHONE_PATTERN = re.compile(r"^\+?[0-9\s\-().]{7,64}$")
 def _normalize_optional_string(value: str | None) -> str | None:
     if value is None:
         return None
-
     value = value.strip()
-
     if not value:
         return None
-
     return value
 
 
 def _validate_phone_value(value: str | None) -> str | None:
     value = _normalize_optional_string(value)
-
     if value is None:
         return None
-
     if not PHONE_PATTERN.fullmatch(value):
         raise ValueError("Invalid phone number format.")
-
     return value
 
 
 def _validate_website_value(value: str | None) -> str | None:
     value = _normalize_optional_string(value)
-
     if value is None:
         return None
-
     parsed = urlparse(value)
-
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("Website must use http or https scheme.")
-
     if not parsed.netloc:
         raise ValueError("Website must contain a valid domain.")
-
     return value
 
 
@@ -87,6 +76,9 @@ class CardBase(BaseModel):
 
     template_id: str | None = None
     theme: CardTheme = Field(default_factory=CardTheme)
+
+    avatar_file_id: str | None = None
+    logo_file_id: str | None = None
 
     @field_validator("job_title", "department", "company", "address", "note")
     @classmethod
@@ -125,6 +117,9 @@ class CardUpdate(BaseModel):
     template_id: str | None = None
     theme: CardTheme | None = None
     is_active: bool | None = None
+
+    avatar_file_id: str | None = None
+    logo_file_id: str | None = None
 
     @field_validator("title", "full_name")
     @classmethod
@@ -166,9 +161,12 @@ class CardResponse(BaseModel):
     address: str | None
     note: str | None
 
-    # ЗДЕСЬ ДОБАВЛЕН validation_alias
-    theme: CardTheme = Field(validation_alias="theme_json")
+    theme: CardTheme
+
     template_id: str | None
+
+    avatar_file_id: str | None = None
+    logo_file_id: str | None = None
 
     is_active: bool
     created_at: datetime

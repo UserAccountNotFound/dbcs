@@ -20,6 +20,8 @@ export interface Card {
   website: string | null;
   address: string | null;
   note: string | null;
+  avatar_file_id: string | null;
+  logo_file_id: string | null;
   theme: CardTheme;
   template_id: string | null;
   is_active: boolean;
@@ -46,6 +48,8 @@ export interface CardCreatePayload {
   website?: string | null;
   address?: string | null;
   note?: string | null;
+  avatar_file_id: string | null;
+  logo_file_id: string | null;
   template_id?: string | null;
   theme: CardTheme;
 }
