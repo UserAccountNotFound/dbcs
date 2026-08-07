@@ -295,50 +295,62 @@ setup_python() {
     fi
 
     log_info "Установка зависимостей Python..."
-    # Обновляем pip и устанавливаем зависимости от имени ecard
     sudo -u "$APP_USER" .venv/bin/pip install --upgrade pip wheel -qq
     
     if [[ -f "requirements.txt" ]]; then
         sudo -u "$APP_USER" .venv/bin/pip install -r requirements.txt -qq
     fi
     
-    # Устанавливаем gunicorn для production
     sudo -u "$APP_USER" .venv/bin/pip install gunicorn -qq
 
     # --- НАЧАЛО: Проверка структуры БД и генерация миграций ---
     log_info "Проверка структуры базы данных..."
     
-    # Получаем количество таблиц в целевой БД.
-    # Флаг -N убирает заголовки столбцов, чтобы в переменной было только число.
     TABLE_COUNT=$(MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -D "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}';" 2>/dev/null || echo "0")
+
+    # Проверяем наличие существующих миграций
+    MIGRATIONS_EXIST=false
+    if [[ -d "alembic/versions" ]] && find alembic/versions/ -type f -name "*.py" 2>/dev/null | grep -q .; then
+        MIGRATIONS_EXIST=true
+    fi
 
     if [[ "$TABLE_COUNT" == "0" ]]; then
         log_warn "База данных пуста (таблицы отсутствуют)."
         
-        if [[ -f "alembic.ini" ]]; then
-            log_info "Генерация начальной миграции (autogenerate)..."
-            # Генерируем миграцию от имени пользователя приложения с загруженным .env
-            sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'initial schema'"
-            
-            # Проверяем, что файл миграции действительно создался.
-            # Это частая ошибка: если в alembic/env.py не импортированы SQLAlchemy модели,
-            # autogenerate создаст пустой файл миграции, что приведет к ошибкам в будущем.
-            if ! find alembic/versions/ -type f -name "*.py" | grep -q .; then
-                log_error "Миграция не сгенерирована (папка alembic/versions/ пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'alembic/env.py' (target_metadata)."
+        if [[ "$MIGRATIONS_EXIST" == true ]]; then
+            # БД пуста, но миграции есть - применяем их
+            log_info "Найдены существующие миграции. Применяем их для создания структуры..."
+        else
+            # БД пуста и миграций нет - генерируем
+            if [[ -f "alembic.ini" ]]; then
+                log_info "Миграции не найдены. Генерируем начальную миграцию..."
+                sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'initial schema'"
+                
+                if ! find alembic/versions/ -type f -name "*.py" | grep -q .; then
+                    log_error "Миграция не сгенерирована (папка alembic/versions/ пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'alembic/env.py'."
+                    exit 1
+                fi
+            else
+                log_error "Файл alembic.ini не найден в $BACKEND_DIR!"
                 exit 1
             fi
-        else
-            log_error "Файл alembic.ini не найден в $BACKEND_DIR!"
-            log_error "Убедитесь, что Alembic настроен в проекте локально и закоммичен в репозиторий."
-            exit 1
         fi
     else
         log_info "Структура БД уже существует (найдено таблиц: $TABLE_COUNT)."
+        
+        # Проверяем, не отстает ли БД от миграций
+        if [[ "$MIGRATIONS_EXIST" == true ]]; then
+            log_info "Проверка актуальности структуры БД..."
+            if ! sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic check" &>/dev/null; then
+                log_warn "Обнаружены непримененные изменения в моделях."
+                log_info "Генерируем миграцию для синхронизации..."
+                sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'auto sync'"
+            fi
+        fi
     fi
     # --- КОНЕЦ: Проверка структуры БД ---
 
     log_info "Применение миграций базы данных (Alembic)..."
-    # Запускаем alembic от имени ecard, безопасно передавая переменные окружения
     sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic upgrade head"
     
     log_info "Миграции успешно применены."
