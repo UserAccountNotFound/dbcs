@@ -25,10 +25,10 @@ def prompt_email() -> str:
     while True:
         email = input(" Email нового администратора: ").strip()
         if not email:
-            print("   ❌ Email не может быть пустым.")
+            print("   Email не может быть пустым.")
             continue
         if "@" not in email or "." not in email.split("@")[-1]:
-            print("   ❌ Неверный формат email.")
+            print("   Неверный формат email.")
             continue
         return normalize_email(email)
 
@@ -36,9 +36,9 @@ def prompt_email() -> str:
 def prompt_full_name() -> str:
     """Запрашивает полное имя."""
     while True:
-        name = input("👤 Полное имя: ").strip()
+        name = input("Полное имя: ").strip()
         if not name:
-            print("   ❌ Имя не может быть пустым.")
+            print("   Имя не может быть пустым.")
             continue
         return name
 
@@ -48,12 +48,12 @@ def prompt_password() -> str:
     while True:
         password = getpass.getpass(" Пароль (мин. 12 символов): ")
         if len(password) < 12:
-            print("   ❌ Пароль должен быть не менее 12 символов.")
+            print("   Пароль должен быть не менее 12 символов.")
             continue
         
         confirm = getpass.getpass(" Подтвердите пароль: ")
         if password != confirm:
-            print("   ❌ Пароли не совпадают.")
+            print("   Пароли не совпадают.")
             continue
         
         return password
