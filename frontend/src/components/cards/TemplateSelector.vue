@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | null): void;
+  (e: 'template-selected', template: Template | null): void;
 }>();
 
 const templates = ref<Template[]>([]);
@@ -27,12 +28,14 @@ onMounted(async () => {
   }
 });
 
-function selectTemplate(templateId: string) {
+function selectTemplate(template: Template) {
   // Повторный клик по выбранному шаблону снимает выбор
-  if (props.modelValue === templateId) {
+  if (props.modelValue === template.id) {
     emit('update:modelValue', null);
+    emit('template-selected', null);
   } else {
-    emit('update:modelValue', templateId);
+    emit('update:modelValue', template.id);
+    emit('template-selected', template);
   }
 }
 </script>
@@ -60,8 +63,8 @@ function selectTemplate(templateId: string) {
       <div 
         v-for="template in templates" 
         :key="template.id"
-        @click="selectTemplate(template.id)"
-        class="relative"
+        @click="selectTemplate(template)"
+        class="relative cursor-pointer"
       >
         <TemplatePreview 
           :schema="template.schema_data"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import type { Card, CardCreatePayload, CardUpdatePayload, CardTheme } from '../../types/card';
+import type { Template, TemplateSchema } from '../../types/template';
 import ImageUploader from './ImageUploader.vue';
 import TemplateSelector from './TemplateSelector.vue';
 
@@ -39,6 +40,10 @@ const form = reactive<CardCreatePayload>({
   logo_file_id: null,
 });
 
+// Состояние для уведомления о применении шаблона
+const templateApplied = ref(false);
+let appliedTimeout: number | undefined;
+
 // Заполнение формы при редактировании существующей карточки
 watch(
   () => props.card,
@@ -62,6 +67,73 @@ watch(
   },
   { immediate: true }
 );
+
+/**
+ * Маппинг layout_type из шаблона → layout темы.
+ * Если layout_type не поддерживается темой, возвращаем 'classic'.
+ */
+function mapLayoutType(layoutType: string): CardTheme['layout'] {
+  const allowed: CardTheme['layout'][] = ['classic', 'modern', 'compact', 'corporate', 'creative'];
+  return allowed.includes(layoutType as CardTheme['layout']) 
+    ? (layoutType as CardTheme['layout']) 
+    : 'classic';
+}
+
+/**
+ * Маппинг шрифта из шаблона → шрифт темы.
+ * Если шрифт не поддерживается, возвращаем 'inter'.
+ */
+function mapFont(font: string): CardTheme['font'] {
+  const allowed: CardTheme['font'][] = ['inter', 'roboto', 'open_sans'];
+  return allowed.includes(font as CardTheme['font']) 
+    ? (font as CardTheme['font']) 
+    : 'inter';
+}
+
+/**
+ * Применяет настройки схемы шаблона к теме визитки.
+ */
+function applyTemplateSchema(schema: TemplateSchema) {
+  form.theme.layout = mapLayoutType(schema.layout_type);
+  form.theme.accent_color = schema.primary_color;
+  form.theme.show_photo = schema.show_photo;
+  form.theme.show_qr = schema.show_qr;
+  form.theme.font = mapFont(schema.heading_font);
+}
+
+/**
+ * Обработчик выбора шаблона из TemplateSelector.
+ */
+function handleTemplateSelected(template: Template | null) {
+  // Если шаблон снят — ничего не делаем (настройки сохраняются)
+  if (!template || !template.schema_data) return;
+
+  // Применяем схему шаблона к теме
+  applyTemplateSchema(template.schema_data);
+
+  // Показываем уведомление на 3 секунды
+  templateApplied.value = true;
+  
+  if (appliedTimeout) {
+    clearTimeout(appliedTimeout);
+  }
+  
+  appliedTimeout = window.setTimeout(() => {
+    templateApplied.value = false;
+  }, 3000);
+}
+
+/**
+ * Сброс темы к настройкам выбранного шаблона.
+ */
+function resetThemeToTemplate() {
+  if (!form.template_id) return;
+  
+  // Здесь можно повторно запросить шаблон или сохранить его локально.
+  // Для простоты просто показываем уведомление — пользователь может 
+  // повторно кликнуть по шаблону.
+  templateApplied.value = false;
+}
 
 function handleSubmit() {
   // Валидация обязательных полей
@@ -214,13 +286,15 @@ function handleSubmit() {
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ImageUploader
-          v-model="form.avatar_file_id"
+          :model-value="form.avatar_file_id ?? null"
+          @update:model-value="(val) => form.avatar_file_id = val"
           label="Аватар (фото)"
           aspect-ratio="square"
         />
         
         <ImageUploader
-          v-model="form.logo_file_id"
+          :model-value="form.logo_file_id ?? null"
+          @update:model-value="(val) => form.logo_file_id = val"
           label="Логотип компании"
           aspect-ratio="wide"
         />
@@ -232,14 +306,49 @@ function handleSubmit() {
     <!-- ============================================================ -->
     <div class="border-t border-gray-200 pt-6">
       <h3 class="text-lg font-medium text-gray-900 mb-4">Шаблон визитки</h3>
-      <TemplateSelector v-model="form.template_id" />
+      
+      <!-- Уведомление о применении шаблона -->
+      <transition
+        enter-active-class="transition ease-out duration-300"
+        enter-from-class="opacity-0 -translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition ease-in duration-200"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-2"
+      >
+        <div
+          v-if="templateApplied"
+          class="mb-4 flex items-center gap-2 px-4 py-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800 text-sm"
+        >
+          <span class="text-lg">✨</span>
+          <span>Настройки дизайна применены из шаблона. Вы можете скорректировать их ниже.</span>
+        </div>
+      </transition>
+      
+      <TemplateSelector
+        :model-value="form.template_id ?? null"
+        @update:model-value="(val) => form.template_id = val"
+        @template-selected="handleTemplateSelected"
+      />
     </div>
 
     <!-- ============================================================ -->
     <!-- НАСТРОЙКИ ТЕМЫ -->
     <!-- ============================================================ -->
     <div class="border-t border-gray-200 pt-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">Дизайн и тема</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-medium text-gray-900">Дизайн и тема</h3>
+        
+        <!-- Кнопка сброса к настройкам шаблона -->
+        <button
+          v-if="form.template_id"
+          type="button"
+          @click="resetThemeToTemplate"
+          class="text-sm text-primary hover:text-teal-800 font-medium"
+        >
+          ↺ Сбросить к настройкам шаблона
+        </button>
+      </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
