@@ -382,7 +382,8 @@ ExecStart=${BACKEND_DIR}/.venv/bin/gunicorn app.main:app \
     --workers 4 \
     --bind 127.0.0.1:${APP_PORT} \
     --access-logfile ${LOG_DIR}/access.log \
-    --error-logfile ${LOG_DIR}/error.log
+    --error-logfile ${LOG_DIR}/error.log \
+    --worker-tmp-dir /dev/shm
 
 Restart=always
 RestartSec=5
