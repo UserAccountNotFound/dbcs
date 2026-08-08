@@ -25,9 +25,122 @@ DB_PASSWORD="EcardM3GaPassW0rd"
 
 # Настройки приложения
 APP_PORT="8000"
-PUBLIC_BASE_URL="http://localhost"
+# PUBLIC_BASE_URL будет определен ниже автоматически или введен пользователем
 API_PREFIX="/api"
 MAX_UPLOAD_SIZE_MB=5  # НОВОЕ: максимальный размер загружаемого файла
+
+# ==============================================================================
+# Определение PUBLIC_BASE_URL (FQDN сервера)
+# ==============================================================================
+detect_base_url() {
+    log_info "Определение PUBLIC_BASE_URL..."
+    
+    # Попытка определить FQDN сервера
+    local fqdn=""
+    
+    # Способ 1: через команду hostname -f (возвращает FQDN если настроен /etc/hosts или DNS)
+    if command -v hostname &>/dev/null; then
+        fqdn=$(hostname -f 2>/dev/null || echo "")
+    fi
+    
+    # Способ 2: если hostname -f не вернул результат, пробуем получить IP и сделать reverse lookup
+    if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
+        # Получаем основной IP адрес сервера
+        local ip_addr=""
+        if command -v hostname &>/dev/null; then
+            ip_addr=$(hostname -I 2>/dev/null | awk '{print $1}')
+        fi
+        
+        if [[ -n "$ip_addr" && ! "$ip_addr" =~ ^127\. ]]; then
+            # Пытаемся сделать reverse DNS lookup
+            if command -v host &>/dev/null; then
+                fqdn=$(host "$ip_addr" 2>/dev/null | grep -oP 'name pointer \K.*' || echo "")
+            elif command -v dig &>/dev/null; then
+                fqdn=$(dig -x "$ip_addr" +short 2>/dev/null | grep -v '^$' | tail -1 | sed 's/\.$//' || echo "")
+            fi
+        fi
+    fi
+    
+    # Способ 3: если все еще пусто, используем hostname без домена
+    if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
+        if command -v hostname &>/dev/null; then
+            fqdn=$(hostname 2>/dev/null || echo "localhost")
+        else
+            fqdn="localhost"
+        fi
+    fi
+    
+    # Очищаем fqdn от лишних пробелов
+    fqdn=$(echo "$fqdn" | xargs)
+    
+    # Определяем протокол (если есть SSL сертификаты, можно использовать https)
+    local protocol="http"
+    if [[ -f "/etc/letsencrypt/live/${fqdn}/fullchain.pem" ]] || \
+       [[ -f "/etc/ssl/certs/${fqdn}.crt" ]] || \
+       [[ -f "/etc/nginx/ssl/${fqdn}.crt" ]]; then
+        protocol="https"
+        log_info "Обнаружен SSL сертификат для ${fqdn}, используем https://"
+    fi
+    
+    echo "${protocol}://${fqdn}"
+}
+
+# Определяем базовый URL
+DETECTED_URL=$(detect_base_url)
+DEFAULT_BASE_URL="$DETECTED_URL"
+
+log_info "Автоматически определен PUBLIC_BASE_URL: ${DETECTED_URL}"
+echo ""
+echo "=============================================================================="
+echo "Настройка PUBLIC_BASE_URL"
+echo "=============================================================================="
+echo "Скрипт обнаружил следующий URL сервера: ${DETECTED_URL}"
+echo ""
+echo "Этот URL будет использоваться для:"
+echo "  - CORS настроек (ALLOWED_ORIGINS)"
+echo "  - Генерации ссылок в API ответах"
+echo "  - Redirect URI после аутентификации"
+echo ""
+read -p "Использовать это значение по умолчанию? [Y/n] или введите свой URL: " -r user_input
+
+if [[ -z "$user_input" || "$user_input" =~ ^[Yy]$ ]]; then
+    PUBLIC_BASE_URL="$DEFAULT_BASE_URL"
+    log_info "Используем определенное значение: ${PUBLIC_BASE_URL}"
+elif [[ "$user_input" =~ ^[Nn]$ ]]; then
+    # Пользователь хочет ввести свое значение
+    while true; do
+        read -p "Введите PUBLIC_BASE_URL (например, https://mydomain.com): " -r PUBLIC_BASE_URL
+        
+        # Валидация ввода
+        if [[ "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+            # Проверяем, что URL не заканчивается на /
+            PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+            log_info "Установлено значение: ${PUBLIC_BASE_URL}"
+            break
+        else
+            log_error "URL должен начинаться с http:// или https://"
+            read -p "Попробовать снова? [Y/n]: " -r retry
+            if [[ "$retry" =~ ^[Nn]$ ]]; then
+                log_error "Необходимо указать корректный PUBLIC_BASE_URL для продолжения."
+                exit 1
+            fi
+        fi
+    done
+else
+    # Пользователь ввел свое значение напрямую
+    PUBLIC_BASE_URL="$user_input"
+    # Убираем trailing slash если есть
+    PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+    
+    if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+        log_warn "Введенное значение не начинается с http:// или https://, добавляем http://"
+        PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+    fi
+    
+    log_info "Используем введенное значение: ${PUBLIC_BASE_URL}"
+fi
+
+echo ""
 
 # Цвета для вывода
 RED='\033[0;31m'
