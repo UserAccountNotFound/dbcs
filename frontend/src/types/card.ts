@@ -1,6 +1,6 @@
 export interface CardTheme {
   color_scheme: 'light' | 'dark';
-  layout: 'classic' | 'modern' | 'compact';
+  layout: 'classic' | 'modern' | 'compact' | 'corporate' | 'creative';
   font: 'inter' | 'roboto' | 'open_sans';
   accent_color: string;
   show_photo: boolean;
@@ -48,8 +48,8 @@ export interface CardCreatePayload {
   website?: string | null;
   address?: string | null;
   note?: string | null;
-  avatar_file_id: string | null;
-  logo_file_id: string | null;
+  avatar_file_id?: string | null;
+  logo_file_id?: string | null;
   template_id?: string | null;
   theme: CardTheme;
 }

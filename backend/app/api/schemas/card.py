@@ -50,7 +50,7 @@ def _validate_website_value(value: str | None) -> str | None:
 
 class CardTheme(BaseModel):
     color_scheme: Literal["light", "dark"] = "light"
-    layout: Literal["classic", "modern", "compact"] = "classic"
+    layout: Literal["classic", "modern", "compact", "corporate", "creative"] = "classic"
     font: Literal["inter", "roboto", "open_sans"] = "inter"
     accent_color: str = Field(
         default="#0f766e",

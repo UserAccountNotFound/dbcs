@@ -57,6 +57,11 @@ const router = createRouter({
           component: () => import('../views/admin/AdminCardsView.vue'),
         },
         {
+          path: 'templates',
+          name: 'admin-templates',
+          component: () => import('../views/admin/AdminTemplatesView.vue'),
+        },
+        {
           path: 'audit',
           name: 'admin-audit',
           component: () => import('../views/admin/AdminAuditView.vue'),

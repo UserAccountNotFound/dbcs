@@ -55,4 +55,30 @@ export const adminApi = {
     const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/stats/overview`);
     return data;
   },
+
+  async getTemplates(limit = 20, offset = 0, search?: string) {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/templates`, {
+      params: { limit, offset, search: search || undefined },
+    });
+    return data;
+  },
+
+  async createTemplate(payload: any) {
+    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/templates`, payload);
+    return data;
+  },
+
+  async updateTemplate(templateId: string, payload: any) {
+    const { data } = await apiClient.patch(`${ADMIN_ENDPOINT}/templates/${templateId}`, payload);
+    return data;
+  },
+
+  async toggleTemplate(templateId: string) {
+    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/templates/${templateId}/toggle-active`);
+    return data;
+  },
+
+  async deleteTemplate(templateId: string) {
+    await apiClient.delete(`${ADMIN_ENDPOINT}/templates/${templateId}`);
+  },
 };
