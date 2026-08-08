@@ -1,481 +1,180 @@
-# Frontend документация
+![Stability](https://img.shields.io/badge/stability-work_in_progress-lightgrey?style=flat&color=ffff00)
 
-## Обзор
+![GitHub repo size](https://img.shields.io/github/repo-size/UserAccountNotFound/dbcs?style=flat)
 
-Frontend сервиса цифровых визитных карточек построен на **Vue 3** с использованием **TypeScript**, **Pinia** для управления состоянием и **Vite** для сборки.
+# DBCS - Digital Business Card Service
 
-## Стек технологий
+Сервис цифровых визитных карточек с поддержкой QR-кодов, аналитики посещений и экспорта vCard.
 
-- **Vue 3** - реактивный фреймворк
-- **TypeScript** - типизация
-- **Pinia** - state management
-- **Vue Router** - маршрутизация
-- **Axios** - HTTP клиент
-- **TailwindCSS** - утилитарные CSS классы
-- **Vite** - сборщик
-- **vite-plugin-pwa** - PWA поддержка
+![Linux](https://img.shields.io/badge/-Linux-6C6694.svg?logo=linux&style=flat)
+![Python](https://img.shields.io/badge/-Python-F9DC3E.svg?logo=Python&style=flat)
+![Vue.js](https://img.shields.io/badge/-Vue.js-4FC08D.svg?logo=vue.js&style=flat)
+![FastAPI](https://img.shields.io/badge/-FastAPI-009688.svg?logo=fastapi&style=flat)
 
-## Структура проекта
+## Оглавление
+
+- [Возможности](#-возможности)
+- [Архитектура](#-архитектура)
+- [Быстрый старт](#-быстрый-старт)
+- [Конфигурация](#-конфигурация)
+- [API Документация](#-api-документация)
+- [Модели данных](#-модели-данных)
+- [Безопасность](#-безопасность)
+- [Развёртывание](#-развёртывание)
+- [Структура проекта](#-структура-проекта)
+
+## Возможности
+
+### Для пользователей
+- Создание и редактирование цифровых визиток
+- Выбор шаблонов оформления
+- Генерация QR-кодов для быстрого доступа
+- Экспорт визитки в формате vCard (.vcf)
+- Просмотр статистики посещений
+- Загрузка аватаров и логотипов
+
+### Для администраторов
+- Управление пользователями
+- Управление шаблонами визиток
+- Общая аналитика системы
+- Журнал аудита действий
+
+### Технические особенности
+- JWT аутентификация с refresh токенами
+- HttpOnly cookies для безопасного хранения refresh токенов
+- Ролевая модель (USER, ADMIN, SUPERADMIN)
+- Логирование всех значимых действий
+- REST API с автоматической документацией
+- PWA (Progressive Web App) поддержка
+
+## Архитектура
 
 ```
-frontend/
-├── public/                     # Статические файлы
-│   ├── favicon.ico
-│   └── icons/                  # PWA иконки
-├── src/
-│   ├── App.vue                 # Корневой компонент
-│   ├── main.ts                 # Точка входа
-│   ├── api/                    # API клиенты
-│   │   ├── client.ts           # Axios инстанс
-│   │   ├── auth.ts             # Auth API
-│   │   ├── cards.ts            # Cards API
-│   │   ├── publicCards.ts      # Public Cards API
-│   │   ├── templates.ts        # Templates API
-│   │   ├── files.ts            # Files API
-│   │   └── admin.ts            # Admin API
-│   ├── components/             # Vue компоненты
-│   │   ├── common/             # Общие компоненты
-│   │   ├── card/               # Компоненты визиток
-│   │   ├── form/               # Формы
-│   │   └── admin/              # Админские компоненты
-│   ├── layouts/                # Layouts
-│   │   ├── DefaultLayout.vue
-│   │   └── AdminLayout.vue
-│   ├── router/                 # Маршруты
-│   │   └── index.ts
-│   ├── stores/                 # Pinia stores
-│   │   ├── auth.ts             # Auth store
-│   │   └── cards.ts            # Cards store
-│   ├── types/                  # TypeScript типы
-│   │   ├── card.ts
-│   │   ├── user.ts
-│   │   ├── template.ts
-│   │   ├── analytics.ts
-│   │   ├── stats.ts
-│   │   ├── admin.ts
-│   │   └── publicCard.ts
-│   ├── utils/                  # Утилиты
-│   │   ├── download.ts         # Скачивание файлов
-│   │   └── ...
-│   ├── views/                  # Views/Pages
-│   │   ├── LoginView.vue       # Страница входа
-│   │   ├── DashboardView.vue   # Дашборд
-│   │   ├── CardEditView.vue    # Редактирование визитки
-│   │   ├── PublicCardView.vue  # Публичная визитка
-│   │   └── admin/              # Админские страницы
-│   │       ├── AdminDashboardView.vue
-│   │       ├── AdminUsersView.vue
-│   │       ├── AdminCardsView.vue
-│   │       ├── AdminTemplatesView.vue
-│   │       ├── AdminAuditView.vue
-│   │       └── AdminAnalyticsView.vue
-│   └── assets/                 # Ассеты (images, styles)
-├── index.html                  # HTML шаблон
-├── package.json                # Зависимости
-├── vite.config.ts              # Vite конфиг
-├── tailwind.config.js          # Tailwind конфиг
-├── postcss.config.js           # PostCSS конфиг
-├── tsconfig.json               # TypeScript конфиг
-└── README.md                   # Этот файл
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Frontend      │────▶│     Backend      │────▶│   Database      │
+│   Vue 3 + TS    │◀────│     FastAPI      │◀────│   MySQL/MariaDB │
+│   Pinia + Axios │     │   SQLAlchemy     │     │                 │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-## Установка
+**Стек технологий:**
 
-### Требования
+| Компонент | Технология |
+|-----------|------------|
+| Backend | Python 3.10+, FastAPI, SQLAlchemy 2.0 |
+| Frontend | Vue 3, TypeScript, Pinia, Vue Router |
+| Database | MySQL 8.0+ / MariaDB 10.5+ |
+| Authentication | JWT (PyJWT), Argon2 для хеширования паролей |
 
-- Node.js 18+
-- npm 9+
+## Быстрый старт
 
-### Шаги установки
+### Предварительные требования
+- Python 3.10 или выше
+- Node.js 18+ и npm
+- MySQL 8.0+ или MariaDB 10.5+
 
+### Backend
 ```bash
-# Установка зависимостей
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+python create_SuperAdminUser.py
+uvicorn app.main:app --reload
+```
+
+### Frontend
+```bash
+cd frontend
 npm install
-
-# Копирование примера окружения
-cp .env.example .env
-
-# Редактирование .env
-nano .env
+npm run dev
 ```
 
 ## Конфигурация
 
-Переменные окружения в `.env`:
+| Переменная | Описание | По умолчанию |
+|------------|----------|--------------|
+| DATABASE_URL | URL подключения к БД | - |
+| SECRET_KEY | Секретный ключ для JWT | - |
+| ALLOWED_ORIGINS | Разрешённые CORS origin | "" |
+| ACCESS_TOKEN_TTL_MINUTES | Время жизни access token | 15 |
+| REFRESH_TOKEN_TTL_DAYS | Время жизни refresh token | 7 |
 
-```env
-# API Base URL
-VITE_API_BASE_URL=http://localhost:8000/api/v1
+## API Документация
 
-# App Title
-VITE_APP_TITLE=DBCS - Digital Business Card Service
+После запуска backend документация доступна по адресам:
+- **Swagger UI:** http://localhost:8000/api/docs
+- **ReDoc:** http://localhost:8000/api/redoc
 
-# PWA Configuration
-VITE_PWA_ENABLED=true
-```
+### Основные эндпоинты
 
-## Запуск
+#### Аутентификация `/api/v1/auth`
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| POST | `/register` | Регистрация |
+| POST | `/login` | Вход |
+| POST | `/refresh` | Обновление токена |
+| GET | `/me` | Текущий пользователь |
 
-### Development
+#### Визитки `/api/v1/cards`
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/` | Список визиток |
+| POST | `/` | Создание |
+| GET | `/{id}` | Получение |
+| PUT | `/{id}` | Обновление |
+| DELETE | `/{id}` | Удаление |
+| GET | `/{id}/qr` | QR код |
+| GET | `/{id}/vcard` | Экспорт vCard |
 
-```bash
-npm run dev
-```
+## Модели данных
 
-Приложение будет доступно по адресу: http://localhost:5173
+- **User**: Пользователь (email, password_hash, role)
+- **Card**: Визитка (title, name, contact info, social links)
+- **CardTemplate**: Шаблон визитки (name, config)
+- **CardVisit**: Посещение (card_id, timestamp, ip_hash)
+- **AuthSession**: Сессия аутентификации (user_id, refresh_token_hash)
+- **AuditLog**: Журнал аудита (action, actor, entity)
+- **File**: Файл (filename, mime_type, storage_path)
 
-### Production build
+## Безопасность
 
-```bash
-npm run build
-```
-
-Собранные файлы будут в директории `dist/`.
-
-### Preview production build
-
-```bash
-npm run preview
-```
-
-## Скрипты
-
-| Скрипт | Описание |
-|--------|----------|
-| `npm run dev` | Запуск dev сервера |
-| `npm run build` | Сборка для продакшена |
-| `npm run preview` | Preview production сборки |
-| `npm run type-check` | Проверка типов TypeScript |
-
-## Архитектура
-
-### State Management (Pinia)
-
-#### Auth Store
-Управляет состоянием аутентификации:
-- `user`: текущий пользователь
-- `accessToken`: JWT токен
-- `isAuthenticated`: статус аутентификации
-- `login()`: вход
-- `logout()`: выход
-- `refreshToken()`: обновление токена
-- `fetchUser()`: получение данных пользователя
-
-#### Cards Store
-Управляет визитками:
-- `cards`: список визиток
-- `currentCard`: текущая редактируемая визитка
-- `fetchCards()`: получение списка
-- `createCard()`: создание
-- `updateCard()`: обновление
-- `deleteCard()`: удаление
-
-### API Client
-
-Axios настроен с интерцепторами для:
-- Автоматической подстановки access token
-- Silent refresh при истечении токена
-- Обработки ошибок авторизации
-
-```typescript
-// src/api/client.ts
-import axios from 'axios';
-
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true, // Для refresh cookie
-});
-
-// Interceptor для добавления токена
-apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore().accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Interceptor для обработки ошибок
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Попытка refresh токена
-      await refreshAccessToken();
-    }
-    return Promise.reject(error);
-  }
-);
-```
-
-### Роутинг
-
-Маршруты защищены guards для проверки аутентификации:
-
-```typescript
-// Защищённые маршруты
-{
-  path: '/dashboard',
-  component: DashboardView,
-  meta: { requiresAuth: true }
-}
-
-// Админские маршруты
-{
-  path: '/admin',
-  component: AdminLayout,
-  meta: { requiresAuth: true, requiresAdmin: true }
-}
-```
-
-### Компоненты
-
-#### Базовая структура компонента
-
-```vue
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useAuthStore } from '@/stores/auth';
-import type { Card } from '@/types/card';
-
-// Props
-interface Props {
-  cardId?: string;
-}
-const props = defineProps<Props>();
-
-// Emits
-const emit = defineEmits<{
-  (e: 'updated', card: Card): void;
-}>();
-
-// State
-const loading = ref(false);
-const error = ref<string | null>(null);
-
-// Computed
-const isValid = computed(() => {
-  // validation logic
-});
-
-// Methods
-async function fetchData() {
-  loading.value = true;
-  try {
-    // fetch data
-  } catch (err) {
-    error.value = 'Failed to load data';
-  } finally {
-    loading.value = false;
-  }
-}
-
-// Lifecycle
-onMounted(() => {
-  fetchData();
-});
-</script>
-
-<template>
-  <div>
-    <div v-if="loading">Loading...</div>
-    <div v-else-if="error">{{ error }}</div>
-    <div v-else>
-      <!-- Content -->
-    </div>
-  </div>
-</template>
-```
-
-## Типы данных
-
-### User
-```typescript
-export interface User {
-  id: string;
-  email: string;
-  full_name: string;
-  role: 'USER' | 'ADMIN' | 'SUPERADMIN';
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  last_login_at: string | null;
-}
-```
-
-### Card
-```typescript
-export interface Card {
-  id: string;
-  user_id: string;
-  template_id: string;
-  public_id: string;
-  title: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  company: string;
-  position: string;
-  website: string;
-  address: string;
-  bio: string;
-  avatar_file_id: string | null;
-  logo_file_id: string | null;
-  social_links: Record<string, string>;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-```
-
-### AuthResponse
-```typescript
-export interface AuthResponse {
-  access_token: string;
-  token_type: 'bearer';
-  expires_in: number;
-  user: User;
-}
-```
-
-## PWA (Progressive Web App)
-
-Приложение поддерживает установку как PWA:
-
-- Offline режим
-- Установка на домашний экран
-- Push уведомления (будущая функциональность)
-
-Конфигурация в `vite.config.ts`:
-
-```typescript
-import { VitePWA } from 'vite-plugin-pwa';
-
-export default defineConfig({
-  plugins: [
-    vue(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'DBCS - Digital Business Card Service',
-        short_name: 'DBCS',
-        description: 'Сервис цифровых визитных карточек',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
-        display: 'standalone',
-        icons: [
-          {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      }
-    })
-  ]
-});
-```
-
-## Стилизация
-
-Используется TailwindCSS с кастомной конфигурацией:
-
-```javascript
-// tailwind.config.js
-module.exports = {
-  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          50: '#eff6ff',
-          500: '#3b82f6',
-          600: '#2563eb',
-        }
-      }
-    }
-  },
-  plugins: []
-}
-```
-
-## Best Practices
-
-### Компоненты
-- Использовать Composition API (`<script setup>`)
-- Типизировать props и emits
-- Разделять компоненты на логические части
-- Избегать прямой мутации props
-
-### State Management
-- Хранить в Pinia только глобальное состояние
-- Локальное состояние хранить в компонентах
-- Использовать getters для вычисляемых значений
-
-### API
-- Всегда обрабатывать ошибки
-- Показывать loading состояния
-- Использовать TypeScript типы для ответов API
-
-### Производительность
-- Ленивая загрузка routes
-- Оптимизация изображений
-- Кэширование API запросов
-
-## Тестирование
-
-```bash
-# Unit тесты (будущая функциональность)
-npm run test:unit
-
-# E2E тесты
-npm run test:e2e
-```
-
-## Линтинг
-
-```bash
-# Проверка типов
-npm run type-check
-
-# ESLint (будущая функциональность)
-npm run lint
-```
+- Access token: JWT, 15 минут, в памяти клиента
+- Refresh token: HttpOnly cookie, 7 дней, ротация при использовании
+- Пароли: Argon2id
+- PII данные: SHA-256 с солью
 
 ## Развёртывание
 
-См. скрипт `../deploy/deploy_frontend.sh`
+```bash
+# Backend
+chmod +x ./deploy/deploy_backend.sh
+./deploy/deploy_backend.sh
 
-### Production чеклист
+# Frontend
+chmod +x ./deploy/deploy_frontend.sh
+./deploy/deploy_frontend.sh
+```
 
-- [ ] VITE_API_BASE_URL настроен
-- [ ] Сборка прошла без ошибок
-- [ ] PWA иконки присутствуют
-- [ ] HTTPS настроен
-- [ ] Caching настроен
-- [ ] Source maps отключены (опционально)
+## Структура проекта
 
-## Поддержка браузеров
-
-- Chrome/Edge (последние 2 версии)
-- Firefox (последние 2 версии)
-- Safari (последние 2 версии)
-- Mobile browsers (iOS Safari, Chrome Mobile)
-
-## Ресурсы
-
-- [Vue 3 Documentation](https://vuejs.org/)
-- [Pinia Documentation](https://pinia.vuejs.org/)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [TailwindCSS Documentation](https://tailwindcss.com/docs)
-- [Vite Documentation](https://vitejs.dev/)
-- [Vue Router Documentation](https://router.vuejs.org/)
+```
+dbcs/
+├── backend/
+│   ├── app/
+│   │   ├── api/              # API endpoints
+│   │   ├── core/             # Конфигурация, безопасность
+│   │   ├── db/               # Работа с БД
+│   │   ├── models/           # SQLAlchemy модели
+│   │   └── services/         # Бизнес-логика
+│   └── README.md             # Документация backend
+├── frontend/
+│   └── src/
+│       ├── api/              # API клиенты
+│       ├── components/       # Vue компоненты
+│       ├── stores/           # Pinia stores
+│       └── views/            # Views/Pages
+├── deploy/                   # Скрипты развёртывания
+└── README.md                 # Этот файл
+```
