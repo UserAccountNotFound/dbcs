@@ -48,9 +48,9 @@ export interface CardCreatePayload {
   website?: string | null;
   address?: string | null;
   note?: string | null;
-  avatar_file_id?: string | null;
-  logo_file_id?: string | null;
-  template_id?: string | null;
+  avatar_file_id: string | null;
+  logo_file_id: string | null;
+  template_id: string | null;
   theme: CardTheme;
 }
 

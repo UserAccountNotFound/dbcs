@@ -75,3 +75,6 @@ export interface OverviewStats {
   total_visits: number;
   total_vcard_downloads: number;
 }
+
+// Реэкспорт типов шаблонов для использования в админке
+export type { AdminTemplate, TemplateSchema, Template } from './template';

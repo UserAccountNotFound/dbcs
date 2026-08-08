@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import { adminApi } from '../../api/admin';
 import type { AdminTemplate } from '../../types/admin';
 import TemplatePreview from '../../components/cards/TemplatePreview.vue';

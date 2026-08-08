@@ -39,3 +39,7 @@ class UnsupportedFileTypeError(ServiceError):
 
 class FileNotFoundError(ServiceError):
     pass
+
+
+class TemplateError(ServiceError):
+    pass
