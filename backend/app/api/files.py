@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
-from app.api.schemas.file import FileResponse
+from app.api.schemas.file import FileResponse as FileResponseSchema
 from app.models import User
 from app.services import audit_service, file_service
 from app.services.exceptions import (
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/files", tags=["Files"])
 
 @router.post(
     "/upload",
-    response_model=FileResponse,
+    response_model=FileResponseSchema,
     status_code=status.HTTP_201_CREATED,
     summary="Загрузить изображение (аватар/логотип)",
 )
@@ -27,7 +27,7 @@ async def upload_file(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> FileResponse:
+) -> FileResponseSchema:
     try:
         file_record = file_service.upload_file(db, user.id, file)
     except FileTooLargeError as exc:
@@ -55,7 +55,7 @@ async def upload_file(
         },
     )
     
-    return FileResponse.model_validate(file_record)
+    return FileResponseSchema.model_validate(file_record)
 
 
 @router.get(
@@ -117,7 +117,6 @@ def delete_file(
             detail="Файл не найден.",
         ) from exc
     
-    # Проверка прав
     if file.owner_user_id != user.id and user.role.value not in ("ADMIN", "SUPERADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

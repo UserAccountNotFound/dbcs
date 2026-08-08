@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { fileApi } from '../../api/files';
 
 const props = defineProps<{
-  modelValue: string | null;  // file_id
+  modelValue: string | null;
   label: string;
   aspectRatio?: 'square' | 'wide';
 }>();
@@ -16,19 +16,56 @@ const isUploading = ref(false);
 const previewUrl = ref<string | null>(null);
 const error = ref('');
 
-// Создаем preview URL для существующего файла
-watch(() => props.modelValue, (newId) => {
-  if (newId) {
-    previewUrl.value = fileApi.getFileUrl(newId);
-  } else {
-    previewUrl.value = null;
+// Флаг, чтобы не путать "локальный preview" и "server blob preview"
+const localPreviewUrl = ref<string | null>(null);
+
+// Освобождение object URL для предотвращения утечек памяти
+function revokeUrl(url: string | null) {
+  if (url && url.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
   }
-}, { immediate: true });
+}
+
+// Загружаем blob при изменении file_id извне (например, при загрузке формы редактирования)
+watch(
+  () => props.modelValue,
+  async (newFileId, oldFileId) => {
+    // Если file_id не менялся — ничего не делаем
+    if (newFileId === oldFileId) return;
+
+    // Освобождаем предыдущий server preview (но не local — он сбрасывается отдельно)
+    if (previewUrl.value) {
+      revokeUrl(previewUrl.value);
+      previewUrl.value = null;
+    }
+
+    if (!newFileId) {
+      // Файл был удалён из формы
+      return;
+    }
+
+    // Если localPreviewUrl уже есть (пользователь только что загрузил файл) — используем его
+    if (localPreviewUrl.value) {
+      return;
+    }
+
+    // Иначе загружаем blob через API
+    try {
+      const blob = await fileApi.getFileBlob(newFileId);
+      previewUrl.value = URL.createObjectURL(blob);
+    } catch (e) {
+      console.error('Failed to load file preview:', e);
+      previewUrl.value = null;
+    }
+  },
+  { immediate: true }
+);
+
+// Финальный URL для отображения: приоритет у локального preview
+const displayUrl = computed(() => localPreviewUrl.value || previewUrl.value);
 
 const aspectClass = computed(() => {
-  return props.aspectRatio === 'wide' 
-    ? 'aspect-video' 
-    : 'aspect-square';
+  return props.aspectRatio === 'wide' ? 'aspect-video' : 'aspect-square';
 });
 
 async function handleFileSelect(event: Event) {
@@ -37,7 +74,7 @@ async function handleFileSelect(event: Event) {
   
   if (!file) return;
   
-  // Валидация на клиенте
+  // Клиентская валидация
   const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
   if (!validTypes.includes(file.type)) {
     error.value = 'Допустимы только форматы JPG, PNG, WebP';
@@ -53,16 +90,22 @@ async function handleFileSelect(event: Event) {
   
   error.value = '';
   isUploading.value = true;
+
+  // Освобождаем предыдущий локальный preview
+  if (localPreviewUrl.value) {
+    revokeUrl(localPreviewUrl.value);
+    localPreviewUrl.value = null;
+  }
+  
+  // Создаём локальный preview (мгновенное отображение)
+  const localUrl = URL.createObjectURL(file);
+  localPreviewUrl.value = localUrl;
   
   try {
-    // Создаем локальный preview
-    const localPreview = URL.createObjectURL(file);
-    previewUrl.value = localPreview;
-    
     // Загружаем на сервер
     const uploaded = await fileApi.upload(file);
     
-    // Если был предыдущий файл - удаляем
+    // Удаляем предыдущий файл на сервере, если был
     if (props.modelValue) {
       try {
         await fileApi.delete(props.modelValue);
@@ -71,19 +114,20 @@ async function handleFileSelect(event: Event) {
       }
     }
     
-    // Отдаем новый file_id родителю
+    // Эмитим новый file_id родителю
     emit('update:modelValue', uploaded.id);
     
-    // Освобождаем локальный preview (теперь используем серверный URL)
-    URL.revokeObjectURL(localPreview);
-    previewUrl.value = fileApi.getFileUrl(uploaded.id);
+    // localPreviewUrl оставляем — он быстрее и уже отображается.
+    // Server preview не нужен, т.к. local уже работает.
   } catch (e: any) {
     error.value = e.response?.data?.detail || 'Ошибка при загрузке файла';
-    previewUrl.value = null;
+    // Очищаем всё при ошибке
+    revokeUrl(localPreviewUrl.value);
+    localPreviewUrl.value = null;
     emit('update:modelValue', null);
   } finally {
     isUploading.value = false;
-    target.value = '';  // Сбрасываем input для возможности повторной загрузки того же файла
+    target.value = '';
   }
 }
 
@@ -95,9 +139,20 @@ async function removeImage() {
       console.warn('Failed to delete file', e);
     }
   }
+  
+  revokeUrl(localPreviewUrl.value);
+  revokeUrl(previewUrl.value);
+  localPreviewUrl.value = null;
   previewUrl.value = null;
+  
   emit('update:modelValue', null);
 }
+
+// Cleanup при unmount компонента
+onUnmounted(() => {
+  revokeUrl(localPreviewUrl.value);
+  revokeUrl(previewUrl.value);
+});
 </script>
 
 <template>
@@ -111,8 +166,8 @@ async function removeImage() {
         :style="aspectRatio === 'wide' ? 'width: 12rem' : ''"
       >
         <img 
-          v-if="previewUrl" 
-          :src="previewUrl" 
+          v-if="displayUrl" 
+          :src="displayUrl" 
           :alt="label"
           class="w-full h-full object-cover"
         />
@@ -128,7 +183,7 @@ async function removeImage() {
       <!-- Кнопки -->
       <div class="flex-1 space-y-2">
         <label class="btn-secondary inline-block cursor-pointer">
-          {{ previewUrl ? 'Заменить' : 'Загрузить' }}
+          {{ displayUrl ? 'Заменить' : 'Загрузить' }}
           <input 
             type="file" 
             accept="image/jpeg,image/png,image/webp"
@@ -139,7 +194,7 @@ async function removeImage() {
         </label>
         
         <button 
-          v-if="previewUrl"
+          v-if="displayUrl"
           type="button"
           @click="removeImage"
           class="btn-danger block"

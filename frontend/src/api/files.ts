@@ -26,6 +26,14 @@ export const fileApi = {
     await apiClient.delete(`/files/${fileId}`);
   },
 
+  // Загрузка файла как Blob (с авторизацией через Axios interceptors)
+  async getFileBlob(fileId: string): Promise<Blob> {
+    const { data } = await apiClient.get(`/files/${fileId}`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
+
   getFileUrl(fileId: string): string {
     return `${import.meta.env.VITE_API_BASE_URL}/files/${fileId}`;
   },
