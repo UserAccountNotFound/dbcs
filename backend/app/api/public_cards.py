@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -7,11 +8,9 @@ from app.api.schemas.public_card import (
     build_public_card_response,
 )
 from app.core.urls import get_public_card_url
-from app.services import public_card_service, qr_service, vcard_service
+from app.core.utils import get_client_ip, get_user_agent
+from app.services import file_service, public_card_service, qr_service, vcard_service
 from app.services.exceptions import CardNotFoundError
-
-from fastapi.responses import FileResponse
-from app.services import file_service
 
 router = APIRouter(prefix="/public/cards", tags=["Public Cards"])
 
@@ -34,10 +33,16 @@ def get_public_card(
             detail="Card not found.",
         ) from exc
 
+    # Записываем визит
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+
     public_card_service.record_visit(
         db=db,
-        card=card,
-        request=request,
+        card_id=card.id,
+        ip=client_ip,
+        user_agent=user_agent,
+        referer=request.headers.get("referer"),
         source=public_card_service.SOURCE_CARD_VIEW,
     )
 
@@ -68,7 +73,7 @@ def get_public_card_avatar(
     
     try:
         file_path = file_service.get_file_path(card.avatar_file)
-    except file_service.FileNotFoundServiceError:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Avatar file missing.",
@@ -105,7 +110,7 @@ def get_public_card_logo(
     
     try:
         file_path = file_service.get_file_path(card.logo_file)
-    except file_service.FileNotFoundServiceError:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Logo file missing.",
@@ -117,10 +122,16 @@ def get_public_card_logo(
         headers={"Cache-Control": "public, max-age=86400"},
     )
 
+
 @router.get(
     "/{slug}/vcard.vcf",
-    response_class=Response,
     summary="Скачать vCard публичной визитки",
+    responses={
+        200: {
+            "content": {"text/vcard": {}},
+            "description": "vCard file",
+        }
+    },
 )
 def get_public_card_vcard(
     slug: str,
@@ -135,10 +146,16 @@ def get_public_card_vcard(
             detail="Card not found.",
         ) from exc
 
+    # Записываем визит как vCard download
+    client_ip = get_client_ip(request)
+    user_agent = get_user_agent(request)
+
     public_card_service.record_visit(
         db=db,
-        card=card,
-        request=request,
+        card_id=card.id,
+        ip=client_ip,
+        user_agent=user_agent,
+        referer=request.headers.get("referer"),
         source=public_card_service.SOURCE_VCARD_DOWNLOAD,
     )
 
@@ -178,6 +195,6 @@ def get_public_card_qrcode(
         content=svg_content,
         media_type="image/svg+xml",
         headers={
-            "Cache-Control": "no-store",
+            "Cache-Control": "public, max-age=86400",
         },
     )

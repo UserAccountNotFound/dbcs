@@ -66,6 +66,11 @@ const router = createRouter({
           name: 'admin-audit',
           component: () => import('../views/admin/AdminAuditView.vue'),
         },
+        {
+          path: 'analytics',
+          name: 'admin-analytics',
+          component: () => import('../views/admin/AdminAnalyticsView.vue'),
+        },
       ],
     },
   ]

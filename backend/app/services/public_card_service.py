@@ -1,4 +1,6 @@
-from fastapi import Request
+import re
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -11,14 +13,30 @@ from app.services.exceptions import CardNotFoundError
 SOURCE_CARD_VIEW = "card_view"
 SOURCE_VCARD_DOWNLOAD = "vcard_download"
 
+# Регулярки для классификации устройств
+_MOBILE_RE = re.compile(r"Mobile|Android|iPhone|iPod", re.I)
+_TABLET_RE = re.compile(r"iPad|Tablet|Android(?!.*Mobile)", re.I)
+
+
+def _classify_device(user_agent: str | None) -> str:
+    """Классифицирует устройство по User-Agent ДО хеширования."""
+    if not user_agent:
+        return "Unknown"
+    if _TABLET_RE.search(user_agent):
+        return "Tablet"
+    if _MOBILE_RE.search(user_agent):
+        return "Mobile"
+    return "Desktop"
+
 
 def get_active_public_card(db: Session, slug: str) -> Card:
+    """Получает активную публичную визитку по slug с подгрузкой связей."""
     card = db.scalar(
         select(Card)
         .options(
-            joinedload(Card.template),        # Подгружаем шаблон
-            joinedload(Card.avatar_file),     # Подгружаем аватар
-            joinedload(Card.logo_file),       # Подгружаем логотип
+            joinedload(Card.template),
+            joinedload(Card.avatar_file),
+            joinedload(Card.logo_file),
         )
         .where(
             Card.slug == slug,
@@ -35,22 +53,25 @@ def get_active_public_card(db: Session, slug: str) -> Card:
 
 def record_visit(
     db: Session,
-    card: Card,
-    request: Request,
+    card_id: str,
+    ip: str | None,
+    user_agent: str | None,
+    referer: str | None,
     source: str,
-) -> None:
-    referer = request.headers.get("referer")
-
-    if referer and len(referer) > 2048:
-        referer = referer[:2048]
+) -> CardVisit:
+    """Записывает факт посещения визитки с классификацией устройства."""
+    device_type = _classify_device(user_agent)
 
     visit = CardVisit(
-        card_id=card.id,
-        ip_hash=hash_pii(get_client_ip(request)),
-        user_agent_hash=hash_pii(get_user_agent(request)),
-        referer=referer,
+        card_id=card_id,
+        visited_at=datetime.now(timezone.utc),
+        ip_hash=hash_pii(ip) if ip else None,
+        user_agent_hash=hash_pii(user_agent) if user_agent else None,
+        referer=referer[:2048] if referer else None,
         source=source,
+        device_type=device_type,
     )
 
     db.add(visit)
     db.commit()
+    return visit

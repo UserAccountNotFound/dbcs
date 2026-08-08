@@ -14,7 +14,7 @@ from app.api.schemas.admin import (
     OverviewStatsResponse,
 )
 from app.models import User
-from app.services import admin_service, audit_service
+from app.services import admin_service, audit_service, analytics_service
 from app.services.admin_service import AdminError
 
 from app.api.schemas.template import (
@@ -28,6 +28,7 @@ from app.api.schemas.template import (
 from app.services import template_service
 from app.services.template_service import TemplateError
 
+from typing import Literal
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -382,7 +383,17 @@ def list_audit_logs(
         offset=offset,
     )
 
-
+@router.get(
+    "/analytics/extended",
+    summary="Расширенная аналитика системы",
+)
+def get_extended_analytics(
+    period: Literal["7d", "30d", "90d"] = "30d",
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    return analytics_service.get_extended_analytics(db, period)
+    
 @router.get("/stats/overview", response_model=OverviewStatsResponse, summary="Общая статистика")
 def get_overview_stats(
     db: Session = Depends(get_db),

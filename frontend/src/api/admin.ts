@@ -9,6 +9,11 @@ import type {
   OverviewStats,
 } from '../types/admin';
 
+import type { 
+  ExtendedAnalytics, 
+  AnalyticsPeriod 
+} from '../types/analytics';
+
 const ADMIN_ENDPOINT = '/admin';
 
 export const adminApi = {
@@ -80,5 +85,12 @@ export const adminApi = {
 
   async deleteTemplate(templateId: string) {
     await apiClient.delete(`${ADMIN_ENDPOINT}/templates/${templateId}`);
+  },
+
+  async getExtendedAnalytics(period: AnalyticsPeriod = '30d'): Promise<ExtendedAnalytics> {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/analytics/extended`, {
+      params: { period },
+    });
+    return data;
   },
 };

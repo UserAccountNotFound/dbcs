@@ -54,6 +54,13 @@ class CardVisit(Base):
         nullable=True,
     )
 
+    device_type: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        default="Unknown",
+        index=True,
+    )
+    
     card: Mapped["Card"] = relationship(
         back_populates="visits",
     )

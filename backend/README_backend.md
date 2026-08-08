@@ -31,5 +31,6 @@ sudo -u ecard bash -c "cd /opt/dbcs/backend && set -a && source .env && set +a &
 cd /opt/dbcs/backend
 source .venv/bin/activate
 set -a && source .env && set +a
-python create_superuser.py
+python create_SuperAdminUser.py
+python seed_templates_vCard.py
 ```
