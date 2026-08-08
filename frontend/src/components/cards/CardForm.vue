@@ -262,8 +262,8 @@ function handleSubmit() {
             <option value="classic">Классическая</option>
             <option value="modern">Современная</option>
             <option value="compact">Компактная</option>
-            <option value="compact">Корпоративная</option>
-            <option value="compact">Креативная</option>
+            <option value="corporate">Корпоративная</option>
+            <option value="creative">Креативная</option>
           </select>
         </div>
         
