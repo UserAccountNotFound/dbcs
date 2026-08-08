@@ -1,0 +1,12 @@
+cd /opt/dbcs/backend
+source .venv/bin/activate
+set -a && source .env && set +a
+
+# Удаляем старые миграции
+rm -rf alembic/versions/*.py
+
+# Генерируем свежую миграцию на основе текущих моделей
+alembic revision --autogenerate -m "initial schema"
+
+# Применяем
+alembic upgrade head

@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}
+
+.btn-primary {
+  @apply px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-teal-800 transition-colors disabled:opacity-50 cursor-pointer;
+}
+
+.btn-secondary {
+  @apply px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer;
+}
+
+.btn-danger {
+  @apply px-3 py-1.5 bg-white border border-red-300 text-red-600 rounded-md text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer;
+}
