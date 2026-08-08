@@ -15,7 +15,11 @@ SOURCE_VCARD_DOWNLOAD = "vcard_download"
 def get_active_public_card(db: Session, slug: str) -> Card:
     card = db.scalar(
         select(Card)
-        .options(joinedload(Card.template))
+        .options(
+            joinedload(Card.template),        # Подгружаем шаблон
+            joinedload(Card.avatar_file),     # Подгружаем аватар
+            joinedload(Card.logo_file),       # Подгружаем логотип
+        )
         .where(
             Card.slug == slug,
             Card.is_active.is_(True),
