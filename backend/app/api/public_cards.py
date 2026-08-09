@@ -33,18 +33,21 @@ def get_public_card(
             detail="Card not found.",
         ) from exc
 
-    # Записываем визит
+    # Записываем визит (best-effort: сбой аналитики не должен ломать публичную страницу)
     client_ip = get_client_ip(request)
     user_agent = get_user_agent(request)
 
-    public_card_service.record_visit(
-        db=db,
-        card_id=card.id,
-        ip=client_ip,
-        user_agent=user_agent,
-        referer=request.headers.get("referer"),
-        source=public_card_service.SOURCE_CARD_VIEW,
-    )
+    try:
+        public_card_service.record_visit(
+            db=db,
+            card_id=card.id,
+            ip=client_ip,
+            user_agent=user_agent,
+            referer=request.headers.get("referer"),
+            source=public_card_service.SOURCE_CARD_VIEW,
+        )
+    except Exception:
+        db.rollback()
 
     return build_public_card_response(card)
 
@@ -146,18 +149,21 @@ def get_public_card_vcard(
             detail="Card not found.",
         ) from exc
 
-    # Записываем визит как vCard download
+    # Записываем визит как vCard download (best-effort)
     client_ip = get_client_ip(request)
     user_agent = get_user_agent(request)
 
-    public_card_service.record_visit(
-        db=db,
-        card_id=card.id,
-        ip=client_ip,
-        user_agent=user_agent,
-        referer=request.headers.get("referer"),
-        source=public_card_service.SOURCE_VCARD_DOWNLOAD,
-    )
+    try:
+        public_card_service.record_visit(
+            db=db,
+            card_id=card.id,
+            ip=client_ip,
+            user_agent=user_agent,
+            referer=request.headers.get("referer"),
+            source=public_card_service.SOURCE_VCARD_DOWNLOAD,
+        )
+    except Exception:
+        db.rollback()
 
     content = vcard_service.build_vcard(card)
 

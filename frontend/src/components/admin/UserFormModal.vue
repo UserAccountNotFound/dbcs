@@ -58,6 +58,13 @@ function handleSubmit() {
     return;
   }
 
+  if (isEdit.value && form.value.password && form.value.password.length < 12) {
+    error.value = 'Пароль должен быть не менее 12 символов';
+    return;
+  }
+
+  isSubmitting.value = true;
+
   let payload: AdminUserCreate | AdminUserUpdate;
   
   if (isEdit.value) {
@@ -80,6 +87,7 @@ function handleSubmit() {
   }
 
   emit('submit', payload);
+  isSubmitting.value = false;
 }
 </script>
 

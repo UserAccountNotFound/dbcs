@@ -7,6 +7,7 @@ import LineChart from '../../components/analytics/LineChart.vue';
 import BarChart from '../../components/analytics/BarChart.vue';
 import DonutChart from '../../components/analytics/DonutChart.vue';
 import HeatmapChart from '../../components/analytics/HeatmapChart.vue';
+import { getAxiosErrorMessage } from '../../utils/apiError';
 
 const period = ref<AnalyticsPeriod>('30d');
 const data = ref<ExtendedAnalytics | null>(null);
@@ -18,8 +19,8 @@ async function load() {
   error.value = '';
   try {
     data.value = await adminApi.getExtendedAnalytics(period.value);
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || 'Не удалось загрузить аналитику';
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Не удалось загрузить аналитику');
   } finally {
     isLoading.value = false;
   }

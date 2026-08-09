@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import apiClient from '../api/client';
-import router from '../router';
 
 interface User {
   id: string;
   email: string;
   full_name: string;
   role: string;
+  is_active?: boolean;
+  mfa_enabled?: boolean;
+  created_at?: string;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -16,11 +18,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!accessToken.value && !!user.value);
 
+  function setAccessToken(token: string | null) {
+    accessToken.value = token;
+    if (token) {
+      localStorage.setItem('access_token', token);
+    } else {
+      localStorage.removeItem('access_token');
+    }
+  }
+
   async function login(email: string, password: string) {
     const { data } = await apiClient.post('/auth/login', { email, password });
-    accessToken.value = data.access_token;
+    setAccessToken(data.access_token);
     user.value = data.user;
-    localStorage.setItem('access_token', data.access_token);
   }
 
   async function fetchMe() {
@@ -28,8 +38,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await apiClient.get('/auth/me');
       user.value = data;
-    } catch (e) {
-      logout();
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) {
+        await forceLogout({ callApi: false });
+      }
+      // сеть / 5xx — не сбрасываем сессию
     }
   }
 
@@ -39,12 +53,13 @@ export const useAuthStore = defineStore('auth', () => {
         const cacheNames = await caches.keys();
         await Promise.all(
           cacheNames
-            .filter(name => 
-              name.includes('user-cards') || 
-              name.includes('public-cards') ||
-              name.includes('images')
+            .filter(
+              (name) =>
+                name.includes('user-cards') ||
+                name.includes('public-cards') ||
+                name.includes('images')
             )
-            .map(name => caches.delete(name))
+            .map((name) => caches.delete(name))
         );
       } catch (e) {
         console.error('Cache cleanup error:', e);
@@ -52,25 +67,44 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function logout() {
-    try {
-      await apiClient.post('/auth/logout');
-    } catch {
-      // Игнорируем ошибки сети при логауте
-    } finally {
-      // Очищаем кэшированные данные перед выходом
-      await clearCaches();
-      
-      accessToken.value = null;
-      user.value = null;
-      localStorage.removeItem('access_token');
-      router.push('/login');
+  async function forceLogout(options: { callApi?: boolean } = {}) {
+    const { callApi = true } = options;
+
+    if (callApi) {
+      try {
+        await apiClient.post('/auth/logout');
+      } catch {
+        // Игнорируем ошибки сети при логауте
+      }
+    }
+
+    await clearCaches();
+    setAccessToken(null);
+    user.value = null;
+
+    const { default: router } = await import('../router');
+    if (router.currentRoute.value.path !== '/login') {
+      await router.push('/login');
     }
   }
 
-  const isAdmin = computed(() => 
-    user.value?.role === 'ADMIN' || user.value?.role === 'SUPERADMIN'
+  async function logout() {
+    await forceLogout({ callApi: true });
+  }
+
+  const isAdmin = computed(
+    () => user.value?.role === 'ADMIN' || user.value?.role === 'SUPERADMIN'
   );
 
-  return { user, accessToken, isAuthenticated, isAdmin, login, fetchMe, logout };
+  return {
+    user,
+    accessToken,
+    isAuthenticated,
+    isAdmin,
+    setAccessToken,
+    login,
+    fetchMe,
+    logout,
+    forceLogout,
+  };
 });

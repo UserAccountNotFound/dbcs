@@ -48,11 +48,16 @@ def build_public_card_response(card: Card) -> PublicCardResponse:
     avatar_url = None
     if card.avatar_file_id:
         avatar_url = f"{settings.api_v1_prefix}/public/cards/{card.slug}/avatar"
-    
+
     logo_url = None
     if card.logo_file_id:
         logo_url = f"{settings.api_v1_prefix}/public/cards/{card.slug}/logo"
-    
+
+    try:
+        theme = CardTheme.model_validate(card.theme or {})
+    except Exception:
+        theme = CardTheme()
+
     return PublicCardResponse(
         slug=card.slug,
         title=card.title,
@@ -65,7 +70,7 @@ def build_public_card_response(card: Card) -> PublicCardResponse:
         website=card.website,
         address=card.address,
         note=card.note,
-        theme=CardTheme.model_validate(card.theme),
+        theme=theme,
         template_code=card.template.code if card.template else None,
         template_schema=template_schema,
         avatar_url=avatar_url,

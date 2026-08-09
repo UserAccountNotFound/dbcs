@@ -75,6 +75,14 @@ class Settings(BaseSettings):
                 "REFRESH_COOKIE_SECURE must be true when REFRESH_COOKIE_SAMESITE is none."
             )
 
+        if (
+            self.environment.lower() not in {"development", "dev", "test"}
+            and not self.refresh_cookie_secure
+        ):
+            raise ValueError(
+                "REFRESH_COOKIE_SECURE must be true outside development."
+            )
+
         return self
 
     @property

@@ -77,6 +77,25 @@ const qrUrl = computed(() => {
   return `${import.meta.env.VITE_API_BASE_URL}/public/cards/${props.card.slug}/qrcode.svg`;
 });
 
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+
+  const apiBase = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  if (url.startsWith('/api/')) {
+    const origin = apiBase.replace(/\/api\/v1$/, '');
+    return `${origin}${url}`;
+  }
+  if (url.startsWith('/')) {
+    const origin = apiBase.replace(/\/api\/v1$/, '');
+    return `${origin}${url}`;
+  }
+  return `${apiBase}/${url}`;
+}
+
+const avatarUrl = computed(() => resolveMediaUrl(props.card.avatar_url));
+const logoUrl = computed(() => resolveMediaUrl(props.card.logo_url));
+
 // Форматирование сайта (убираем протокол)
 function formatWebsite(url: string | null): string {
   if (!url) return '';
@@ -109,15 +128,15 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
     <div class="card-body">
       
       <!-- Логотип компании (если есть) -->
-      <div v-if="styles.showLogo && card.logo_url" class="card-logo">
-        <img :src="card.logo_url" :alt="card.company || 'Logo'" />
+      <div v-if="styles.showLogo && logoUrl" class="card-logo">
+        <img :src="logoUrl" :alt="card.company || 'Logo'" />
       </div>
       
       <!-- Фото -->
       <div v-if="styles.showPhoto" class="card-photo">
         <img 
-          v-if="card.avatar_url" 
-          :src="card.avatar_url" 
+          v-if="avatarUrl" 
+          :src="avatarUrl" 
           :alt="card.full_name"
           class="photo-image"
         />
@@ -183,10 +202,12 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
   font-family: var(--font);
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: v-bind('styles.shadow ? "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" : "none"');
 }
 
 .card-renderer:hover {
   transform: translateY(-2px);
+  box-shadow: v-bind('styles.shadow ? "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" : "none"');
 }
 
 /* Шапка с градиентом */

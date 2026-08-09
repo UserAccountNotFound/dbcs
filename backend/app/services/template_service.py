@@ -3,11 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas.template import TemplateCreate, TemplateUpdate
 from app.models import Card, CardTemplate
-from app.services.exceptions import ServiceError
-
-
-class TemplateError(ServiceError):
-    pass
+from app.services.exceptions import TemplateError
 
 
 def get_active_templates(db: Session) -> list[CardTemplate]:

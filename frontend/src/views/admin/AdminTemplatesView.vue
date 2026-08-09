@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { adminApi } from '../../api/admin';
 import type { AdminTemplate } from '../../types/admin';
 import TemplatePreview from '../../components/cards/TemplatePreview.vue';
+import { getAxiosErrorMessage } from '../../utils/apiError';
 
 const templates = ref<AdminTemplate[]>([]);
 const total = ref(0);
@@ -10,6 +11,7 @@ const limit = ref(20);
 const offset = ref(0);
 const search = ref('');
 const isLoading = ref(true);
+const searchTimeout = ref<number>();
 
 async function loadTemplates() {
   isLoading.value = true;
@@ -26,12 +28,20 @@ async function loadTemplates() {
 
 onMounted(loadTemplates);
 
+watch(search, () => {
+  clearTimeout(searchTimeout.value);
+  searchTimeout.value = window.setTimeout(() => {
+    offset.value = 0;
+    loadTemplates();
+  }, 500);
+});
+
 async function toggleActive(template: AdminTemplate) {
   try {
     await adminApi.toggleTemplate(template.id);
     template.is_active = !template.is_active;
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при изменении статуса');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при изменении статуса'));
   }
 }
 
@@ -46,8 +56,8 @@ async function deleteTemplate(template: AdminTemplate) {
   try {
     await adminApi.deleteTemplate(template.id);
     await loadTemplates();
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при удалении');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при удалении'));
   }
 }
 </script>

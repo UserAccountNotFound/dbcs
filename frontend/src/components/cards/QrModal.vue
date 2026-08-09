@@ -7,9 +7,11 @@ const emit = defineEmits(['close']);
 
 const qrUrl = ref<string | null>(null);
 const isLoading = ref(false);
+let requestId = 0;
 
 watch(() => props.cardId, async (newId) => {
-  // Очищаем предыдущий blob URL
+  const currentRequest = ++requestId;
+
   if (qrUrl.value) {
     window.URL.revokeObjectURL(qrUrl.value);
     qrUrl.value = null;
@@ -19,16 +21,23 @@ watch(() => props.cardId, async (newId) => {
     isLoading.value = true;
     try {
       const blob = await cardApi.getQrCodeBlob(newId);
+      if (currentRequest !== requestId || props.cardId !== newId) {
+        return;
+      }
       qrUrl.value = window.URL.createObjectURL(blob);
     } catch (e) {
+      if (currentRequest !== requestId) return;
       alert('Ошибка при загрузке QR-кода');
     } finally {
-      isLoading.value = false;
+      if (currentRequest === requestId) {
+        isLoading.value = false;
+      }
     }
   }
 }, { immediate: true });
 
 onUnmounted(() => {
+  requestId += 1;
   if (qrUrl.value) {
     window.URL.revokeObjectURL(qrUrl.value);
   }

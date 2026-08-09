@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { adminApi } from '../../api/admin';
 import type { AdminCard } from '../../types/admin';
+import { getAxiosErrorMessage } from '../../utils/apiError';
 
 const cards = ref<AdminCard[]>([]);
 const total = ref(0);
@@ -40,8 +41,8 @@ async function deactivateCard(card: AdminCard) {
   try {
     await adminApi.deactivateCard(card.id);
     card.is_active = false;
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при деактивации');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при деактивации'));
   }
 }
 

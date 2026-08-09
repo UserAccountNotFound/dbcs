@@ -126,7 +126,36 @@ deploy_backend() {
     fi
 
     log_info "Инициализация базы данных..."
-    .venv/bin/python create_SuperAdminUser.py
+
+    echo
+    echo "──────────────────────────────────────────────"
+    echo " Создание учётной записи SUPERADMIN"
+    echo "──────────────────────────────────────────────"
+    echo "  [y] — создать сейчас (интерактивный ввод)"
+    echo "  [n] — пропустить (можно создать позже:"
+    echo "        cd ${backend_dir} && .venv/bin/python create_SuperAdminUser.py)"
+    echo "──────────────────────────────────────────────"
+
+    local create_admin_answer=""
+    while true; do
+        read -r -p "Создать SUPERADMIN сейчас? [y/N]: " create_admin_answer
+        create_admin_answer="${create_admin_answer:-N}"
+        case "${create_admin_answer}" in
+            [yY]|[yY][eE][sS]|[дД]|[дД][аА])
+                log_info "Запуск create_SuperAdminUser.py..."
+                .venv/bin/python create_SuperAdminUser.py
+                break
+                ;;
+            [nN]|[nN][oO]|[нН]|[нН][еЕ][тТ]|"")
+                log_warn "Создание SUPERADMIN пропущено."
+                break
+                ;;
+            *)
+                log_warn "Введите y (да) или n (нет)."
+                ;;
+        esac
+    done
+
     .venv/bin/python seed_templates_vCard.py
 
     cd - > /dev/null

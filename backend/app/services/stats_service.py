@@ -14,7 +14,7 @@ from app.services.public_card_service import (
 
 def get_card_stats(db: Session, card: Card) -> CardStatsResponse:
     now = utcnow()
-    since = now - timedelta(days=30)
+    since = now - timedelta(days=29)
 
     total_views = db.scalar(
         select(func.count(CardVisit.id)).where(
@@ -79,7 +79,7 @@ def get_card_stats(db: Session, card: Card) -> CardStatsResponse:
     views_last_30_days = 0
     vcard_downloads_last_30_days = 0
 
-    for days_ago in range(30, -1, -1):
+    for days_ago in range(29, -1, -1):
         current_date = (now - timedelta(days=days_ago)).date()
         row = daily_map.get(current_date)
 

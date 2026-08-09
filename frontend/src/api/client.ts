@@ -12,6 +12,18 @@ const apiClient = axios.create({
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
 
+const AUTH_NO_REFRESH_PATHS = [
+  '/auth/login',
+  '/auth/logout',
+  '/auth/register',
+  '/auth/refresh',
+];
+
+function shouldSkipRefresh(url: string | undefined): boolean {
+  if (!url) return true;
+  return AUTH_NO_REFRESH_PATHS.some((path) => url.includes(path));
+}
+
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -23,14 +35,39 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+async function syncAccessToken(token: string) {
+  localStorage.setItem('access_token', token);
+  try {
+    const { useAuthStore } = await import('../stores/auth');
+    useAuthStore().setAccessToken(token);
+  } catch {
+    // store может быть ещё не инициализирован
+  }
+}
+
+async function forceLogoutFromInterceptor() {
+  localStorage.removeItem('access_token');
+  try {
+    const { useAuthStore } = await import('../stores/auth');
+    await useAuthStore().forceLogout({ callApi: false });
+  } catch {
+    window.location.href = '/login';
+  }
+}
+
 // Interceptor для добавления Access Token в заголовки
 apiClient.interceptors.request.use(
   (config) => {
-    // Токен будем брать из localStorage или Pinia (ножно доделать ниже)
     const token = localStorage.getItem('access_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Браузер сам выставит multipart boundary для FormData
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -42,10 +79,13 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Если 401 и это не запрос на refresh и мы еще не пытались обновить токен
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/refresh')) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !shouldSkipRefresh(originalRequest.url)
+    ) {
       if (isRefreshing) {
-        // Если refresh уже идет, ставим запрос в очередь
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -60,25 +100,22 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Дергаем endpoint refresh. Cookie улетит автоматически благодаря withCredentials: true
         const { data } = await axios.post(
           `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
-        
+
         const newAccessToken = data.access_token;
-        localStorage.setItem('access_token', newAccessToken);
-        
+        await syncAccessToken(newAccessToken);
+
         processQueue(null, newAccessToken);
-        
+
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Если refresh не удался (cookie истекла или отозвана), чистим стейт и редиректим на логин
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
+        await forceLogoutFromInterceptor();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

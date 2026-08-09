@@ -42,6 +42,7 @@ const form = reactive<CardCreatePayload>({
 
 // Состояние для уведомления о применении шаблона
 const templateApplied = ref(false);
+const selectedTemplate = ref<Template | null>(null);
 let appliedTimeout: number | undefined;
 
 // Заполнение формы при редактировании существующей карточки
@@ -108,6 +109,8 @@ function handleTemplateSelected(template: Template | null) {
   // Если шаблон снят — ничего не делаем (настройки сохраняются)
   if (!template || !template.schema_data) return;
 
+  selectedTemplate.value = template;
+
   // Применяем схему шаблона к теме
   applyTemplateSchema(template.schema_data);
 
@@ -127,12 +130,22 @@ function handleTemplateSelected(template: Template | null) {
  * Сброс темы к настройкам выбранного шаблона.
  */
 function resetThemeToTemplate() {
-  if (!form.template_id) return;
-  
-  // Здесь можно повторно запросить шаблон или сохранить его локально.
-  // Для простоты просто показываем уведомление — пользователь может 
-  // повторно кликнуть по шаблону.
-  templateApplied.value = false;
+  if (!selectedTemplate.value?.schema_data) return;
+  applyTemplateSchema(selectedTemplate.value.schema_data);
+  templateApplied.value = true;
+  if (appliedTimeout) {
+    clearTimeout(appliedTimeout);
+  }
+  appliedTimeout = window.setTimeout(() => {
+    templateApplied.value = false;
+  }, 3000);
+}
+
+function normalizeWebsite(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
 
 function handleSubmit() {
@@ -151,6 +164,10 @@ function handleSubmit() {
       (payload as any)[key] = null;
     }
   });
+
+  if (typeof payload.website === 'string' && payload.website) {
+    payload.website = normalizeWebsite(payload.website);
+  }
 
   // Гарантируем, что theme всегда присутствует
   if (!payload.theme) {

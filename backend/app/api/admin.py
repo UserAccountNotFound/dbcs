@@ -26,7 +26,7 @@ from app.api.schemas.template import (
     TemplateUpdate,
 )
 from app.services import template_service
-from app.services.template_service import TemplateError
+from app.services.exceptions import TemplateError
 
 from typing import Literal
 
@@ -58,7 +58,7 @@ def create_user(
     admin: User = Depends(get_current_admin),
 ) -> AdminUserResponse:
     try:
-        user = admin_service.create_user(db, payload)
+        user = admin_service.create_user(db, admin, payload)
     except AdminError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

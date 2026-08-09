@@ -13,19 +13,29 @@ const emit = defineEmits(['close']);
 const stats = ref<CardStats | null>(null);
 const isLoading = ref(false);
 const error = ref('');
+let requestId = 0;
 
 watch(() => props.cardId, async (newId) => {
+  const currentRequest = ++requestId;
+
   if (newId) {
     isLoading.value = true;
     error.value = '';
     stats.value = null;
     
     try {
-      stats.value = await cardApi.getCardStats(newId);
+      const result = await cardApi.getCardStats(newId);
+      if (currentRequest !== requestId || props.cardId !== newId) {
+        return;
+      }
+      stats.value = result;
     } catch (e) {
+      if (currentRequest !== requestId) return;
       error.value = 'Не удалось загрузить статистику';
     } finally {
-      isLoading.value = false;
+      if (currentRequest === requestId) {
+        isLoading.value = false;
+      }
     }
   } else {
     stats.value = null;

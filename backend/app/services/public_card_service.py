@@ -1,11 +1,10 @@
 import re
-from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import hash_pii
-from app.core.utils import get_client_ip, get_user_agent
+from app.db.base import utcnow
 from app.models import Card, CardVisit
 from app.services.exceptions import CardNotFoundError
 
@@ -64,7 +63,7 @@ def record_visit(
 
     visit = CardVisit(
         card_id=card_id,
-        visited_at=datetime.now(timezone.utc),
+        visited_at=utcnow(),
         ip_hash=hash_pii(ip) if ip else None,
         user_agent_hash=hash_pii(user_agent) if user_agent else None,
         referer=referer[:2048] if referer else None,

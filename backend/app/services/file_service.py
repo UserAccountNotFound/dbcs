@@ -90,49 +90,61 @@ def upload_file(
     user_id: str,
     file: UploadFile,
 ) -> File:
-    # 1. Читаем содержимое
-    data = file.file.read()
-    file.file.seek(0)  # Возвращаем указатель для повторного чтения
-    
-    # 2. Проверка размера
     max_size_bytes = settings.max_upload_size_mb * 1024 * 1024
-    if len(data) > max_size_bytes:
-        raise FileTooLargeError(
-            f"Размер файла превышает {settings.max_upload_size_mb} МБ"
-        )
-    
-    if len(data) == 0:
+    chunk_size = 64 * 1024
+    chunks: list[bytes] = []
+    total_size = 0
+
+    while True:
+        chunk = file.file.read(chunk_size)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > max_size_bytes:
+            raise FileTooLargeError(
+                f"Размер файла превышает {settings.max_upload_size_mb} МБ"
+            )
+        chunks.append(chunk)
+
+    data = b"".join(chunks)
+
+    if total_size == 0:
         raise InvalidFileError("Файл пуст.")
-    
+
     # 3. Проверка расширения
     original_name = file.filename or "unnamed.jpg"
     ext = _validate_extension(original_name)
-    
+
     # 4. Проверка MIME-типа
     detected_mime = _validate_mime(data, ext)
-    
+
     # 5. Проверка размеров изображения
     _validate_image_dimensions(data)
-    
+
     # 6. Вычисляем хеш
     file_hash = _sha256_of_bytes(data)
-    
-    # 7. Проверяем, нет ли уже такого файла (дедупликация)
-    existing = db.scalar(select(File).where(File.sha256 == file_hash))
+
+    # 7. Дедуп только в рамках владельца
+    existing = db.scalar(
+        select(File).where(
+            File.sha256 == file_hash,
+            File.owner_user_id == user_id,
+        )
+    )
     if existing:
         return existing
-    
+
     # 8. Генерируем уникальное имя
     storage_key = f"{uuid.uuid4()}{ext}"
     storage_path = settings.uploads_dir / storage_key
-    
+
     # 9. Создаем директории, если их нет
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # 10. Сохраняем файл
     with open(storage_path, "wb") as f:
         f.write(data)
-    
+
     # 11. Создаем запись в БД
     file_record = File(
         owner_user_id=user_id,
@@ -142,11 +154,11 @@ def upload_file(
         size_bytes=len(data),
         sha256=file_hash,
     )
-    
+
     db.add(file_record)
     db.commit()
     db.refresh(file_record)
-    
+
     return file_record
 
 
@@ -165,12 +177,20 @@ def get_file_path(file: File) -> Path:
 
 
 def delete_file(db: Session, file: File) -> None:
-    # Удаляем физический файл
+    from app.models import Card
+
+    in_use = db.scalar(
+        select(Card.id).where(
+            (Card.avatar_file_id == file.id) | (Card.logo_file_id == file.id),
+            Card.deleted_at.is_(None),
+        )
+    )
+    if in_use:
+        raise InvalidFileError("Файл используется в визитке и не может быть удалён.")
+
     path = settings.uploads_dir / file.storage_key
     if path.exists():
         path.unlink()
-    
-    # Удаляем запись из БД
+
     db.delete(file)
     db.commit()
-    

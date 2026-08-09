@@ -1,6 +1,8 @@
+import hmac
 from datetime import timedelta
 from uuid import uuid4
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -99,7 +101,7 @@ def get_active_session_by_token(
     if session.expires_at < utcnow():
         raise InvalidRefreshTokenError("Session expired.")
 
-    if session.refresh_token_hash != hash_token(refresh_token):
+    if not hmac.compare_digest(session.refresh_token_hash, hash_token(refresh_token)):
         raise InvalidRefreshTokenError("Refresh token hash mismatch.")
 
     return session, payload
@@ -109,3 +111,15 @@ def revoke_session(db: Session, session: AuthSession) -> None:
     if session.revoked_at is None:
         session.revoked_at = utcnow()
         db.commit()
+
+
+def revoke_all_user_sessions(db: Session, user_id: str) -> None:
+    db.execute(
+        update(AuthSession)
+        .where(
+            AuthSession.user_id == user_id,
+            AuthSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=utcnow())
+    )
+    db.commit()

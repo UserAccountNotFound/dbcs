@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { cardApi } from '../api/cards';
 import type { Card, CardCreatePayload, CardUpdatePayload } from '../types/card';
 import CardForm from '../components/cards/CardForm.vue';
+import { getAxiosErrorMessage } from '../utils/apiError';
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,7 @@ const isSubmitting = ref(false);
 // isLoading = true только при редактировании. При создании форма готова сразу.
 const isLoading = ref(!isNew.value);
 const error = ref('');
+const notFound = ref(false);
 
 onMounted(async () => {
   // Загружаем данные только если это редактирование и есть ID
@@ -26,6 +28,7 @@ onMounted(async () => {
       card.value = await cardApi.getCard(cardId.value);
     } catch (e) {
       error.value = 'Визитка не найдена';
+      notFound.value = true;
       setTimeout(() => router.push('/'), 2000);
     } finally {
       isLoading.value = false;
@@ -43,8 +46,8 @@ async function handleSubmit(payload: CardCreatePayload | CardUpdatePayload) {
       await cardApi.updateCard(cardId.value, payload as CardUpdatePayload);
     }
     router.push('/');
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || 'Ошибка при сохранении визитки';
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Ошибка при сохранении визитки');
   } finally {
     isSubmitting.value = false;
   }
@@ -60,6 +63,10 @@ async function handleSubmit(payload: CardCreatePayload | CardUpdatePayload) {
 
       <div v-if="isLoading" class="flex justify-center py-12">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+
+      <div v-else-if="notFound" class="bg-white rounded-lg shadow p-6">
+        <p class="text-red-600">{{ error }}</p>
       </div>
 
       <div v-else class="bg-white rounded-lg shadow p-6">

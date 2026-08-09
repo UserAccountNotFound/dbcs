@@ -2,15 +2,21 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.admin import AdminUserCreate, AdminUserUpdate
-from app.core.security import hash_password
+from app.core.security import hash_password, normalize_email
 from app.db.base import utcnow
 from app.models import User, Card, CardVisit, AuditLog, UserRole
+from app.services import auth_service
 from app.services.exceptions import ServiceError
 from app.services.public_card_service import SOURCE_CARD_VIEW, SOURCE_VCARD_DOWNLOAD
 
 
 class AdminError(ServiceError):
     pass
+
+
+def _require_superadmin_for_superadmin_target(admin: User, target: User) -> None:
+    if target.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
+        raise AdminError("Недостаточно прав для изменения SUPERADMIN.")
 
 
 def get_users(
@@ -74,11 +80,16 @@ def get_users(
 
 def create_user(
     db: Session,
+    admin: User,
     payload: AdminUserCreate,
 ) -> User:
+    if payload.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
+        raise AdminError("Недостаточно прав для назначения роли SUPERADMIN.")
+
+    email = normalize_email(payload.email)
     existing = db.scalar(
         select(User).where(
-            User.email == payload.email,
+            User.email == email,
             User.deleted_at.is_(None),
         )
     )
@@ -86,7 +97,7 @@ def create_user(
         raise AdminError("Пользователь с таким email уже существует.")
 
     user = User(
-        email=payload.email,
+        email=email,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
         role=payload.role,
@@ -115,26 +126,35 @@ def update_user(
     if not user or user.deleted_at is not None:
         raise AdminError("Пользователь не найден.")
 
-    if payload.email is not None and payload.email != user.email:
-        existing = db.scalar(
-            select(User).where(
-                User.email == payload.email,
-                User.deleted_at.is_(None),
+    _require_superadmin_for_superadmin_target(admin, user)
+
+    revoke_sessions = False
+
+    if payload.email is not None:
+        email = normalize_email(payload.email)
+        if email != user.email:
+            existing = db.scalar(
+                select(User).where(
+                    User.email == email,
+                    User.deleted_at.is_(None),
+                )
             )
-        )
-        if existing:
-            raise AdminError("Этот email уже занят другим пользователем.")
-        user.email = payload.email
+            if existing:
+                raise AdminError("Этот email уже занят другим пользователем.")
+            user.email = email
 
     if payload.full_name is not None:
         user.full_name = payload.full_name
 
     if payload.password is not None:
         user.password_hash = hash_password(payload.password)
+        revoke_sessions = True
 
     if payload.is_active is not None:
+        if payload.is_active is False and user.is_active:
+            revoke_sessions = True
         user.is_active = payload.is_active
-    
+
     if payload.role is not None:
         if payload.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
             raise AdminError("Недостаточно прав для назначения роли SUPERADMIN.")
@@ -142,6 +162,10 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+
+    if revoke_sessions:
+        auth_service.revoke_all_user_sessions(db, user.id)
+
     return user
 
 
@@ -153,9 +177,12 @@ def delete_user(db: Session, admin: User, user_id: str) -> None:
     if not user or user.deleted_at is not None:
         raise AdminError("Пользователь не найден.")
 
+    _require_superadmin_for_superadmin_target(admin, user)
+
     user.deleted_at = utcnow()
     user.is_active = False
     db.commit()
+    auth_service.revoke_all_user_sessions(db, user.id)
 
 
 def get_cards(
@@ -192,7 +219,11 @@ def get_cards(
             )
         )
 
-    count_query = select(func.count(Card.id)).where(Card.deleted_at.is_(None))
+    count_query = (
+        select(func.count(Card.id))
+        .join(User, Card.user_id == User.id)
+        .where(Card.deleted_at.is_(None))
+    )
     if search:
         search_filter = f"%{search}%"
         count_query = count_query.where(
@@ -200,6 +231,7 @@ def get_cards(
                 Card.title.ilike(search_filter),
                 Card.full_name.ilike(search_filter),
                 Card.slug.ilike(search_filter),
+                User.email.ilike(search_filter),
             )
         )
 
@@ -225,9 +257,9 @@ def get_cards(
 
 def deactivate_card(db: Session, card_id: str) -> Card:
     card = db.get(Card, card_id)
-    if not card:
+    if not card or card.deleted_at is not None:
         raise AdminError("Визитка не найдена.")
-    
+
     card.is_active = False
     db.commit()
     db.refresh(card)

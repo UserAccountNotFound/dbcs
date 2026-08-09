@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { getAxiosErrorMessage } from '../utils/apiError';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -17,8 +18,8 @@ async function handleLogin() {
   try {
     await authStore.login(email.value, password.value);
     router.push('/');
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || 'Ошибка входа. Проверьте данные.';
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Ошибка входа. Проверьте данные.');
   } finally {
     isLoading.value = false;
   }

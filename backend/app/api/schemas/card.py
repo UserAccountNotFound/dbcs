@@ -80,6 +80,14 @@ class CardBase(BaseModel):
     avatar_file_id: str | None = None
     logo_file_id: str | None = None
 
+    @field_validator("title", "full_name")
+    @classmethod
+    def validate_required_text_fields(cls, value: str) -> str:
+        normalized = _normalize_optional_string(value)
+        if normalized is None:
+            raise ValueError("Field cannot be empty.")
+        return normalized
+
     @field_validator("job_title", "department", "company", "address", "note")
     @classmethod
     def normalize_optional_fields(cls, value: str | None) -> str | None:
@@ -124,7 +132,12 @@ class CardUpdate(BaseModel):
     @field_validator("title", "full_name")
     @classmethod
     def validate_required_text_fields(cls, value: str | None) -> str | None:
-        return _normalize_optional_string(value)
+        if value is None:
+            return None
+        normalized = _normalize_optional_string(value)
+        if normalized is None:
+            raise ValueError("Field cannot be empty.")
+        return normalized
 
     @field_validator("job_title", "department", "company", "address", "note")
     @classmethod

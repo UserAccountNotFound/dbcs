@@ -129,7 +129,7 @@ function closeShareModal(event: MouseEvent) {
       <h2 class="text-2xl font-bold mb-2 text-gray-900">Визитка недоступна</h2>
       <p class="text-gray-600 mb-8">{{ error }}</p>
       <router-link
-        to="/"
+        to="/login"
         class="inline-block px-6 py-3 bg-primary text-white rounded-xl hover:bg-teal-800 transition-colors font-medium"
       >
         Перейти на главную

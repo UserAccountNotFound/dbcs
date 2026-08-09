@@ -1,10 +1,11 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from sqlalchemy import case, func, select, text
 from sqlalchemy.orm import Session
 
+from app.db.base import utcnow
 from app.models import Card, CardVisit, User
 from app.services.public_card_service import SOURCE_CARD_VIEW, SOURCE_VCARD_DOWNLOAD
 
@@ -35,8 +36,15 @@ KNOWN_REFERRERS = {
 
 
 def _start_of_period(period: Period) -> datetime:
-    now = datetime.now(timezone.utc)
-    return now - PERIOD_DELTA[period]
+    return utcnow() - PERIOD_DELTA[period]
+
+
+def _as_date(value: object) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
 
 
 def _normalize_referer(referer: str | None) -> str:
@@ -71,12 +79,15 @@ def get_time_series(db: Session, period: Period) -> list[dict]:
     )
 
     results = db.execute(query).all()
-    day_map = {row.day.isoformat(): {"views": row.views, "downloads": row.downloads} for row in results}
-    
+    day_map = {
+        _as_date(row.day).isoformat(): {"views": row.views, "downloads": row.downloads}
+        for row in results
+    }
+
     series = []
     current = start_date.date()
-    end = datetime.now(timezone.utc).date()
-    
+    end = utcnow().date()
+
     while current <= end:
         key = current.isoformat()
         data = day_map.get(key, {"views": 0, "downloads": 0})
@@ -86,7 +97,7 @@ def get_time_series(db: Session, period: Period) -> list[dict]:
             "downloads": data["downloads"],
         })
         current += timedelta(days=1)
-    
+
     return series
 
 
@@ -104,6 +115,7 @@ def get_top_cards(db: Session, period: Period, limit: int = 10) -> list[dict]:
             func.count(case((CardVisit.source == SOURCE_CARD_VIEW, 1))).label("views"),
             func.count(case((CardVisit.source == SOURCE_VCARD_DOWNLOAD, 1))).label("downloads"),
         )
+        .select_from(CardVisit)
         .join(Card, CardVisit.card_id == Card.id)
         .join(User, Card.user_id == User.id)
         .where(
@@ -134,23 +146,35 @@ def get_top_users(db: Session, period: Period, limit: int = 10) -> list[dict]:
     """Топ-N пользователей по суммарным просмотрам их визиток."""
     start_date = _start_of_period(period)
 
+    cards_count_subq = (
+        select(
+            Card.user_id,
+            func.count(Card.id).label("cards_count"),
+        )
+        .where(Card.deleted_at.is_(None))
+        .group_by(Card.user_id)
+        .subquery()
+    )
+
     query = (
         select(
             User.id,
             User.email,
             User.full_name,
-            func.count(Card.id).label("cards_count"),
+            func.coalesce(cards_count_subq.c.cards_count, 0).label("cards_count"),
             func.count(case((CardVisit.source == SOURCE_CARD_VIEW, 1))).label("views"),
             func.count(case((CardVisit.source == SOURCE_VCARD_DOWNLOAD, 1))).label("downloads"),
         )
+        .select_from(User)
         .join(Card, Card.user_id == User.id)
-        .join(CardVisit, CardVisit.card_id == Card.id, isouter=True)
+        .join(CardVisit, CardVisit.card_id == Card.id)
+        .outerjoin(cards_count_subq, User.id == cards_count_subq.c.user_id)
         .where(
             User.deleted_at.is_(None),
             Card.deleted_at.is_(None),
-            (CardVisit.visited_at >= start_date) | (CardVisit.id.is_(None)),
+            CardVisit.visited_at >= start_date,
         )
-        .group_by(User.id, User.email, User.full_name)
+        .group_by(User.id, User.email, User.full_name, cards_count_subq.c.cards_count)
         .order_by(func.count(case((CardVisit.source == SOURCE_CARD_VIEW, 1))).desc())
         .limit(limit)
     )
@@ -161,7 +185,7 @@ def get_top_users(db: Session, period: Period, limit: int = 10) -> list[dict]:
             "id": row.id,
             "email": row.email,
             "full_name": row.full_name,
-            "cards_count": row.cards_count,
+            "cards_count": int(row.cards_count or 0),
             "views": row.views,
             "downloads": row.downloads,
         }
@@ -249,7 +273,7 @@ def get_extended_analytics(db: Session, period: Period) -> dict:
     """Собирает всю аналитику в один ответ."""
     return {
         "period": period,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": utcnow().isoformat() + "Z",
         "time_series": get_time_series(db, period),
         "top_cards": get_top_cards(db, period, limit=10),
         "top_users": get_top_users(db, period, limit=10),

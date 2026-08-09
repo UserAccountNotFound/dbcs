@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { adminApi } from '../../api/admin';
 import type { AdminUser, AdminUserCreate, AdminUserUpdate } from '../../types/admin';
 import UserFormModal from '../../components/admin/UserFormModal.vue';
+import { getAxiosErrorMessage } from '../../utils/apiError';
 
 const users = ref<AdminUser[]>([]);
 const total = ref(0);
@@ -58,8 +59,8 @@ async function handleFormSubmit(payload: AdminUserCreate | AdminUserUpdate) {
     }
     isModalOpen.value = false;
     await loadUsers();
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при сохранении');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при сохранении'));
   }
 }
 
@@ -69,8 +70,8 @@ async function deleteUser(user: AdminUser) {
   try {
     await adminApi.deleteUser(user.id);
     await loadUsers();
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при удалении');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при удалении'));
   }
 }
 
@@ -78,8 +79,8 @@ async function toggleActive(user: AdminUser) {
   try {
     await adminApi.updateUser(user.id, { is_active: !user.is_active });
     user.is_active = !user.is_active;
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при обновлении');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при обновлении'));
   }
 }
 
@@ -87,8 +88,8 @@ async function changeRole(user: AdminUser, role: string) {
   try {
     await adminApi.updateUser(user.id, { role: role as any });
     user.role = role as any;
-  } catch (e: any) {
-    alert(e.response?.data?.detail || 'Ошибка при смене роли');
+  } catch (e: unknown) {
+    alert(getAxiosErrorMessage(e, 'Ошибка при смене роли'));
   }
 }
 

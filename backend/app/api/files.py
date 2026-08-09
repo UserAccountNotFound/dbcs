@@ -122,9 +122,15 @@ def delete_file(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Доступ запрещен.",
         )
-    
-    file_service.delete_file(db, file)
-    
+
+    try:
+        file_service.delete_file(db, file)
+    except InvalidFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
     audit_service.log(
         db=db,
         action="file.delete",

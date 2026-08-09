@@ -21,11 +21,32 @@ from app.services import (
 )
 from app.services.exceptions import (
     CardNotFoundError,
+    InvalidFileError,
+    SlugGenerationError,
     TemplateNotFoundError,
 )
 
 
 router = APIRouter(prefix="/cards", tags=["Cards"])
+
+
+def _map_card_write_errors(exc: Exception) -> HTTPException:
+    if isinstance(exc, TemplateNotFoundError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Card template not found or inactive.",
+        )
+    if isinstance(exc, InvalidFileError):
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    if isinstance(exc, SlugGenerationError):
+        return HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate unique card slug. Please try again.",
+        )
+    raise exc
 
 
 @router.post(
@@ -46,11 +67,8 @@ def create_card(
             user=user,
             payload=payload,
         )
-    except TemplateNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Card template not found or inactive.",
-        ) from exc
+    except (TemplateNotFoundError, InvalidFileError, SlugGenerationError) as exc:
+        raise _map_card_write_errors(exc) from exc
 
     audit_service.log(
         db=db,
@@ -242,11 +260,8 @@ def update_card(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Card not found.",
         ) from exc
-    except TemplateNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Card template not found or inactive.",
-        ) from exc
+    except (TemplateNotFoundError, InvalidFileError, SlugGenerationError) as exc:
+        raise _map_card_write_errors(exc) from exc
 
     updated_fields = list(payload.model_dump(exclude_unset=True).keys())
 
@@ -322,6 +337,8 @@ def regenerate_slug(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Card not found.",
         ) from exc
+    except SlugGenerationError as exc:
+        raise _map_card_write_errors(exc) from exc
 
     audit_service.log(
         db=db,

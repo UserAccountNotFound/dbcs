@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Digital Bussines Cards Cervice',
+        name: 'Digital Business Cards Service',
         short_name: 'DBCS',
-        description: 'Cервис электронных визиток',
+        description: 'Сервис электронных визиток',
         theme_color: '#0f766e',
         background_color: '#ffffff',
         display: 'standalone',

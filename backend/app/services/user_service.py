@@ -11,7 +11,10 @@ def get_by_email(db: Session, email: str) -> User | None:
     normalized_email = normalize_email(email)
 
     return db.scalar(
-        select(User).where(User.email == normalized_email)
+        select(User).where(
+            User.email == normalized_email,
+            User.deleted_at.is_(None),
+        )
     )
 
 
