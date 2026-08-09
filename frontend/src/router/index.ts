@@ -67,9 +67,9 @@ const router = createRouter({
           component: () => import('../views/admin/AdminAuditView.vue'),
         },
         {
+          // Старый путь: обзор и аналитика объединены на /admin
           path: 'analytics',
-          name: 'admin-analytics',
-          component: () => import('../views/admin/AdminAnalyticsView.vue'),
+          redirect: { name: 'admin-dashboard' },
         },
       ],
     },

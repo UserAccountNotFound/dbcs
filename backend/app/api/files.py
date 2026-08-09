@@ -93,7 +93,7 @@ def get_file(
     return FileResponse(
         path=file_path,
         media_type=file.mime_type,
-        filename=file.original_name,
+        filename=file_service.sanitize_download_filename(file.original_name),
         headers={"Cache-Control": "private, max-age=3600"},
     )
 

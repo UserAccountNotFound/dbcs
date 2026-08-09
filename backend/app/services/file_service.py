@@ -1,7 +1,8 @@
 import io
 import hashlib
+import re
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import magic
 from fastapi import UploadFile
@@ -169,8 +170,22 @@ def get_file(db: Session, file_id: str) -> File:
     return file
 
 
+def sanitize_download_filename(name: str | None, fallback: str = "download") -> str:
+    """Убирает пути и опасные символы из имени файла для Content-Disposition."""
+    if not name:
+        return fallback
+    cleaned = PurePosixPath(str(name).replace("\\", "/")).name
+    cleaned = re.sub(r'[\r\n\x00"]+', "", cleaned).strip()
+    return (cleaned or fallback)[:255]
+
+
 def get_file_path(file: File) -> Path:
-    path = settings.uploads_dir / file.storage_key
+    uploads_root = settings.uploads_dir.resolve()
+    path = (uploads_root / file.storage_key).resolve()
+    try:
+        path.relative_to(uploads_root)
+    except ValueError as exc:
+        raise FileNotFoundServiceError("Файл отсутствует в хранилище.") from exc
     if not path.exists():
         raise FileNotFoundServiceError("Файл отсутствует в хранилище.")
     return path

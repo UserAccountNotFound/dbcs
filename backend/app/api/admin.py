@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_admin, get_db
+from app.api.deps import get_current_admin, get_current_superadmin, get_db
 from app.api.schemas.admin import (
     AdminCardListResponse,
     AdminCardResponse,
@@ -82,7 +82,7 @@ def delete_user(
     user_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_superadmin),
 ) -> dict:
     try:
         admin_service.delete_user(db, admin, user_id)
@@ -119,6 +119,10 @@ def update_user(
             detail=str(exc),
         ) from exc
 
+    audit_details = payload.model_dump(exclude_unset=True)
+    if "password" in audit_details:
+        audit_details["password"] = "***"
+
     audit_service.log(
         db=db,
         action="admin.user_update",
@@ -126,7 +130,7 @@ def update_user(
         entity_type="user",
         entity_id=user_id,
         request=request,
-        details=payload.model_dump(exclude_unset=True),
+        details=audit_details,
     )
 
     return AdminUserResponse.model_validate(user)

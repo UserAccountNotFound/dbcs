@@ -68,7 +68,7 @@ frontend/
 │   │       ├── AdminCardsView.vue
 │   │       ├── AdminTemplatesView.vue
 │   │       ├── AdminAuditView.vue
-│   │       └── AdminAnalyticsView.vue
+│   │       └── AdminDashboardView.vue
 │   └── assets/                 # Ассеты (images, styles)
 ├── index.html                  # HTML шаблон
 ├── package.json                # Зависимости
@@ -104,8 +104,8 @@ nano .env
 Переменные окружения в `.env`:
 
 ```env
-# API Base URL
-VITE_API_BASE_URL=http://localhost:8000/api/v1
+# API Base URL (относительный путь — через Vite proxy в dev)
+VITE_API_BASE_URL=/api/v1
 
 # App Title
 VITE_APP_TITLE=DBCS - Digital Business Card Service

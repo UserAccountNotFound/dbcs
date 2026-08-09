@@ -4,6 +4,10 @@ import { adminApi } from '../../api/admin';
 import type { AdminUser, AdminUserCreate, AdminUserUpdate } from '../../types/admin';
 import UserFormModal from '../../components/admin/UserFormModal.vue';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+import { useAuthStore } from '../../stores/auth';
+
+const auth = useAuthStore();
+const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
 const users = ref<AdminUser[]>([]);
 const total = ref(0);
@@ -159,7 +163,13 @@ function prevPage() {
               >
                 <option value="USER">USER</option>
                 <option value="ADMIN">ADMIN</option>
-                <option value="SUPERADMIN">SUPERADMIN</option>
+                <option
+                  v-if="isSuperAdmin || user.role === 'SUPERADMIN'"
+                  value="SUPERADMIN"
+                  :disabled="!isSuperAdmin"
+                >
+                  SUPERADMIN
+                </option>
               </select>
             </td>
             <td class="px-6 py-4 text-gray-600">{{ user.cards_count }}</td>
@@ -192,7 +202,8 @@ function prevPage() {
                 >
                   {{ user.is_active ? '🔒' : '🔓' }}
                 </button>
-                <button 
+                <button
+                  v-if="isSuperAdmin"
                   @click="deleteUser(user)"
                   class="text-sm text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
                   title="Удалить"

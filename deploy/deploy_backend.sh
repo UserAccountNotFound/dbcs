@@ -20,8 +20,8 @@ DB_HOST="127.0.0.1"
 DB_PORT="3306"
 DB_NAME="e_cards"
 DB_USER="ecard_user"
-# ВНИМАНИЕ: Для продакшена используйте генератор (openssl rand -hex 16)
-DB_PASSWORD="EcardM3GaPassW0rd" 
+# Пароль: DB_PASSWORD из окружения, иначе из существующего .env, иначе генерация.
+DB_PASSWORD="${DB_PASSWORD:-}" 
 
 # Настройки приложения
 APP_PORT="8000"
@@ -52,6 +52,40 @@ check_root() {
 generate_secret() {
     #python3 -c 'import secrets; print(secrets.token_hex(32))'
     python3 -c 'import secrets; print(secrets.token_urlsafe(64))' # более секурно
+}
+
+resolve_db_password() {
+    if [[ -n "$DB_PASSWORD" ]]; then
+        return 0
+    fi
+
+    if [[ -f "$ENV_FILE" ]]; then
+        local extracted
+        extracted="$(
+            ENV_FILE="$ENV_FILE" python3 - <<'PY'
+import os
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+env_path = Path(os.environ["ENV_FILE"])
+for line in env_path.read_text(encoding="utf-8").splitlines():
+    if line.startswith("DATABASE_URL="):
+        url = line.split("=", 1)[1].strip().strip('"').strip("'")
+        parsed = urlparse(url)
+        if parsed.password:
+            print(unquote(parsed.password))
+        break
+PY
+        )"
+        if [[ -n "$extracted" ]]; then
+            DB_PASSWORD="$extracted"
+            log_info "DB_PASSWORD взят из существующего DATABASE_URL в .env."
+            return 0
+        fi
+    fi
+
+    DB_PASSWORD="$(openssl rand -hex 16)"
+    log_warn "DB_PASSWORD не задан — сгенерирован случайный пароль (будет записан в DATABASE_URL в .env)."
 }
 
 # ==============================================================================
@@ -668,6 +702,7 @@ main() {
     check_root
     install_dependencies
     setup_user_and_dirs
+    resolve_db_password
     setup_env
     setup_database
     setup_python

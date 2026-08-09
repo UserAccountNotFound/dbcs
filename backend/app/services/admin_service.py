@@ -19,6 +19,21 @@ def _require_superadmin_for_superadmin_target(admin: User, target: User) -> None
         raise AdminError("Недостаточно прав для изменения SUPERADMIN.")
 
 
+def _deactivate_user_cards(db: Session, user_id: str, *, soft_delete: bool = False) -> None:
+    """Скрывает публичные визитки при деактивации или soft-delete пользователя."""
+    now = utcnow()
+    cards = db.scalars(
+        select(Card).where(
+            Card.user_id == user_id,
+            Card.deleted_at.is_(None),
+        )
+    ).all()
+    for card in cards:
+        card.is_active = False
+        if soft_delete:
+            card.deleted_at = now
+
+
 def get_users(
     db: Session,
     limit: int,
@@ -150,15 +165,20 @@ def update_user(
         user.password_hash = hash_password(payload.password)
         revoke_sessions = True
 
+    deactivate_cards = False
     if payload.is_active is not None:
         if payload.is_active is False and user.is_active:
             revoke_sessions = True
+            deactivate_cards = True
         user.is_active = payload.is_active
 
     if payload.role is not None:
         if payload.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
             raise AdminError("Недостаточно прав для назначения роли SUPERADMIN.")
         user.role = payload.role
+
+    if deactivate_cards:
+        _deactivate_user_cards(db, user.id, soft_delete=False)
 
     db.commit()
     db.refresh(user)
@@ -170,6 +190,9 @@ def update_user(
 
 
 def delete_user(db: Session, admin: User, user_id: str) -> None:
+    if admin.role != UserRole.SUPERADMIN:
+        raise AdminError("Недостаточно прав для удаления пользователей.")
+
     if admin.id == user_id:
         raise AdminError("Нельзя удалить самого себя.")
 
@@ -181,6 +204,7 @@ def delete_user(db: Session, admin: User, user_id: str) -> None:
 
     user.deleted_at = utcnow()
     user.is_active = False
+    _deactivate_user_cards(db, user.id, soft_delete=True)
     db.commit()
     auth_service.revoke_all_user_sessions(db, user.id)
 

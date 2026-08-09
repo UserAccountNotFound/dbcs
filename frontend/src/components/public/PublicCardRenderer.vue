@@ -17,12 +17,14 @@ const theme = computed(() => props.card.theme);
 const styles = computed(() => {
   const s = schema.value;
   const t = theme.value;
+  const isDark = t.color_scheme === 'dark';
   
   return {
-    // Цвета
+    // Цвета (тёмная схема переопределяет фон и текст шаблона)
     primaryColor: t.accent_color || s?.primary_color || '#0f766e',
-    secondaryColor: s?.secondary_color || '#f3f4f6',
-    textColor: s?.text_color || '#111827',
+    secondaryColor: isDark ? '#111827' : (s?.secondary_color || '#f3f4f6'),
+    textColor: isDark ? '#f3f4f6' : (s?.text_color || '#111827'),
+    isDark,
     
     // Layout: тема переопределяет шаблон
     layout: t.layout || s?.layout_type || 'classic',
@@ -107,12 +109,14 @@ const layoutClass = computed(() => `layout-${styles.value.layout}`);
 
 // Класс позиции фото
 const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`);
+
+const schemeClass = computed(() => (styles.value.isDark ? 'scheme-dark' : 'scheme-light'));
 </script>
 
 <template>
   <div 
     class="card-renderer"
-    :class="[layoutClass, photoPositionClass]"
+    :class="[layoutClass, photoPositionClass, schemeClass]"
     :style="cssVars"
   >
     <!-- Шапка с градиентом -->
@@ -327,6 +331,10 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
   background: rgba(0, 0, 0, 0.05);
 }
 
+.scheme-dark .contact-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .contact-icon {
   flex-shrink: 0;
   width: 24px;
@@ -348,6 +356,10 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
   font-size: 13px;
   line-height: 1.5;
   opacity: 0.8;
+}
+
+.scheme-dark .card-note {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* ============================================================
@@ -449,6 +461,10 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
   background: white;
 }
 
+.scheme-dark.layout-corporate .card-body {
+  background: #0b1220;
+}
+
 .layout-corporate .card-info {
   border-right: 2px solid var(--primary);
   padding-right: 20px;
@@ -479,6 +495,12 @@ const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`)
   background: linear-gradient(90deg, var(--primary), var(--text));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.scheme-dark.layout-creative .card-name {
+  background: linear-gradient(90deg, var(--primary), #ffffff);
+  -webkit-background-clip: text;
   background-clip: text;
 }
 

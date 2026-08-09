@@ -5,7 +5,6 @@ const authStore = useAuthStore();
 
 const menuItems = [
   { name: 'admin-dashboard', label: 'Обзор', icon: '📊' },
-  { name: 'admin-analytics', label: 'Аналитика', icon: '📈' },
   { name: 'admin-users', label: 'Пользователи', icon: '👥' },
   { name: 'admin-cards', label: 'Визитки', icon: '💳' },
   { name: 'admin-templates', label: 'Шаблоны', icon: '🎨' },

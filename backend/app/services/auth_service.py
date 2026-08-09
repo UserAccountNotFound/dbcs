@@ -6,7 +6,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import verify_password
+from app.core.security import verify_password_or_dummy
 from app.core.tokens import (
     REFRESH_TOKEN_TYPE,
     InvalidTokenError,
@@ -29,14 +29,12 @@ def authenticate_user(
     password: str,
 ) -> User:
     user = user_service.get_by_email(db, email)
+    password_hash = user.password_hash if user is not None else None
 
-    if user is None:
+    if not verify_password_or_dummy(password, password_hash):
         raise InvalidCredentialsError("Invalid email or password.")
 
-    if not verify_password(password, user.password_hash):
-        raise InvalidCredentialsError("Invalid email or password.")
-
-    if not user.is_active:
+    if user is None or not user.is_active:
         raise InvalidCredentialsError("Invalid email or password.")
 
     return user
