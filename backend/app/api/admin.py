@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_superadmin, get_db
@@ -14,19 +14,17 @@ from app.api.schemas.admin import (
     OverviewStatsResponse,
 )
 from app.models import User
-from app.services import admin_service, audit_service, analytics_service
+from app.services import admin_service, audit_service, analytics_service, css_template_service
 from app.services.admin_service import AdminError
 
 from app.api.schemas.template import (
-    AdminTemplateResponse,
     TemplateCreate,
-    TemplateListResponse,
-    TemplateResponse,
-    TemplateSchema,
     TemplateUpdate,
 )
+from app.api.templates import template_to_response
 from app.services import template_service
 from app.services.exceptions import TemplateError
+from app.services.css_template_service import MAX_CSS_BYTES
 
 from typing import Literal
 
@@ -203,28 +201,13 @@ def list_admin_templates(
     admin: User = Depends(get_current_admin),
 ):
     results, total = template_service.get_admin_templates(db, limit, offset, search)
-    
+
     items = []
     for template, cards_count in results:
-        schema_data = None
-        if template.schema_json:
-            try:
-                schema_data = TemplateSchema.model_validate(template.schema_json)
-            except Exception:
-                schema_data = TemplateSchema()
-
-        items.append({
-            "id": template.id,
-            "code": template.code,
-            "name": template.name,
-            "description": template.description,
-            "preview_image": template.preview_image,
-            "is_active": template.is_active,
-            "created_at": template.created_at,
-            "updated_at": template.updated_at,
-            "schema_data": schema_data.model_dump() if schema_data else None,
-            "cards_count": cards_count,
-        })
+        base = template_to_response(template).model_dump()
+        base["updated_at"] = template.updated_at
+        base["cards_count"] = cards_count
+        items.append(base)
 
     return {
         "items": items,
@@ -232,6 +215,59 @@ def list_admin_templates(
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.post(
+    "/templates/{template_id}/css",
+    summary="Загрузить CSS шаблона (админ)",
+)
+async def upload_admin_template_css(
+    template_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    try:
+        template = template_service.get_template(db, template_id)
+    except TemplateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    raw = await file.read(MAX_CSS_BYTES + 1)
+    if len(raw) > MAX_CSS_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSS файл слишком большой.",
+        )
+
+    try:
+        css_text = raw.decode("utf-8")
+        css_template_service.write_template_css(template.code, css_text)
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSS должен быть в кодировке UTF-8.",
+        ) from exc
+    except TemplateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.template_css_upload",
+        actor_user_id=admin.id,
+        entity_type="template",
+        entity_id=template_id,
+        request=request,
+        details={"code": template.code, "bytes": len(raw)},
+    )
+
+    return template_to_response(template)
 
 
 @router.post("/templates", status_code=status.HTTP_201_CREATED, summary="Создать шаблон (админ)")

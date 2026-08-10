@@ -4,7 +4,11 @@
 
 # DBCS - Digital Business Card Service
 
-Сервис цифровых визитных карточек с поддержкой QR-кодов, аналитики посещений и экспорта vCard.
+Сервис цифровых визитных карточек с QR-кодами и экспортом в vCard.
+
+По факту просто попытка изобрести свой - "аналогов нет" велосипед с преферансом и поэтессами
+
+
 
 ![Linux](https://img.shields.io/badge/-Linux-6C6694.svg?logo=linux&style=flat)
 ![Python](https://img.shields.io/badge/-Python-F9DC3E.svg?logo=Python&style=flat)

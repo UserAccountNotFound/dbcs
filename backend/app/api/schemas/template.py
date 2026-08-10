@@ -1,48 +1,42 @@
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class TemplateSchema(BaseModel):
-    """Структура дизайна шаблона (хранится в schema_json)."""
-    
-    # Цвета по умолчанию
-    primary_color: str = Field(default="#0f766e", pattern=r"^#[0-9a-fA-F]{6}$")
-    secondary_color: str = Field(default="#f3f4f6", pattern=r"^#[0-9a-fA-F]{6}$")
-    text_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
-    
-    # Шрифты
-    heading_font: str = Field(default="inter", pattern=r"^[a-z_]+$")
-    body_font: str = Field(default="inter", pattern=r"^[a-z_]+$")
-    
-    # Layout
-    layout_type: str = Field(default="classic")  # classic, modern, compact, corporate, creative
-    show_photo: bool = True
-    show_qr: bool = True
-    show_logo: bool = False
-    photo_position: str = Field(default="left")  # left, top, right
-    
-    # Декорации
-    border_radius: int = Field(default=16, ge=0, le=50)
-    shadow: bool = True
-    gradient_header: bool = False
-    
-    @field_validator("layout_type")
+class TemplateMeta(BaseModel):
+    """Лёгкие метаданные шаблона (schema_json). Визуал — в CSS на диске."""
+
+    version: int = 2
+    # Опциональный эффект рендерера (например polygon-canvas для Aurora)
+    effect: str | None = Field(default=None, max_length=64)
+    default_accent: str | None = Field(
+        default=None,
+        pattern=r"^#[0-9a-fA-F]{6}$",
+    )
+    default_scheme: str | None = Field(default=None)
+
+    @field_validator("default_scheme")
     @classmethod
-    def validate_layout_type(cls, v: str) -> str:
-        allowed = {"classic", "modern", "compact", "corporate", "creative"}
-        if v not in allowed:
-            raise ValueError(f"layout_type must be one of: {', '.join(allowed)}")
+    def validate_scheme(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if v not in {"light", "dark"}:
+            raise ValueError("default_scheme must be light or dark")
         return v
-    
-    @field_validator("photo_position")
+
+    @field_validator("effect")
     @classmethod
-    def validate_photo_position(cls, v: str) -> str:
-        allowed = {"left", "top", "right"}
+    def validate_effect(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        allowed = {"polygon"}
         if v not in allowed:
-            raise ValueError(f"photo_position must be one of: {', '.join(allowed)}")
+            raise ValueError(f"effect must be one of: {', '.join(sorted(allowed))}")
         return v
+
+
+# Обратная совместимость имени
+TemplateSchema = TemplateMeta
 
 
 class TemplateResponse(BaseModel):
@@ -55,9 +49,11 @@ class TemplateResponse(BaseModel):
     preview_image: str | None
     is_active: bool
     created_at: datetime
-
-    # schema_json преобразуем в TemplateSchema
-    schema_data: TemplateSchema | None = None
+    css_url: str | None = None
+    has_css: bool = False
+    meta: TemplateMeta | None = None
+    # deprecated alias для старых клиентов
+    schema_data: TemplateMeta | None = None
 
 
 class TemplateListResponse(BaseModel):
@@ -70,7 +66,8 @@ class TemplateCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     preview_image: str | None = None
-    schema_data: TemplateSchema = Field(default_factory=TemplateSchema)
+    meta: TemplateMeta = Field(default_factory=TemplateMeta)
+    schema_data: TemplateMeta | None = None  # alias
     is_active: bool = True
 
     @field_validator("code")
@@ -78,16 +75,26 @@ class TemplateCreate(BaseModel):
     def validate_code(cls, v: str) -> str:
         return v.lower().strip()
 
+    def resolved_meta(self) -> TemplateMeta:
+        return self.schema_data or self.meta
+
 
 class TemplateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     preview_image: str | None = None
-    schema_data: TemplateSchema | None = None
+    meta: TemplateMeta | None = None
+    schema_data: TemplateMeta | None = None
     is_active: bool | None = None
+
+    def resolved_meta(self) -> TemplateMeta | None:
+        if self.schema_data is not None:
+            return self.schema_data
+        return self.meta
 
 
 class AdminTemplateResponse(TemplateResponse):
     """Расширенный ответ для админки."""
+
     updated_at: datetime
     cards_count: int = 0

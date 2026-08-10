@@ -1,96 +1,76 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { PublicCard } from '../../types/publicCard';
+import type { CardTheme } from '../../types/card';
+import PolygonNetworkBackground from './PolygonNetworkBackground.vue';
 
-const props = defineProps<{
-  card: PublicCard;
+const props = withDefaults(
+  defineProps<{
+    card: PublicCard;
+    /** Режим превью (уменьшенный каркас) */
+    preview?: boolean;
+    /** Показать блок CTA внутри каркаса */
+    showActions?: boolean;
+    vcardUrl?: string;
+  }>(),
+  {
+    preview: false,
+    showActions: false,
+    vcardUrl: '',
+  },
+);
+
+const emit = defineEmits<{
+  (e: 'share'): void;
 }>();
 
-// ============================================================
-// ОБЪЕДИНЕНИЕ НАСТРОЕК ШАБЛОНА И ТЕМЫ
-// ============================================================
+const theme = computed<CardTheme>(() => props.card.theme);
+const templateCode = computed(() => props.card.template_code || 'classic');
+const cssUrl = computed(() => props.card.css_url);
+const enablePolygon = computed(() => props.card.template_effect === 'polygon');
 
-const schema = computed(() => props.card.template_schema);
-const theme = computed(() => props.card.theme);
+const fontStacks: Record<string, string> = {
+  inter: "'Inter', system-ui, sans-serif",
+  roboto: "'Roboto', system-ui, sans-serif",
+  open_sans: "'Open Sans', system-ui, sans-serif",
+};
 
-// Вычисляемые стили: тема переопределяет шаблон
-const styles = computed(() => {
-  const s = schema.value;
+const rootClass = computed(() => {
   const t = theme.value;
-  const isDark = t.color_scheme === 'dark';
-  
-  return {
-    // Цвета (тёмная схема переопределяет фон и текст шаблона)
-    primaryColor: t.accent_color || s?.primary_color || '#0f766e',
-    secondaryColor: isDark ? '#111827' : (s?.secondary_color || '#f3f4f6'),
-    textColor: isDark ? '#f3f4f6' : (s?.text_color || '#111827'),
-    isDark,
-    
-    // Layout: тема переопределяет шаблон
-    layout: t.layout || s?.layout_type || 'classic',
-    
-    // Шрифт
-    font: t.font || s?.heading_font || 'inter',
-    
-    // Флаги: тема переопределяет шаблон
-    showPhoto: t.show_photo,
-    showQr: t.show_qr,
-    showLogo: s?.show_logo || false,
-    
-    // Декорации из шаблона
-    borderRadius: `${s?.border_radius ?? 16}px`,
-    shadow: s?.shadow !== false,
-    gradientHeader: s?.gradient_header || false,
-    photoPosition: s?.photo_position || 'left',
-  };
+  return [
+    'dbcs-card',
+    `tpl-${templateCode.value}`,
+    t.color_scheme === 'dark' ? 'scheme-dark' : 'scheme-light',
+    t.show_photo ? '' : 'no-photo',
+    t.show_qr ? '' : 'no-qr',
+    props.preview ? 'dbcs-preview' : '',
+  ].filter(Boolean);
 });
 
-// CSS-переменные для стилизации
 const cssVars = computed(() => ({
-  '--primary': styles.value.primaryColor,
-  '--secondary': styles.value.secondaryColor,
-  '--text': styles.value.textColor,
-  '--radius': styles.value.borderRadius,
-  '--font': getFontFamily(styles.value.font),
+  '--dbcs-accent': theme.value.accent_color || '#0f766e',
+  '--dbcs-scheme': theme.value.color_scheme || 'light',
+  '--dbcs-font': fontStacks[theme.value.font] || fontStacks.inter,
 }));
 
-// Маппинг шрифтов на системные стеки
-function getFontFamily(font: string): string {
-  const fonts: Record<string, string> = {
-    inter: "'Inter', system-ui, sans-serif",
-    roboto: "'Roboto', system-ui, sans-serif",
-    open_sans: "'Open Sans', system-ui, sans-serif",
-  };
-  return fonts[font] || fonts.inter;
-}
-
-// Инициалы для аватара
-const initials = computed(() => {
-  return props.card.full_name
+const initials = computed(() =>
+  props.card.full_name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
-});
-
-// URL QR-кода
-const qrUrl = computed(() => {
-  return `${import.meta.env.VITE_API_BASE_URL}/public/cards/${props.card.slug}/qrcode.svg`;
-});
+    .slice(0, 2),
+);
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
-
   const apiBase = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
   if (url.startsWith('/api/')) {
-    const origin = apiBase.replace(/\/api\/v1$/, '');
-    return `${origin}${url}`;
+    return `${apiBase.replace(/\/api\/v1$/, '')}${url}`;
   }
   if (url.startsWith('/')) {
-    const origin = apiBase.replace(/\/api\/v1$/, '');
-    return `${origin}${url}`;
+    return `${apiBase.replace(/\/api\/v1$/, '')}${url}`;
   }
   return `${apiBase}/${url}`;
 }
@@ -98,457 +78,189 @@ function resolveMediaUrl(url: string | null | undefined): string | null {
 const avatarUrl = computed(() => resolveMediaUrl(props.card.avatar_url));
 const logoUrl = computed(() => resolveMediaUrl(props.card.logo_url));
 
-// Форматирование сайта (убираем протокол)
+const qrUrl = computed(() => {
+  return `${import.meta.env.VITE_API_BASE_URL}/public/cards/${props.card.slug}/qrcode.svg`;
+});
+
 function formatWebsite(url: string | null): string {
   if (!url) return '';
   return url.replace(/^https?:\/\//, '');
 }
 
-// Класс layout для CSS
-const layoutClass = computed(() => `layout-${styles.value.layout}`);
+type LinkItem = {
+  key: string;
+  label: string;
+  href: string | null;
+  icon: string;
+  external?: boolean;
+};
 
-// Класс позиции фото
-const photoPositionClass = computed(() => `photo-${styles.value.photoPosition}`);
+const linkItems = computed<LinkItem[]>(() => {
+  const items: LinkItem[] = [];
+  const c = props.card;
+  if (c.phone) items.push({ key: 'phone', label: c.phone, href: `tel:${c.phone}`, icon: '📱' });
+  if (c.email) items.push({ key: 'email', label: c.email, href: `mailto:${c.email}`, icon: '✉️' });
+  if (c.website) {
+    items.push({
+      key: 'website',
+      label: formatWebsite(c.website),
+      href: c.website,
+      icon: '🔗',
+      external: true,
+    });
+  }
+  if (c.address) {
+    items.push({
+      key: 'address',
+      label: c.address,
+      href: `https://maps.google.com/?q=${encodeURIComponent(c.address)}`,
+      icon: '📍',
+      external: true,
+    });
+  }
+  return items;
+});
 
-const schemeClass = computed(() => (styles.value.isDark ? 'scheme-dark' : 'scheme-light'));
+const subtitle = computed(() => {
+  const parts = [props.card.job_title, props.card.department].filter(Boolean);
+  return parts.join(' • ');
+});
+
+/** Подключение CSS шаблона через <link> */
+const linkEl = ref<HTMLLinkElement | null>(null);
+
+function attachCss(url: string | null) {
+  detachCss();
+  if (!url) return;
+  const el = document.createElement('link');
+  el.rel = 'stylesheet';
+  el.href = url;
+  el.dataset.dbcsTemplateCss = templateCode.value;
+  document.head.appendChild(el);
+  linkEl.value = el;
+}
+
+function detachCss() {
+  if (linkEl.value) {
+    linkEl.value.remove();
+    linkEl.value = null;
+  }
+  document
+    .querySelectorAll('link[data-dbcs-template-css]')
+    .forEach((n) => {
+      if ((n as HTMLLinkElement).dataset.dbcsTemplateCss === templateCode.value) {
+        n.remove();
+      }
+    });
+}
+
+onMounted(() => attachCss(cssUrl.value));
+onUnmounted(() => detachCss());
+watch(cssUrl, (url) => attachCss(url));
 </script>
 
 <template>
-  <div 
-    class="card-renderer"
-    :class="[layoutClass, photoPositionClass, schemeClass]"
-    :style="cssVars"
-  >
-    <!-- Шапка с градиентом -->
-    <div 
-      v-if="styles.gradientHeader"
-      class="card-header"
-      :style="{ background: `linear-gradient(135deg, var(--primary), var(--secondary))` }"
-    >
-      <div class="header-decoration"></div>
-    </div>
-    
-    <!-- Основной контент -->
-    <div class="card-body">
-      
-      <!-- Логотип компании (если есть) -->
-      <div v-if="styles.showLogo && logoUrl" class="card-logo">
+  <div :class="rootClass" :style="cssVars" :data-effect="enablePolygon ? 'polygon' : undefined">
+    <PolygonNetworkBackground :active="enablePolygon && !preview" />
+
+    <div class="dbcs-content">
+      <div v-if="logoUrl" class="dbcs-logo">
         <img :src="logoUrl" :alt="card.company || 'Logo'" />
       </div>
-      
-      <!-- Фото -->
-      <div v-if="styles.showPhoto" class="card-photo">
-        <img 
-          v-if="avatarUrl" 
-          :src="avatarUrl" 
-          :alt="card.full_name"
-          class="photo-image"
-        />
-        <div v-else class="photo-placeholder">
-          {{ initials }}
-        </div>
+
+      <div class="dbcs-avatar">
+        <img v-if="avatarUrl" :src="avatarUrl" :alt="card.full_name" />
+        <div v-else class="dbcs-avatar-fallback">{{ initials }}</div>
       </div>
-      
-      <!-- Текстовая информация -->
-      <div class="card-info">
-        <h1 class="card-name">{{ card.full_name }}</h1>
-        <p v-if="card.job_title" class="card-title">{{ card.job_title }}</p>
-        <p v-if="card.department" class="card-department">{{ card.department }}</p>
-        
-        <div v-if="card.company" class="card-company">
-          <span class="company-badge">{{ card.company }}</span>
-        </div>
-        
-        <!-- Контакты -->
-        <div class="card-contacts">
-          <a v-if="card.phone" :href="`tel:${card.phone}`" class="contact-item">
-            <span class="contact-icon">📱</span>
-            <span class="contact-value">{{ card.phone }}</span>
-          </a>
-          
-          <a v-if="card.email" :href="`mailto:${card.email}`" class="contact-item">
-            <span class="contact-icon">✉️</span>
-            <span class="contact-value">{{ card.email }}</span>
-          </a>
-          
-          <a v-if="card.website" :href="card.website" target="_blank" rel="noopener noreferrer" class="contact-item">
-            <span class="contact-icon">🌐</span>
-            <span class="contact-value">{{ formatWebsite(card.website) }}</span>
-          </a>
-          
-          <div v-if="card.address" class="contact-item">
-            <span class="contact-icon">📍</span>
-            <span class="contact-value">{{ card.address }}</span>
-          </div>
-        </div>
-        
-        <!-- Заметка -->
-        <div v-if="card.note" class="card-note">
-          {{ card.note }}
-        </div>
+
+      <h1 class="dbcs-name">{{ card.full_name }}</h1>
+      <p v-if="subtitle" class="dbcs-title">{{ subtitle }}</p>
+      <p v-if="card.company" class="dbcs-company">{{ card.company }}</p>
+      <p v-if="card.note" class="dbcs-bio">{{ card.note }}</p>
+
+      <div v-if="linkItems.length" class="dbcs-links">
+        <component
+          :is="item.href ? 'a' : 'div'"
+          v-for="item in linkItems"
+          :key="item.key"
+          class="dbcs-link"
+          :href="item.href || undefined"
+          :target="item.external ? '_blank' : undefined"
+          :rel="item.external ? 'noopener noreferrer' : undefined"
+        >
+          <span class="dbcs-link-icon">{{ item.icon }}</span>
+          <span class="dbcs-link-label">{{ item.label }}</span>
+        </component>
       </div>
-      
-      <!-- QR-код -->
-      <div v-if="styles.showQr" class="card-qr">
+
+      <div class="dbcs-qr">
         <img :src="qrUrl" alt="QR код визитки" loading="lazy" />
-        <p class="qr-label">Сканируйте для сохранения</p>
+        <p class="dbcs-qr-label">Сканируйте для сохранения</p>
       </div>
     </div>
+
+    <div v-if="showActions" class="dbcs-actions">
+      <a
+        v-if="vcardUrl"
+        class="dbcs-action dbcs-action-primary"
+        :href="vcardUrl"
+        download
+      >
+        📇 Добавить в контакты
+      </a>
+      <button
+        type="button"
+        class="dbcs-action dbcs-action-secondary"
+        @click="emit('share')"
+      >
+        🔗 Поделиться
+      </button>
+    </div>
+
+    <div v-if="showActions" class="dbcs-footer">DBCS • Электронные визитки</div>
   </div>
 </template>
 
 <style scoped>
-.card-renderer {
+/* Минимальный каркас без визуала шаблона (fallback) */
+.dbcs-card {
   position: relative;
-  background: var(--secondary);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font);
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: v-bind('styles.shadow ? "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" : "none"');
+  isolation: isolate;
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--dbcs-font, system-ui, sans-serif);
+  color: #111827;
+  background: #f3f4f6;
 }
 
-.card-renderer:hover {
-  transform: translateY(-2px);
-  box-shadow: v-bind('styles.shadow ? "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" : "none"');
-}
-
-/* Шапка с градиентом */
-.card-header {
-  height: 80px;
-  position: relative;
+.dbcs-preview {
+  min-height: 220px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-.header-decoration {
-  position: absolute;
-  top: -20px;
-  right: -20px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+.dbcs-preview .dbcs-content {
+  padding: 16px 12px !important;
+  transform: scale(0.92);
+  transform-origin: top center;
 }
 
-/* Основной контент */
-.card-body {
-  padding: 24px;
-  display: flex;
-  gap: 20px;
-  position: relative;
+.dbcs-preview .dbcs-name {
+  font-size: 1rem !important;
 }
 
-/* ============================================================
-   ФОТО
-   ============================================================ */
-.card-photo {
-  flex-shrink: 0;
+.dbcs-preview .dbcs-avatar img,
+.dbcs-preview .dbcs-avatar-fallback {
+  width: 48px !important;
+  height: 48px !important;
+  font-size: 18px !important;
 }
 
-.photo-image,
-.photo-placeholder {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--primary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.photo-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary);
-  color: white;
-  font-size: 32px;
-  font-weight: bold;
-}
-
-/* ============================================================
-   ИНФОРМАЦИЯ
-   ============================================================ */
-.card-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.card-name {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0 0 4px 0;
-  line-height: 1.2;
-}
-
-.card-title {
-  font-size: 16px;
-  opacity: 0.85;
-  margin: 0 0 2px 0;
-}
-
-.card-department {
-  font-size: 14px;
-  opacity: 0.7;
-  margin: 0 0 8px 0;
-}
-
-.card-company {
-  margin-bottom: 16px;
-}
-
-.company-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  background: var(--primary);
-  color: white;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* Контакты */
-.card-contacts {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.contact-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: inherit;
-  font-size: 14px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  transition: background 0.2s ease;
-}
-
-.contact-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.scheme-dark .contact-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.contact-icon {
-  flex-shrink: 0;
-  width: 24px;
-  text-align: center;
-}
-
-.contact-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Заметка */
-.card-note {
-  margin-top: 16px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  opacity: 0.8;
-}
-
-.scheme-dark .card-note {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-/* ============================================================
-   QR-КОД
-   ============================================================ */
-.card-qr {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.card-qr img {
-  width: 100px;
-  height: 100px;
-  border-radius: 8px;
-  background: white;
-  padding: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.qr-label {
-  margin-top: 6px;
-  font-size: 10px;
-  opacity: 0.5;
-  text-align: center;
-}
-
-/* ============================================================
-   ЛОГОТИП
-   ============================================================ */
-.card-logo {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 10;
-}
-
-.card-logo img {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
-}
-
-/* ============================================================
-   LAYOUT VARIATIONS
-   ============================================================ */
-
-/* Classic: фото слева, текст справа */
-.layout-classic .card-body {
-  flex-direction: row;
-  align-items: flex-start;
-}
-
-/* Modern: фото сверху по центру */
-.layout-modern .card-body {
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.layout-modern .card-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.layout-modern .card-contacts {
-  align-items: center;
-}
-
-.layout-modern .card-qr {
-  margin-top: 16px;
-}
-
-/* Compact: без фото, минималистично */
-.layout-compact .card-body {
-  flex-direction: column;
-  padding: 20px;
-}
-
-.layout-compact .card-photo {
-  display: none;
-}
-
-.layout-compact .card-name {
-  font-size: 20px;
-}
-
-.layout-compact .card-qr {
-  align-self: flex-end;
-}
-
-/* Corporate: строгий стиль, фото справа */
-.layout-corporate .card-body {
-  flex-direction: row-reverse;
-  align-items: center;
-  background: white;
-}
-
-.scheme-dark.layout-corporate .card-body {
-  background: #0b1220;
-}
-
-.layout-corporate .card-info {
-  border-right: 2px solid var(--primary);
-  padding-right: 20px;
-}
-
-.layout-corporate .company-badge {
-  background: transparent;
-  color: var(--primary);
-  border: 1px solid var(--primary);
-}
-
-/* Creative: градиенты, необычная компоновка */
-.layout-creative .card-body {
-  flex-direction: column-reverse;
-  align-items: center;
-  text-align: center;
-  background: linear-gradient(180deg, var(--secondary) 0%, var(--primary) 200%);
-}
-
-.layout-creative .card-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.layout-creative .card-name {
-  font-size: 28px;
-  background: linear-gradient(90deg, var(--primary), var(--text));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.scheme-dark.layout-creative .card-name {
-  background: linear-gradient(90deg, var(--primary), #ffffff);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-
-.layout-creative .card-contacts {
-  align-items: center;
-}
-
-.layout-creative .company-badge {
-  border-radius: 4px;
-  transform: rotate(-2deg);
-}
-
-/* ============================================================
-   PHOTO POSITION VARIATIONS
-   ============================================================ */
-
-.photo-top .card-body {
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.photo-right .card-body {
-  flex-direction: row-reverse;
-}
-
-/* ============================================================
-   АДАПТИВНОСТЬ
-   ============================================================ */
-@media (max-width: 480px) {
-  .card-body {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-  
-  .card-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .card-contacts {
-    align-items: center;
-  }
-  
-  .card-qr {
-    margin-top: 16px;
-  }
+.dbcs-preview .dbcs-qr,
+.dbcs-preview .dbcs-actions,
+.dbcs-preview .dbcs-footer {
+  display: none !important;
 }
 </style>

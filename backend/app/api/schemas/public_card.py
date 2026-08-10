@@ -1,10 +1,11 @@
 from pydantic import BaseModel, EmailStr
 
 from app.api.schemas.card import CardTheme
-from app.api.schemas.template import TemplateSchema
+from app.api.schemas.template import TemplateMeta
 from app.core.config import settings
 from app.core.urls import get_public_card_url
 from app.models import Card
+from app.services import css_template_service
 
 
 class PublicCardResponse(BaseModel):
@@ -19,32 +20,34 @@ class PublicCardResponse(BaseModel):
     website: str | None
     address: str | None
     note: str | None
-    
+
     theme: CardTheme
-    template_code: str | None
-    
-    # НОВОЕ: схема шаблона для рендера
-    template_schema: TemplateSchema | None = None
-    
-    # НОВОЕ: URL изображений
+    template_code: str | None = None
+    css_url: str | None = None
+    template_effect: str | None = None
+
     avatar_url: str | None = None
     logo_url: str | None = None
-    
+
     public_url: str
 
 
 def build_public_card_response(card: Card) -> PublicCardResponse:
     """Собирает response для публичной визитки."""
-    
-    # Парсим схему шаблона
-    template_schema = None
-    if card.template and card.template.schema_json:
+
+    template_code = card.template.code if card.template else None
+    css_url = None
+    template_effect = None
+
+    if card.template:
+        if css_template_service.template_css_exists(card.template.code):
+            css_url = css_template_service.css_url_for_code(card.template.code)
         try:
-            template_schema = TemplateSchema.model_validate(card.template.schema_json)
+            meta = TemplateMeta.model_validate(card.template.schema_json or {})
+            template_effect = meta.effect
         except Exception:
-            template_schema = None
-    
-    # URL аватара и логотипа (публичные endpoints)
+            template_effect = None
+
     avatar_url = None
     if card.avatar_file_id:
         avatar_url = f"{settings.api_v1_prefix}/public/cards/{card.slug}/avatar"
@@ -71,8 +74,9 @@ def build_public_card_response(card: Card) -> PublicCardResponse:
         address=card.address,
         note=card.note,
         theme=theme,
-        template_code=card.template.code if card.template else None,
-        template_schema=template_schema,
+        template_code=template_code,
+        css_url=css_url,
+        template_effect=template_effect,
         avatar_url=avatar_url,
         logo_url=logo_url,
         public_url=get_public_card_url(card.slug),
