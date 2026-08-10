@@ -7,6 +7,7 @@ import type { Card } from '../types/card';
 import CardListItem from '../components/cards/CardListItem.vue';
 import QrModal from '../components/cards/QrModal.vue';
 import StatsModal from '../components/cards/StatsModal.vue';
+import CardsTransferModal from '../components/cards/CardsTransferModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -19,6 +20,7 @@ const error = ref('');
 const qrCardId = ref<string | null>(null);
 const statsCardId = ref<string | null>(null);
 const statsCardTitle = ref<string>('');
+const transferOpen = ref(false);
 
 async function loadCards() {
   isLoading.value = true;
@@ -93,14 +95,23 @@ function handleShowStats(cardId: string) {
     
     <!-- Основной контент -->
     <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center mb-8">
+      <div class="flex justify-between items-center mb-8 gap-4 flex-wrap">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">Мои визитки</h2>
           <p class="text-gray-500 mt-1">Управляйте своими электронными визитками и делитесь ими</p>
         </div>
-        <router-link to="/cards/new" class="btn-primary shadow-lg shadow-teal-700/20">
-          + Создать визитку
-        </router-link>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            class="btn-secondary"
+            @click="transferOpen = true"
+          >
+            Экспорт / импорт
+          </button>
+          <router-link to="/cards/new" class="btn-primary shadow-lg shadow-teal-700/20">
+            + Создать визитку
+          </router-link>
+        </div>
       </div>
 
       <!-- Загрузка -->
@@ -154,6 +165,12 @@ function handleShowStats(cardId: string) {
       :card-id="statsCardId" 
       :card-title="statsCardTitle" 
       @close="statsCardId = null" 
+    />
+
+    <CardsTransferModal
+      :open="transferOpen"
+      @close="transferOpen = false"
+      @imported="loadCards"
     />
   </div>
 </template>

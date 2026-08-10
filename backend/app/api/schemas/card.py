@@ -245,3 +245,9 @@ class CardListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class CardImportResult(BaseModel):
+    created: int
+    failed: int
+    errors: list[dict] = Field(default_factory=list)

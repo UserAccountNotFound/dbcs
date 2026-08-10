@@ -4,6 +4,12 @@ import type { CardStats } from '../types/stats';
 
 const CARDS_ENDPOINT = '/cards';
 
+export interface CardImportResult {
+  created: number;
+  failed: number;
+  errors: Array<{ index: number; error: string }>;
+}
+
 export const cardApi = {
   async getCards(limit = 20, offset = 0): Promise<CardListResponse> {
     const { data } = await apiClient.get(CARDS_ENDPOINT, { params: { limit, offset } });
@@ -34,7 +40,6 @@ export const cardApi = {
     return data;
   },
 
-  // Статистика карточки
   async getCardStats(cardId: string): Promise<CardStats> {
     const { data } = await apiClient.get(`${CARDS_ENDPOINT}/${cardId}/stats`);
     return data;
@@ -42,15 +47,32 @@ export const cardApi = {
 
   async getQrCodeBlob(cardId: string): Promise<Blob> {
     const { data } = await apiClient.get(`${CARDS_ENDPOINT}/${cardId}/qrcode.svg`, {
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return data;
   },
 
   async getVCardBlob(cardId: string): Promise<Blob> {
     const { data } = await apiClient.get(`${CARDS_ENDPOINT}/${cardId}/vcard.vcf`, {
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return data;
-  }
+  },
+
+  async exportCards(format: 'json' | 'csv'): Promise<Blob> {
+    const { data } = await apiClient.get(`${CARDS_ENDPOINT}/export`, {
+      params: { format },
+      responseType: 'blob',
+    });
+    return data;
+  },
+
+  async importCards(file: File, format: 'json' | 'csv'): Promise<CardImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await apiClient.post(`${CARDS_ENDPOINT}/import`, formData, {
+      params: { format },
+    });
+    return data;
+  },
 };
