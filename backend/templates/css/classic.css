@@ -1,0 +1,206 @@
+/* classic — Vanilla: светлый минималистичный профиль */
+.tpl-classic.dbcs-card {
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #111827;
+  font-family: var(--dbcs-font, system-ui, sans-serif);
+  background: linear-gradient(180deg, #f8fafc 0%, #f3f4f6 100%);
+}
+
+.tpl-classic .dbcs-content {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 48px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+
+.tpl-classic .dbcs-logo img {
+  height: 36px;
+  margin-bottom: 16px;
+}
+
+.tpl-classic .dbcs-avatar {
+  margin-bottom: 16px;
+}
+
+.tpl-classic .dbcs-avatar img,
+.tpl-classic .dbcs-avatar-fallback {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--dbcs-accent, #0f766e);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.tpl-classic .dbcs-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: var(--dbcs-accent, #0f766e);
+  color: #fff;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.tpl-classic .dbcs-name {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tpl-classic .dbcs-title {
+  margin: 8px 0 0;
+  opacity: 0.85;
+}
+
+.tpl-classic .dbcs-meta {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.tpl-classic .dbcs-company {
+  margin: 10px 0 0;
+  font-weight: 600;
+  color: var(--dbcs-accent, #0f766e);
+}
+
+.tpl-classic .dbcs-bio {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  opacity: 0.85;
+  max-width: 36ch;
+}
+
+.tpl-classic .dbcs-links {
+  width: 100%;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tpl-classic .dbcs-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: inherit;
+  background: color-mix(in srgb, var(--dbcs-accent, #0f766e) 14%, #fff);
+  border: 1px solid color-mix(in srgb, var(--dbcs-accent, #0f766e) 35%, transparent);
+  font-weight: 600;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.tpl-classic .dbcs-link:hover {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--dbcs-accent, #0f766e) 22%, #fff);
+}
+
+.tpl-classic .dbcs-link-icon {
+  width: 1.5rem;
+  text-align: center;
+}
+
+.tpl-classic .dbcs-link-label {
+  flex: 1;
+  text-align: center;
+  padding-right: 1.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-classic .dbcs-qr {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.tpl-classic .dbcs-qr img {
+  width: 112px;
+  height: 112px;
+  border-radius: 16px;
+  background: #fff;
+  padding: 8px;
+}
+
+.tpl-classic .dbcs-qr-label {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  margin: 0;
+}
+
+.tpl-classic .dbcs-actions {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 0 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tpl-classic .dbcs-action {
+  display: block;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.tpl-classic .dbcs-action:hover {
+  transform: translateY(-2px);
+}
+
+.tpl-classic .dbcs-action-primary {
+  color: #fff;
+  background: var(--dbcs-accent, #0f766e);
+}
+
+.tpl-classic .dbcs-action-secondary {
+  color: #111827;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.tpl-classic .dbcs-footer {
+  text-align: center;
+  font-size: 0.7rem;
+  opacity: 0.45;
+  padding-bottom: 20px;
+}
+
+.tpl-classic.no-photo .dbcs-avatar,
+.tpl-classic.no-qr .dbcs-qr,
+.tpl-classic.no-logo .dbcs-logo {
+  display: none;
+}
+
+.tpl-classic.scheme-dark {
+  color: #f3f4f6;
+  background: linear-gradient(180deg, #111827 0%, #0b1220 100%);
+}
+
+.tpl-classic.scheme-dark .dbcs-action-secondary {
+  color: #f3f4f6;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}

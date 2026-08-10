@@ -1,0 +1,150 @@
+/* compact — Mono: терминальный минимализм */
+.tpl-compact.dbcs-card {
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #0a0a0a;
+}
+
+.tpl-compact .dbcs-content {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 48px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+
+.tpl-compact .dbcs-avatar { margin-bottom: 16px; }
+.tpl-compact .dbcs-avatar img,
+.tpl-compact .dbcs-avatar-fallback {
+  width: 96px;
+  height: 96px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--dbcs-accent, #22c55e);
+}
+.tpl-compact .dbcs-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: #111;
+  color: var(--dbcs-accent, #22c55e);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.tpl-compact .dbcs-name {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--dbcs-accent, #22c55e);
+}
+.tpl-compact .dbcs-title { margin: 8px 0 0; opacity: 0.85; }
+.tpl-compact .dbcs-meta { margin: 4px 0 0; font-size: 0.8rem; opacity: 0.65; }
+.tpl-compact .dbcs-company {
+  margin: 10px 0 0;
+  color: var(--dbcs-accent, #22c55e);
+}
+.tpl-compact .dbcs-bio {
+  margin: 14px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  opacity: 0.8;
+  max-width: 40ch;
+}
+
+.tpl-compact .dbcs-links {
+  width: 100%;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tpl-compact .dbcs-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #e5e7eb;
+  background: transparent;
+  border: 1px solid #333;
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.tpl-compact .dbcs-link:hover {
+  border-color: var(--dbcs-accent, #22c55e);
+  color: var(--dbcs-accent, #22c55e);
+}
+.tpl-compact .dbcs-link-icon { width: 1.25rem; text-align: center; }
+.tpl-compact .dbcs-link-label {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-compact .dbcs-qr {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.tpl-compact .dbcs-qr img {
+  width: 96px;
+  height: 96px;
+  border-radius: 4px;
+  background: #fff;
+  padding: 6px;
+}
+.tpl-compact .dbcs-qr-label { margin: 0; font-size: 0.7rem; opacity: 0.5; }
+
+.tpl-compact .dbcs-actions {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 0 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpl-compact .dbcs-action {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.tpl-compact .dbcs-action-primary {
+  color: #0a0a0a;
+  background: var(--dbcs-accent, #22c55e);
+  border: none;
+}
+.tpl-compact .dbcs-action-secondary {
+  color: #e5e7eb;
+  background: transparent;
+  border: 1px solid #333;
+}
+.tpl-compact .dbcs-footer {
+  text-align: center;
+  font-size: 0.65rem;
+  opacity: 0.4;
+  padding-bottom: 20px;
+}
+
+.tpl-compact.no-photo .dbcs-avatar,
+.tpl-compact.no-qr .dbcs-qr,
+.tpl-compact.no-logo .dbcs-logo { display: none; }

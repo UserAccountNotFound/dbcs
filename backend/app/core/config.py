@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     uploads_dir: Path = Path("/var/lib/dbcs/uploads")
     max_upload_size_mb: int = 5
+    templates_css_dir: Path = Path("/opt/dbcs/backend/templates/css")
     
     docs_enabled: bool = True
     redoc_enabled: bool = True

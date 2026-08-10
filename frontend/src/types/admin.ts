@@ -77,4 +77,4 @@ export interface OverviewStats {
 }
 
 // Реэкспорт типов шаблонов для использования в админке
-export type { AdminTemplate, TemplateSchema, Template } from './template';
+export type { AdminTemplate, TemplateMeta, TemplateSchema, Template } from './template';

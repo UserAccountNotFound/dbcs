@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Скрипт наполнения БД базовыми шаблонами визиток.
+Наполнение БД метаданными шаблонов (CSS лежит в templates/css/{code}.css).
 
 Запуск:
     cd /opt/dbcs/backend
     source .venv/bin/activate
     set -a && source .env && set +a
-    python seed_templates.py
+    python seed_templates_vCard.py
 """
 import sys
 
@@ -14,107 +14,59 @@ from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.models import CardTemplate
+from app.services import css_template_service
 
 
 BASE_TEMPLATES = [
     {
         "code": "classic",
-        "name": "Классический",
-        "description": "Традиционная визитка с фото слева и текстом справа. Подходит для большинства случаев.",
+        "name": "Vanilla",
+        "description": "Светлый минималистичный профиль. CSS: classic.css",
         "schema_json": {
-            "primary_color": "#0f766e",
-            "secondary_color": "#f3f4f6",
-            "text_color": "#111827",
-            "heading_font": "inter",
-            "body_font": "inter",
-            "layout_type": "classic",
-            "show_photo": True,
-            "show_qr": True,
-            "show_logo": False,
-            "photo_position": "left",
-            "border_radius": 16,
-            "shadow": True,
-            "gradient_header": False,
+            "version": 2,
+            "default_accent": "#0f766e",
+            "default_scheme": "light",
         },
     },
     {
         "code": "modern",
-        "name": "Современный",
-        "description": "Минималистичный дизайн с крупным фото сверху и акцентными цветами.",
+        "name": "Galaxy",
+        "description": "Тёмный космический профиль. CSS: modern.css",
         "schema_json": {
-            "primary_color": "#2563eb",
-            "secondary_color": "#eff6ff",
-            "text_color": "#1e293b",
-            "heading_font": "roboto",
-            "body_font": "roboto",
-            "layout_type": "modern",
-            "show_photo": True,
-            "show_qr": True,
-            "show_logo": False,
-            "photo_position": "top",
-            "border_radius": 24,
-            "shadow": True,
-            "gradient_header": True,
+            "version": 2,
+            "default_accent": "#a78bfa",
+            "default_scheme": "dark",
         },
     },
     {
         "code": "compact",
-        "name": "Компактный",
-        "description": "Только essential-информация: имя, должность и контакты. Без фото.",
+        "name": "Mono",
+        "description": "Терминальный минимализм. CSS: compact.css",
         "schema_json": {
-            "primary_color": "#059669",
-            "secondary_color": "#ecfdf5",
-            "text_color": "#064e3b",
-            "heading_font": "open_sans",
-            "body_font": "open_sans",
-            "layout_type": "compact",
-            "show_photo": False,
-            "show_qr": True,
-            "show_logo": False,
-            "photo_position": "left",
-            "border_radius": 12,
-            "shadow": False,
-            "gradient_header": False,
+            "version": 2,
+            "default_accent": "#22c55e",
+            "default_scheme": "dark",
         },
     },
     {
         "code": "corporate",
-        "name": "Корпоративный",
-        "description": "Строгий деловой стиль с логотипом компании и сдержанными цветами.",
+        "name": "Flare",
+        "description": "Тёплый светлый профиль. CSS: corporate.css",
         "schema_json": {
-            "primary_color": "#1e3a8a",
-            "secondary_color": "#f8fafc",
-            "text_color": "#0f172a",
-            "heading_font": "inter",
-            "body_font": "inter",
-            "layout_type": "corporate",
-            "show_photo": True,
-            "show_qr": False,
-            "show_logo": True,
-            "photo_position": "right",
-            "border_radius": 8,
-            "shadow": True,
-            "gradient_header": False,
+            "version": 2,
+            "default_accent": "#ea580c",
+            "default_scheme": "light",
         },
     },
     {
         "code": "creative",
-        "name": "Креативный",
-        "description": "Яркий дизайн с градиентами и необычной компоновкой для творческих профессий.",
+        "name": "Aurora",
+        "description": "Polygon-стиль: сеть частиц и ghost-кнопки. CSS: creative.css",
         "schema_json": {
-            "primary_color": "#db2777",
-            "secondary_color": "#fdf2f8",
-            "text_color": "#831843",
-            "heading_font": "roboto",
-            "body_font": "open_sans",
-            "layout_type": "creative",
-            "show_photo": True,
-            "show_qr": True,
-            "show_logo": False,
-            "photo_position": "top",
-            "border_radius": 32,
-            "shadow": True,
-            "gradient_header": True,
+            "version": 2,
+            "effect": "polygon",
+            "default_accent": "#ffffff",
+            "default_scheme": "dark",
         },
     },
 ]
@@ -122,40 +74,51 @@ BASE_TEMPLATES = [
 
 def seed_templates() -> None:
     db = SessionLocal()
-    
+
     try:
         created_count = 0
-        skipped_count = 0
-        
+        updated_count = 0
+        missing_css = []
+
         for template_data in BASE_TEMPLATES:
-            # Проверяем, существует ли уже шаблон с таким code
+            code = template_data["code"]
+            if not css_template_service.template_css_exists(code):
+                missing_css.append(code)
+
             existing = db.scalar(
-                select(CardTemplate).where(CardTemplate.code == template_data["code"])
+                select(CardTemplate).where(CardTemplate.code == code)
             )
-            
+
             if existing:
-                print(f"Шаблон '{template_data['code']}' уже существует, пропускаем.")
-                skipped_count += 1
+                existing.name = template_data["name"]
+                existing.description = template_data["description"]
+                existing.schema_json = template_data["schema_json"]
+                existing.is_active = True
+                updated_count += 1
+                print(f"Обновлён шаблон: {template_data['name']} ({code})")
                 continue
-            
+
             template = CardTemplate(
-                code=template_data["code"],
+                code=code,
                 name=template_data["name"],
                 description=template_data["description"],
                 schema_json=template_data["schema_json"],
                 is_active=True,
             )
-            
             db.add(template)
             created_count += 1
-            print(f"Создан шаблон: {template_data['name']} ({template_data['code']})")
-        
+            print(f"Создан шаблон: {template_data['name']} ({code})")
+
         db.commit()
-        
+
         print("\n" + "=" * 50)
-        print(f"Итого: создано {created_count}, пропущено {skipped_count}")
+        print(f"Итого: создано {created_count}, обновлено {updated_count}")
+        if missing_css:
+            print(f"ВНИМАНИЕ: нет CSS на диске для: {', '.join(missing_css)}")
+        else:
+            print("Все CSS-файлы на месте.")
         print("=" * 50)
-        
+
     except Exception as e:
         db.rollback()
         print(f"Ошибка при создании шаблонов: {e}")
@@ -165,6 +128,6 @@ def seed_templates() -> None:
 
 
 if __name__ == "__main__":
-    print("=== Наполнение БД базовыми шаблонами ===\n")
+    print("=== Наполнение БД метаданными CSS-шаблонов ===\n")
     seed_templates()
     print("\nГотово!")

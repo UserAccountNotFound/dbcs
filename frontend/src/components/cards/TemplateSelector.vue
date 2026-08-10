@@ -67,8 +67,7 @@ function selectTemplate(template: Template) {
         class="relative cursor-pointer"
       >
         <TemplatePreview 
-          :schema="template.schema_data"
-          :template-name="template.name"
+          :template="template"
           :selected="modelValue === template.id"
         />
         

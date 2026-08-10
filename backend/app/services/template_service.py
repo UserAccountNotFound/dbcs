@@ -24,6 +24,15 @@ def get_template(db: Session, template_id: str) -> CardTemplate:
     return template
 
 
+def get_template_by_code(db: Session, code: str) -> CardTemplate:
+    template = db.scalar(
+        select(CardTemplate).where(CardTemplate.code == code)
+    )
+    if not template:
+        raise TemplateError("Шаблон не найден.")
+    return template
+
+
 def get_admin_templates(
     db: Session,
     limit: int,
@@ -82,12 +91,14 @@ def create_template(db: Session, payload: TemplateCreate) -> CardTemplate:
     if existing:
         raise TemplateError(f"Шаблон с кодом '{payload.code}' уже существует.")
 
+    meta = payload.resolved_meta()
+
     template = CardTemplate(
         code=payload.code,
         name=payload.name,
         description=payload.description,
         preview_image=payload.preview_image,
-        schema_json=payload.schema_data.model_dump(),
+        schema_json=meta.model_dump(exclude_none=True),
         is_active=payload.is_active,
     )
 
@@ -105,11 +116,14 @@ def update_template(
     template = get_template(db, template_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+    meta_provided = "meta" in update_data or "schema_data" in update_data
+    update_data.pop("schema_data", None)
+    update_data.pop("meta", None)
 
-    if "schema_data" in update_data:
-        schema_data = update_data.pop("schema_data")
-        if schema_data is not None:
-            template.schema_json = schema_data
+    if meta_provided:
+        resolved = payload.resolved_meta()
+        if resolved is not None:
+            template.schema_json = resolved.model_dump(exclude_none=True)
 
     for field_name, value in update_data.items():
         setattr(template, field_name, value)

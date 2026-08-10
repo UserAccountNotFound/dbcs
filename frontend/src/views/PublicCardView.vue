@@ -119,49 +119,36 @@ function closeShareModal(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <div class="min-h-screen flex flex-col">
     <!-- Загрузка -->
-    <div v-if="isLoading" class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-
-    <!-- Ошибка -->
-    <div v-else-if="error" class="text-center max-w-md">
-      <div class="text-6xl mb-6">🔒</div>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900">Визитка недоступна</h2>
-      <p class="text-gray-600 mb-8">{{ error }}</p>
-      <router-link
-        to="/login"
-        class="inline-block px-6 py-3 bg-primary text-white rounded-xl hover:bg-teal-800 transition-colors font-medium"
-      >
-        Перейти на главную
-      </router-link>
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center bg-slate-950">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400"></div>
     </div>
 
-    <!-- Визитка -->
-    <div v-else-if="card" class="w-full max-w-lg">
-      <PublicCardRenderer :card="card" />
-
-      <!-- Кнопки действий -->
-      <div class="mt-8 flex gap-4">
-        <a
-          :href="vcardUrl"
-          download
-          class="flex-1 py-4 px-6 rounded-2xl font-semibold text-white text-center shadow-lg hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-          :style="{ backgroundColor: card.theme.accent_color }"
+    <!-- Ошибка -->
+    <div v-else-if="error" class="flex-1 flex items-center justify-center bg-slate-950 p-4">
+      <div class="text-center max-w-md text-slate-100">
+        <div class="text-6xl mb-6">🔒</div>
+        <h2 class="text-2xl font-bold mb-2">Визитка недоступна</h2>
+        <p class="text-slate-400 mb-8">{{ error }}</p>
+        <router-link
+          to="/"
+          class="inline-block px-6 py-3 bg-teal-600 text-white rounded-full hover:bg-teal-500 transition-colors font-medium"
         >
-          📇 Добавить в контакты
-        </a>
-
-        <button
-          @click="handleShare"
-          class="px-6 py-4 rounded-2xl font-semibold border-2 border-gray-200 bg-white shadow-lg hover:bg-gray-50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-        >
-          🔗 Поделиться
-        </button>
+          На главную
+        </router-link>
       </div>
+    </div>
 
-      <div class="mt-8 text-center text-xs text-gray-400">
-        DBCS • Электронные визитки
-      </div>
+    <!-- Визитка: каркас + CSS шаблона -->
+    <div v-else-if="card" class="flex-1 flex flex-col min-h-screen">
+      <PublicCardRenderer
+        class="flex-1"
+        :card="card"
+        show-actions
+        :vcard-url="vcardUrl"
+        @share="handleShare"
+      />
     </div>
 
     <!-- ============================================================ -->

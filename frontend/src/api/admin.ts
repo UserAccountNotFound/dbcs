@@ -87,6 +87,17 @@ export const adminApi = {
     await apiClient.delete(`${ADMIN_ENDPOINT}/templates/${templateId}`);
   },
 
+  async uploadTemplateCss(templateId: string, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await apiClient.post(
+      `${ADMIN_ENDPOINT}/templates/${templateId}/css`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
+  },
+
   async getExtendedAnalytics(period: AnalyticsPeriod = '30d'): Promise<ExtendedAnalytics> {
     const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/analytics/extended`, {
       params: { period },

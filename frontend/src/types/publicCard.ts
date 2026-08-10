@@ -1,5 +1,4 @@
 import type { CardTheme } from './card';
-import type { TemplateSchema } from './template';
 
 export interface PublicCard {
   slug: string;
@@ -13,13 +12,14 @@ export interface PublicCard {
   website: string | null;
   address: string | null;
   note: string | null;
-  
+
   theme: CardTheme;
   template_code: string | null;
-  
-  template_schema: TemplateSchema | null;
+  css_url: string | null;
+  template_effect: string | null;
+
   avatar_url: string | null;
   logo_url: string | null;
-  
+
   public_url: string;
 }

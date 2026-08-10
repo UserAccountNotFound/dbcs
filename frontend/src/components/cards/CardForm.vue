@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue';
 import type { Card, CardCreatePayload, CardUpdatePayload, CardTheme } from '../../types/card';
-import type { Template, TemplateSchema } from '../../types/template';
+import type { Template, TemplateMeta } from '../../types/template';
 import ImageUploader from './ImageUploader.vue';
 import TemplateSelector from './TemplateSelector.vue';
 
@@ -70,72 +70,42 @@ watch(
 );
 
 /**
- * Маппинг layout_type из шаблона → layout темы.
- * Если layout_type не поддерживается темой, возвращаем 'classic'.
+ * Применяет дефолты из meta шаблона к CSS-переменным темы.
  */
-function mapLayoutType(layoutType: string): CardTheme['layout'] {
-  const allowed: CardTheme['layout'][] = ['classic', 'modern', 'compact', 'corporate', 'creative'];
-  return allowed.includes(layoutType as CardTheme['layout']) 
-    ? (layoutType as CardTheme['layout']) 
-    : 'classic';
-}
-
-/**
- * Маппинг шрифта из шаблона → шрифт темы.
- * Если шрифт не поддерживается, возвращаем 'inter'.
- */
-function mapFont(font: string): CardTheme['font'] {
-  const allowed: CardTheme['font'][] = ['inter', 'roboto', 'open_sans'];
-  return allowed.includes(font as CardTheme['font']) 
-    ? (font as CardTheme['font']) 
-    : 'inter';
-}
-
-/**
- * Применяет настройки схемы шаблона к теме визитки.
- */
-function applyTemplateSchema(schema: TemplateSchema) {
-  form.theme.layout = mapLayoutType(schema.layout_type);
-  form.theme.accent_color = schema.primary_color;
-  form.theme.show_photo = schema.show_photo;
-  form.theme.show_qr = schema.show_qr;
-  form.theme.font = mapFont(schema.heading_font);
+function applyTemplateMeta(meta: TemplateMeta | null | undefined) {
+  if (!meta) return;
+  if (meta.default_accent) {
+    form.theme.accent_color = meta.default_accent;
+  }
+  if (meta.default_scheme === 'light' || meta.default_scheme === 'dark') {
+    form.theme.color_scheme = meta.default_scheme;
+  }
 }
 
 /**
  * Обработчик выбора шаблона из TemplateSelector.
  */
 function handleTemplateSelected(template: Template | null) {
-  // Если шаблон снят — ничего не делаем (настройки сохраняются)
-  if (!template || !template.schema_data) return;
+  if (!template) return;
 
   selectedTemplate.value = template;
+  applyTemplateMeta(template.meta || template.schema_data);
 
-  // Применяем схему шаблона к теме
-  applyTemplateSchema(template.schema_data);
-
-  // Показываем уведомление на 3 секунды
   templateApplied.value = true;
-  
-  if (appliedTimeout) {
-    clearTimeout(appliedTimeout);
-  }
-  
+  if (appliedTimeout) clearTimeout(appliedTimeout);
   appliedTimeout = window.setTimeout(() => {
     templateApplied.value = false;
   }, 3000);
 }
 
 /**
- * Сброс темы к настройкам выбранного шаблона.
+ * Сброс темы к дефолтам выбранного шаблона.
  */
 function resetThemeToTemplate() {
-  if (!selectedTemplate.value?.schema_data) return;
-  applyTemplateSchema(selectedTemplate.value.schema_data);
+  if (!selectedTemplate.value) return;
+  applyTemplateMeta(selectedTemplate.value.meta || selectedTemplate.value.schema_data);
   templateApplied.value = true;
-  if (appliedTimeout) {
-    clearTimeout(appliedTimeout);
-  }
+  if (appliedTimeout) clearTimeout(appliedTimeout);
   appliedTimeout = window.setTimeout(() => {
     templateApplied.value = false;
   }, 3000);
@@ -376,20 +346,6 @@ function handleSubmit() {
           >
             <option value="light">Светлая</option>
             <option value="dark">Темная</option>
-          </select>
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Раскладка</label>
-          <select
-            v-model="form.theme.layout"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
-          >
-            <option value="classic">Классическая</option>
-            <option value="modern">Современная</option>
-            <option value="compact">Компактная</option>
-            <option value="corporate">Корпоративная</option>
-            <option value="creative">Креативная</option>
           </select>
         </div>
         

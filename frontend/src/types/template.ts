@@ -1,18 +1,12 @@
-export interface TemplateSchema {
-  primary_color: string;
-  secondary_color: string;
-  text_color: string;
-  heading_font: string;
-  body_font: string;
-  layout_type: 'classic' | 'modern' | 'compact' | 'corporate' | 'creative';
-  show_photo: boolean;
-  show_qr: boolean;
-  show_logo: boolean;
-  photo_position: 'left' | 'top' | 'right';
-  border_radius: number;
-  shadow: boolean;
-  gradient_header: boolean;
+export interface TemplateMeta {
+  version?: number;
+  effect?: 'polygon' | null;
+  default_accent?: string | null;
+  default_scheme?: 'light' | 'dark' | null;
 }
+
+/** @deprecated используйте TemplateMeta */
+export type TemplateSchema = TemplateMeta;
 
 export interface Template {
   id: string;
@@ -22,7 +16,10 @@ export interface Template {
   preview_image: string | null;
   is_active: boolean;
   created_at: string;
-  schema_data: TemplateSchema | null;
+  css_url: string | null;
+  has_css: boolean;
+  meta: TemplateMeta | null;
+  schema_data?: TemplateMeta | null;
 }
 
 export interface TemplateListResponse {
