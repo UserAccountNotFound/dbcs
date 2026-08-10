@@ -1,8 +1,19 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const appVersion = JSON.parse(
+  readFileSync(path.join(__dirname, 'package.json'), 'utf-8'),
+).version as string
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+  },
   plugins: [
     vue(),
     VitePWA({
