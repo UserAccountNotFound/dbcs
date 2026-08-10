@@ -68,7 +68,18 @@ export const adminApi = {
     return data;
   },
 
-  async createTemplate(payload: any) {
+  async createTemplate(payload: {
+    code: string;
+    name: string;
+    description?: string | null;
+    is_active?: boolean;
+    meta?: {
+      version?: number;
+      effect?: string | null;
+      default_accent?: string | null;
+      default_scheme?: 'light' | 'dark' | null;
+    };
+  }): Promise<{ id: string; code: string; name: string; is_active: boolean }> {
     const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/templates`, payload);
     return data;
   },
