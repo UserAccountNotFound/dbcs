@@ -56,8 +56,35 @@ CSV_HEADERS = (
     "theme",
 )
 
+TITLE_MAX_LEN = 255
 
-def _card_to_export_dict(card: Card) -> dict[str, Any]:
+
+def _export_datetime_stamp(moment: datetime | None = None) -> str:
+    """Метка даты/времени выгрузки для суффикса title."""
+    moment = moment or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def _title_with_import_marker(title: str | None, stamp: str) -> str:
+    """Добавляет к названию суффикс _import_<дата_время выгрузки>."""
+    base = (title or "").rstrip()
+    suffix = f"_import_{stamp}"
+    # Не дублируем, если уже есть такой же суффикс выгрузки
+    if base.endswith(suffix):
+        return base[:TITLE_MAX_LEN]
+    combined = f"{base}{suffix}"
+    if len(combined) <= TITLE_MAX_LEN:
+        return combined
+    # Обрезаем исходное название, чтобы суффикс всегда поместился
+    keep = TITLE_MAX_LEN - len(suffix)
+    if keep < 1:
+        return suffix[:TITLE_MAX_LEN]
+    return f"{base[:keep]}{suffix}"
+
+
+def _card_to_export_dict(card: Card, export_stamp: str) -> dict[str, Any]:
     theme = card.theme if isinstance(card.theme, dict) else {}
     try:
         theme = CardTheme.model_validate(theme).model_dump()
@@ -67,6 +94,7 @@ def _card_to_export_dict(card: Card) -> dict[str, Any]:
     item: dict[str, Any] = {
         field: getattr(card, field) for field in EXPORT_SCALAR_FIELDS
     }
+    item["title"] = _title_with_import_marker(card.title, export_stamp)
     item["template_code"] = card.template.code if card.template else None
     item["theme"] = theme
     return item
@@ -86,11 +114,13 @@ def list_user_cards_for_export(db: Session, user: User) -> list[Card]:
     )
 
 
-def build_export_payload(cards: list[Card]) -> dict[str, Any]:
+def build_export_payload(cards: list[Card], export_at: datetime | None = None) -> dict[str, Any]:
+    moment = export_at or datetime.now(timezone.utc)
+    stamp = _export_datetime_stamp(moment)
     return {
         "version": TRANSFER_VERSION,
-        "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "cards": [_card_to_export_dict(card) for card in cards],
+        "exported_at": moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "cards": [_card_to_export_dict(card, stamp) for card in cards],
     }
 
 
@@ -101,11 +131,12 @@ def export_cards_json(db: Session, user: User) -> str:
 
 def export_cards_csv(db: Session, user: User) -> str:
     cards = list_user_cards_for_export(db, user)
+    stamp = _export_datetime_stamp()
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=CSV_HEADERS, extrasaction="ignore")
     writer.writeheader()
     for card in cards:
-        row = _card_to_export_dict(card)
+        row = _card_to_export_dict(card, stamp)
         theme = row.pop("theme")
         row["theme"] = json.dumps(theme, ensure_ascii=False)
         # CSV: bool → true/false
