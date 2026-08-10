@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import type { Card, CardCreatePayload, CardUpdatePayload, CardTheme } from '../../types/card';
 import type { Template, TemplateMeta } from '../../types/template';
 import ImageUploader from './ImageUploader.vue';
@@ -48,6 +48,98 @@ const form = reactive<CardCreatePayload>({
   logo_file_id: null,
 });
 
+type MessengerKind =
+  | 'telegram'
+  | 'whatsapp'
+  | 'viber'
+  | 'wechat'
+  | 'messenger_max'
+  | 'discord'
+  | 'vk';
+
+type MessengerRow = {
+  id: number;
+  kind: MessengerKind | '';
+  value: string;
+};
+
+const MESSENGER_OPTIONS: Array<{ kind: MessengerKind; label: string; placeholder: string }> = [
+  { kind: 'telegram', label: 'Telegram', placeholder: '@username или t.me/...' },
+  { kind: 'whatsapp', label: 'WhatsApp', placeholder: '+7 900 000-00-00' },
+  { kind: 'viber', label: 'Viber', placeholder: '+7 900 000-00-00' },
+  { kind: 'wechat', label: 'WeChat', placeholder: 'WeChat ID' },
+  { kind: 'messenger_max', label: 'Max', placeholder: 'username или ссылка' },
+  { kind: 'discord', label: 'Discord', placeholder: 'discord.gg/...' },
+  { kind: 'vk', label: 'VK', placeholder: 'username или id123' },
+];
+
+let messengerRowSeq = 1;
+const messengerRows = ref<MessengerRow[]>([{ id: messengerRowSeq++, kind: '', value: '' }]);
+
+function createEmptyMessengerRow(): MessengerRow {
+  return { id: messengerRowSeq++, kind: '', value: '' };
+}
+
+function syncFormMessengersFromRows() {
+  for (const opt of MESSENGER_OPTIONS) {
+    form[opt.kind] = '';
+  }
+  for (const row of messengerRows.value) {
+    if (!row.kind) continue;
+    form[row.kind] = row.value.trim();
+  }
+}
+
+function loadMessengerRowsFromCard(card: Card) {
+  const rows: MessengerRow[] = [];
+  for (const opt of MESSENGER_OPTIONS) {
+    const value = card[opt.kind];
+    if (typeof value === 'string' && value.trim()) {
+      rows.push({ id: messengerRowSeq++, kind: opt.kind, value });
+    }
+  }
+  messengerRows.value = rows.length > 0 ? rows : [createEmptyMessengerRow()];
+}
+
+function availableKindsForRow(rowId: number): typeof MESSENGER_OPTIONS {
+  const used = new Set(
+    messengerRows.value
+      .filter((row) => row.id !== rowId && row.kind)
+      .map((row) => row.kind),
+  );
+  return MESSENGER_OPTIONS.filter((opt) => !used.has(opt.kind));
+}
+
+function placeholderForKind(kind: MessengerKind | ''): string {
+  if (!kind) return 'Сначала выберите сервис';
+  return MESSENGER_OPTIONS.find((opt) => opt.kind === kind)?.placeholder || '';
+}
+
+function onMessengerKindChange(row: MessengerRow, nextKind: MessengerKind | '') {
+  row.kind = nextKind;
+  if (!nextKind) {
+    row.value = '';
+  }
+}
+
+function addMessengerRow() {
+  if (!canAddMessengerRow.value) return;
+  messengerRows.value.push(createEmptyMessengerRow());
+}
+
+function removeMessengerRow(rowId: number) {
+  if (messengerRows.value.length <= 1) {
+    messengerRows.value = [createEmptyMessengerRow()];
+    return;
+  }
+  messengerRows.value = messengerRows.value.filter((row) => row.id !== rowId);
+}
+
+const canAddMessengerRow = computed(
+  () => messengerRows.value.filter((row) => row.kind).length < MESSENGER_OPTIONS.length
+    && messengerRows.value.length < MESSENGER_OPTIONS.length,
+);
+
 // Состояние для уведомления о применении шаблона
 const templateApplied = ref(false);
 const selectedTemplate = ref<Template | null>(null);
@@ -80,6 +172,7 @@ watch(
       form.theme = { ...newCard.theme };
       form.avatar_file_id = newCard.avatar_file_id || null;
       form.logo_file_id = newCard.logo_file_id || null;
+      loadMessengerRowsFromCard(newCard);
     }
   },
   { immediate: true }
@@ -140,6 +233,8 @@ function handleSubmit() {
     alert('Заполните обязательные поля: Название и Полное имя');
     return;
   }
+
+  syncFormMessengersFromRows();
 
   // Копируем форму и очищаем пустые строки → null
   const payload = { ...form };
@@ -292,41 +387,65 @@ function handleSubmit() {
     </div>
 
     <div class="border-t border-gray-200 pt-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-1">Мессенджеры</h3>
+      <h3 class="text-lg font-medium text-gray-900 mb-1">Мессенджеры и соцсети</h3>
       <p class="text-sm text-gray-500 mb-4">
-        Username, телефон или ссылка — на визитке появится кнопка перехода.
+        Выберите сервис и укажите username, телефон или ссылку.
       </p>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Telegram</label>
-          <input v-model="form.telegram" type="text" placeholder="@username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">WhatsApp</label>
-          <input v-model="form.whatsapp" type="text" placeholder="+7 900 000-00-00" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Viber</label>
-          <input v-model="form.viber" type="text" placeholder="+7 900 000-00-00" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">WeChat</label>
-          <input v-model="form.wechat" type="text" placeholder="WeChat ID" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Max</label>
-          <input v-model="form.messenger_max" type="text" placeholder="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Discord</label>
-          <input v-model="form.discord" type="text" placeholder="discord.gg/..." class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">VK</label>
-          <input v-model="form.vk" type="text" placeholder="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+      <div class="space-y-3">
+        <div
+          v-for="row in messengerRows"
+          :key="row.id"
+          class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end"
+        >
+          <div class="sm:w-48 shrink-0">
+            <label class="block text-sm font-medium text-gray-700">Сервис</label>
+            <select
+              :value="row.kind"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary bg-white"
+              @change="onMessengerKindChange(row, ($event.target as HTMLSelectElement).value as MessengerKind | '')"
+            >
+              <option value="">Выберите…</option>
+              <option
+                v-for="opt in availableKindsForRow(row.id)"
+                :key="opt.kind"
+                :value="opt.kind"
+              >
+                {{ opt.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <label class="block text-sm font-medium text-gray-700">Контакт</label>
+            <input
+              v-model="row.value"
+              type="text"
+              :disabled="!row.kind"
+              :placeholder="placeholderForKind(row.kind)"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary disabled:bg-gray-50 disabled:text-gray-400"
+            />
+          </div>
+
+          <button
+            type="button"
+            class="shrink-0 px-3 py-2 text-sm text-gray-500 hover:text-red-600 border border-transparent hover:border-red-100 rounded-md transition-colors"
+            title="Удалить"
+            @click="removeMessengerRow(row.id)"
+          >
+            Удалить
+          </button>
         </div>
       </div>
+
+      <button
+        v-if="canAddMessengerRow"
+        type="button"
+        class="mt-3 text-sm font-medium text-primary hover:text-teal-800"
+        @click="addMessengerRow"
+      >
+        + Добавить ещё
+      </button>
     </div>
 
     <!-- ============================================================ -->
