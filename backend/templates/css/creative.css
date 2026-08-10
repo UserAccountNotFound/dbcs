@@ -30,8 +30,8 @@
 .tpl-creative .dbcs-avatar { margin-bottom: 18px; }
 .tpl-creative .dbcs-avatar img,
 .tpl-creative .dbcs-avatar-fallback {
-  width: 120px;
-  height: 120px;
+  width: 240px;
+  height: 240px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.85);
@@ -122,8 +122,8 @@
   gap: 8px;
 }
 .tpl-creative .dbcs-qr img {
-  width: 112px;
-  height: 112px;
+  width: 280px;
+  height: 280px;
   border-radius: 14px;
   background: #fff;
   padding: 8px;
