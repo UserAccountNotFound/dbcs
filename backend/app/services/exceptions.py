@@ -25,6 +25,7 @@ class TemplateNotFoundError(ServiceError):
 class SlugGenerationError(ServiceError):
     pass
 
+
 class InvalidFileError(ServiceError):
     pass
 
@@ -42,4 +43,10 @@ class FileNotFoundError(ServiceError):
 
 
 class TemplateError(ServiceError):
+    pass
+
+
+class CardImportError(ServiceError):
+    """Ошибка разбора или валидации файла импорта визиток."""
+
     pass
