@@ -8,6 +8,14 @@ export interface PublicCard {
   department: string | null;
   company: string | null;
   phone: string | null;
+  phone_additional: string | null;
+  telegram: string | null;
+  whatsapp: string | null;
+  viber: string | null;
+  wechat: string | null;
+  messenger_max: string | null;
+  discord: string | null;
+  vk: string | null;
   email: string | null;
   website: string | null;
   address: string | null;

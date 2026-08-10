@@ -19,6 +19,17 @@ def _escape_vcard_value(value: str | None) -> str:
     return value
 
 
+def _messenger_to_url(value: str) -> str | None:
+    value = value.strip()
+    if not value:
+        return None
+    if value.startswith(("http://", "https://", "viber://", "tg://")):
+        return value
+    if value.startswith(("t.me/", "vk.com/", "wa.me/")):
+        return f"https://{value}"
+    return None
+
+
 def _split_full_name(full_name: str) -> tuple[str, str]:
     """
     Возвращает (first_name, last_name).
@@ -85,6 +96,11 @@ def build_vcard(card: Card) -> str:
             f"TEL;TYPE=CELL,VOICE:{_escape_vcard_value(card.phone)}"
         )
 
+    if card.phone_additional:
+        lines.append(
+            f"TEL;TYPE=VOICE:{_escape_vcard_value(card.phone_additional)}"
+        )
+
     if card.email:
         lines.append(
             f"EMAIL;TYPE=WORK:{_escape_vcard_value(card.email)}"
@@ -94,6 +110,21 @@ def build_vcard(card: Card) -> str:
         lines.append(
             f"URL:{_escape_vcard_value(card.website)}"
         )
+
+    for value in (
+        card.telegram,
+        card.whatsapp,
+        card.viber,
+        card.wechat,
+        card.messenger_max,
+        card.discord,
+        card.vk,
+    ):
+        if not value:
+            continue
+        url = _messenger_to_url(value)
+        if url:
+            lines.append(f"URL:{_escape_vcard_value(url)}")
 
     if card.address:
         lines.append(

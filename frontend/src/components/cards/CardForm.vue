@@ -30,6 +30,14 @@ const form = reactive<CardCreatePayload>({
   department: '',
   company: '',
   phone: '',
+  phone_additional: '',
+  telegram: '',
+  whatsapp: '',
+  viber: '',
+  wechat: '',
+  messenger_max: '',
+  discord: '',
+  vk: '',
   email: '',
   website: '',
   address: '',
@@ -56,6 +64,14 @@ watch(
       form.department = newCard.department || '';
       form.company = newCard.company || '';
       form.phone = newCard.phone || '';
+      form.phone_additional = newCard.phone_additional || '';
+      form.telegram = newCard.telegram || '';
+      form.whatsapp = newCard.whatsapp || '';
+      form.viber = newCard.viber || '';
+      form.wechat = newCard.wechat || '';
+      form.messenger_max = newCard.messenger_max || '';
+      form.discord = newCard.discord || '';
+      form.vk = newCard.vk || '';
       form.email = newCard.email || '';
       form.website = newCard.website || '';
       form.address = newCard.address || '';
@@ -222,6 +238,16 @@ function handleSubmit() {
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           />
         </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Доп. телефон</label>
+          <input
+            v-model="form.phone_additional"
+            type="tel"
+            placeholder="+7 900 111-22-33"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+          />
+        </div>
         
         <div>
           <label class="block text-sm font-medium text-gray-700">Email</label>
@@ -261,6 +287,44 @@ function handleSubmit() {
             placeholder="Дополнительная информация о вас или вашей деятельности"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           ></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="border-t border-gray-200 pt-6">
+      <h3 class="text-lg font-medium text-gray-900 mb-1">Мессенджеры</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Username, телефон или ссылка — на визитке появится кнопка перехода.
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Telegram</label>
+          <input v-model="form.telegram" type="text" placeholder="@username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">WhatsApp</label>
+          <input v-model="form.whatsapp" type="text" placeholder="+7 900 000-00-00" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Viber</label>
+          <input v-model="form.viber" type="text" placeholder="+7 900 000-00-00" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">WeChat</label>
+          <input v-model="form.wechat" type="text" placeholder="WeChat ID" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Max</label>
+          <input v-model="form.messenger_max" type="text" placeholder="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Discord</label>
+          <input v-model="form.discord" type="text" placeholder="discord.gg/..." class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">VK</label>
+          <input v-model="form.vk" type="text" placeholder="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" />
         </div>
       </div>
     </div>

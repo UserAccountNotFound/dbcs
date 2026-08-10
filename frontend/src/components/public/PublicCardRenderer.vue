@@ -2,6 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { PublicCard } from '../../types/publicCard';
 import type { CardTheme } from '../../types/card';
+import {
+  buildMessengerHref,
+  type MessengerKind,
+} from '../../utils/messengerLinks';
 import PolygonNetworkBackground from './PolygonNetworkBackground.vue';
 
 const props = withDefaults(
@@ -95,10 +99,33 @@ type LinkItem = {
   external?: boolean;
 };
 
+const MESSENGER_LINKS: Array<{
+  key: MessengerKind;
+  label: string;
+  icon: string;
+  getValue: (c: PublicCard) => string | null | undefined;
+}> = [
+  { key: 'telegram', label: 'Telegram', icon: '✈️', getValue: (c) => c.telegram },
+  { key: 'whatsapp', label: 'WhatsApp', icon: '💬', getValue: (c) => c.whatsapp },
+  { key: 'viber', label: 'Viber', icon: '🟣', getValue: (c) => c.viber },
+  { key: 'wechat', label: 'WeChat', icon: '🟢', getValue: (c) => c.wechat },
+  { key: 'messenger_max', label: 'Max', icon: '🔵', getValue: (c) => c.messenger_max },
+  { key: 'discord', label: 'Discord', icon: '🎮', getValue: (c) => c.discord },
+  { key: 'vk', label: 'VK', icon: '🔷', getValue: (c) => c.vk },
+];
+
 const linkItems = computed<LinkItem[]>(() => {
   const items: LinkItem[] = [];
   const c = props.card;
   if (c.phone) items.push({ key: 'phone', label: c.phone, href: `tel:${c.phone}`, icon: '📱' });
+  if (c.phone_additional) {
+    items.push({
+      key: 'phone_additional',
+      label: c.phone_additional,
+      href: `tel:${c.phone_additional}`,
+      icon: '☎️',
+    });
+  }
   if (c.email) items.push({ key: 'email', label: c.email, href: `mailto:${c.email}`, icon: '✉️' });
   if (c.website) {
     items.push({
@@ -116,6 +143,18 @@ const linkItems = computed<LinkItem[]>(() => {
       href: `https://maps.google.com/?q=${encodeURIComponent(c.address)}`,
       icon: '📍',
       external: true,
+    });
+  }
+  for (const m of MESSENGER_LINKS) {
+    const raw = m.getValue(c);
+    if (!raw) continue;
+    const href = buildMessengerHref(m.key, raw);
+    items.push({
+      key: m.key,
+      label: `${m.label}: ${raw}`,
+      href,
+      icon: m.icon,
+      external: Boolean(href),
     });
   }
   return items;
