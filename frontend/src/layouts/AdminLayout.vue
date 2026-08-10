@@ -1,7 +1,25 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { systemApi } from '../api/system';
 
 const authStore = useAuthStore();
+
+const frontendVersion = import.meta.env.VITE_APP_VERSION;
+const apiVersion = ref<string | null>(null);
+
+async function loadApiVersion() {
+  try {
+    const health = await systemApi.getHealth();
+    apiVersion.value = health.version;
+  } catch {
+    apiVersion.value = null;
+  }
+}
+
+onMounted(() => {
+  void loadApiVersion();
+});
 
 const menuItems = [
   { name: 'admin-dashboard', label: 'Обзор', icon: '📊' },
@@ -19,6 +37,13 @@ const menuItems = [
       <div class="p-6 border-b border-gray-800 shrink-0">
         <h1 class="text-xl font-bold">DBCS Admin</h1>
         <p class="text-gray-400 text-sm mt-1">{{ authStore.user?.email }}</p>
+        <p class="text-[11px] text-gray-500 font-mono mt-2 tabular-nums">
+          API
+          <span class="text-gray-300">{{ apiVersion ?? '…' }}</span>
+          <span class="mx-1" aria-hidden="true">·</span>
+          Frontend
+          <span class="text-gray-300">{{ frontendVersion }}</span>
+        </p>
       </div>
 
       <nav class="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">

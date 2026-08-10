@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { cardApi } from '../api/cards';
-import { systemApi } from '../api/system';
 import type { Card } from '../types/card';
 import CardListItem from '../components/cards/CardListItem.vue';
 import QrModal from '../components/cards/QrModal.vue';
@@ -15,18 +14,6 @@ const authStore = useAuthStore();
 const cards = ref<Card[]>([]);
 const isLoading = ref(true);
 const error = ref('');
-
-const frontendVersion = import.meta.env.VITE_APP_VERSION;
-const apiVersion = ref<string | null>(null);
-
-async function loadApiVersion() {
-  try {
-    const health = await systemApi.getHealth();
-    apiVersion.value = health.version;
-  } catch {
-    apiVersion.value = null;
-  }
-}
 
 // Состояния для модальных окон
 const qrCardId = ref<string | null>(null);
@@ -47,10 +34,7 @@ async function loadCards() {
   }
 }
 
-onMounted(() => {
-  void loadCards();
-  void loadApiVersion();
-});
+onMounted(loadCards);
 
 function handleEdit(cardId: string) {
   router.push(`/cards/${cardId}`);
@@ -80,13 +64,6 @@ function handleShowStats(cardId: string) {
             <div>
               <h1 class="text-xl font-bold text-gray-900 leading-tight">DBCS</h1>
               <p class="text-xs text-gray-500">Электронные визитки</p>
-              <p class="text-[11px] text-gray-400 font-mono mt-0.5 tabular-nums">
-                API
-                <span class="text-gray-600">{{ apiVersion ?? '…' }}</span>
-                <span class="mx-1" aria-hidden="true">·</span>
-                Frontend
-                <span class="text-gray-600">{{ frontendVersion }}</span>
-              </p>
             </div>
           </div>
 
