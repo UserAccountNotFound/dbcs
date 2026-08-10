@@ -1,5 +1,28 @@
+import re
+from typing import Literal
+
 from app.db.base import utcnow
 from app.models import Card
+
+MessengerKind = Literal[
+    "telegram",
+    "whatsapp",
+    "viber",
+    "wechat",
+    "messenger_max",
+    "discord",
+    "vk",
+]
+
+MESSENGER_LABELS: dict[MessengerKind, str] = {
+    "telegram": "Telegram",
+    "whatsapp": "WhatsApp",
+    "viber": "Viber",
+    "wechat": "WeChat",
+    "messenger_max": "Max",
+    "discord": "Discord",
+    "vk": "VK",
+}
 
 
 def _escape_vcard_value(value: str | None) -> str:
@@ -19,14 +42,72 @@ def _escape_vcard_value(value: str | None) -> str:
     return value
 
 
-def _messenger_to_url(value: str) -> str | None:
-    value = value.strip()
+def _strip_at(value: str) -> str:
+    return re.sub(r"^@+", "", value).strip()
+
+
+def _digits_only(value: str) -> str:
+    return re.sub(r"\D", "", value)
+
+
+def _as_absolute_url(value: str) -> str | None:
+    v = value.strip()
+    if not v:
+        return None
+    if re.match(r"^[a-z][a-z0-9+.-]*:", v, re.I):
+        return v
+    if v.startswith("//"):
+        return f"https:{v}"
+    return None
+
+
+def build_messenger_url(kind: MessengerKind, raw: str) -> str | None:
+    """Собирает URL/deep-link для мессенджера (логика как на публичной визитке)."""
+    value = raw.strip()
     if not value:
         return None
-    if value.startswith(("http://", "https://", "viber://", "tg://")):
-        return value
-    if value.startswith(("t.me/", "vk.com/", "wa.me/")):
-        return f"https://{value}"
+
+    existing = _as_absolute_url(value)
+    if existing:
+        return existing
+
+    if kind == "telegram":
+        u = _strip_at(value)
+        if u.startswith("t.me/"):
+            return f"https://{u}"
+        return f"https://t.me/{u}"
+
+    if kind == "whatsapp":
+        digits = _digits_only(value)
+        return f"https://wa.me/{digits}" if digits else None
+
+    if kind == "viber":
+        digits = _digits_only(value)
+        if len(digits) >= 7:
+            return f"viber://chat?number=%2B{digits}"
+        return None
+
+    if kind == "wechat":
+        return None
+
+    if kind == "messenger_max":
+        u = _strip_at(value)
+        if "max.ru" in u:
+            return f"https://{re.sub(r'^https?://', '', u, flags=re.I)}"
+        return f"https://max.ru/{u}"
+
+    if kind == "discord":
+        u = value.strip()
+        if "discord.gg" in u or "discord.com" in u:
+            return u if u.startswith("http") else f"https://{u}"
+        return None
+
+    if kind == "vk":
+        u = _strip_at(value)
+        if "vk.com" in u or "vk.ru" in u:
+            return f"https://{re.sub(r'^https?://', '', u, flags=re.I)}"
+        return f"https://vk.com/{u}"
+
     return None
 
 
@@ -51,6 +132,16 @@ def _split_full_name(full_name: str) -> tuple[str, str]:
         return parts[0], parts[1]
 
     return " ".join(parts[:-1]), parts[-1]
+
+
+def _append_labeled_url(lines: list[str], item_index: int, label: str, url: str) -> int:
+    """Добавляет URL с подписью (itemN) для iOS и обычный URL для остальных клиентов."""
+    escaped_url = _escape_vcard_value(url)
+    escaped_label = _escape_vcard_value(label)
+    lines.append(f"item{item_index}.URL:{escaped_url}")
+    lines.append(f"item{item_index}.X-ABLabel:{escaped_label}")
+    lines.append(f"URL:{escaped_url}")
+    return item_index + 1
 
 
 def build_vcard(card: Card) -> str:
@@ -91,15 +182,21 @@ def build_vcard(card: Card) -> str:
             f"ORG:{_escape_vcard_value(card.department)}"
         )
 
+    item_index = 1
+
     if card.phone:
-        lines.append(
-            f"TEL;TYPE=CELL,VOICE:{_escape_vcard_value(card.phone)}"
-        )
+        tel = _escape_vcard_value(card.phone)
+        lines.append(f"item{item_index}.TEL:{tel}")
+        lines.append(f"item{item_index}.X-ABLabel:Мобильный")
+        lines.append(f"TEL;TYPE=CELL,VOICE:{tel}")
+        item_index += 1
 
     if card.phone_additional:
-        lines.append(
-            f"TEL;TYPE=VOICE:{_escape_vcard_value(card.phone_additional)}"
-        )
+        tel = _escape_vcard_value(card.phone_additional)
+        lines.append(f"item{item_index}.TEL:{tel}")
+        lines.append(f"item{item_index}.X-ABLabel:Доп. телефон")
+        lines.append(f"TEL;TYPE=WORK,VOICE:{tel}")
+        item_index += 1
 
     if card.email:
         lines.append(
@@ -107,33 +204,50 @@ def build_vcard(card: Card) -> str:
         )
 
     if card.website:
-        lines.append(
-            f"URL:{_escape_vcard_value(card.website)}"
+        item_index = _append_labeled_url(
+            lines,
+            item_index,
+            "Сайт",
+            card.website.strip(),
         )
 
-    for value in (
-        card.telegram,
-        card.whatsapp,
-        card.viber,
-        card.wechat,
-        card.messenger_max,
-        card.discord,
-        card.vk,
-    ):
-        if not value:
+    messenger_fields: list[tuple[MessengerKind, str | None]] = [
+        ("telegram", card.telegram),
+        ("whatsapp", card.whatsapp),
+        ("viber", card.viber),
+        ("wechat", card.wechat),
+        ("messenger_max", card.messenger_max),
+        ("discord", card.discord),
+        ("vk", card.vk),
+    ]
+
+    note_extra: list[str] = []
+
+    for kind, raw_value in messenger_fields:
+        if not raw_value or not str(raw_value).strip():
             continue
-        url = _messenger_to_url(value)
+        raw = str(raw_value).strip()
+        label = MESSENGER_LABELS[kind]
+        url = build_messenger_url(kind, raw)
         if url:
-            lines.append(f"URL:{_escape_vcard_value(url)}")
+            item_index = _append_labeled_url(lines, item_index, label, url)
+        else:
+            note_extra.append(f"{label}: {raw}")
 
     if card.address:
         lines.append(
             f"ADR;TYPE=WORK:;;{_escape_vcard_value(card.address)};;;;"
         )
 
-    if card.note:
+    note_parts: list[str] = []
+    if card.note and str(card.note).strip():
+        note_parts.append(str(card.note).strip())
+    if note_extra:
+        note_parts.extend(note_extra)
+
+    if note_parts:
         lines.append(
-            f"NOTE:{_escape_vcard_value(card.note)}"
+            f"NOTE:{_escape_vcard_value('\n'.join(note_parts))}"
         )
 
     rev = utcnow().strftime("%Y%m%dT%H%M%SZ")
