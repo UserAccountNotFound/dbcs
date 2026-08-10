@@ -39,32 +39,11 @@ const fontStacks: Record<string, string> = {
   open_sans: "'Open Sans', system-ui, sans-serif",
 };
 
-const rootClass = computed(() => {
-  const t = theme.value;
-  return [
-    'dbcs-card',
-    `tpl-${templateCode.value}`,
-    t.color_scheme === 'dark' ? 'scheme-dark' : 'scheme-light',
-    t.show_photo ? '' : 'no-photo',
-    t.show_qr ? '' : 'no-qr',
-    props.preview ? 'dbcs-preview' : '',
-  ].filter(Boolean);
-});
-
 const cssVars = computed(() => ({
   '--dbcs-accent': theme.value.accent_color || '#0f766e',
   '--dbcs-scheme': theme.value.color_scheme || 'light',
   '--dbcs-font': fontStacks[theme.value.font] || fontStacks.inter,
 }));
-
-const initials = computed(() =>
-  props.card.full_name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2),
-);
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -81,6 +60,23 @@ function resolveMediaUrl(url: string | null | undefined): string | null {
 
 const avatarUrl = computed(() => resolveMediaUrl(props.card.avatar_url));
 const logoUrl = computed(() => resolveMediaUrl(props.card.logo_url));
+
+/** Показывать блок аватара только при загруженном фото и включённом show_photo */
+const showAvatar = computed(
+  () => Boolean(avatarUrl.value) && theme.value.show_photo !== false,
+);
+
+const rootClass = computed(() => {
+  const t = theme.value;
+  return [
+    'dbcs-card',
+    `tpl-${templateCode.value}`,
+    t.color_scheme === 'dark' ? 'scheme-dark' : 'scheme-light',
+    showAvatar.value ? '' : 'no-photo',
+    t.show_qr ? '' : 'no-qr',
+    props.preview ? 'dbcs-preview' : '',
+  ].filter(Boolean);
+});
 
 const qrUrl = computed(() => {
   return `${import.meta.env.VITE_API_BASE_URL}/public/cards/${props.card.slug}/qrcode.svg`;
@@ -207,9 +203,8 @@ watch(cssUrl, (url) => attachCss(url));
         <img :src="logoUrl" :alt="card.company || 'Logo'" />
       </div>
 
-      <div class="dbcs-avatar">
-        <img v-if="avatarUrl" :src="avatarUrl" :alt="card.full_name" />
-        <div v-else class="dbcs-avatar-fallback">{{ initials }}</div>
+      <div v-if="showAvatar" class="dbcs-avatar">
+        <img :src="avatarUrl!" :alt="card.full_name" />
       </div>
 
       <h1 class="dbcs-name">{{ card.full_name }}</h1>
@@ -290,11 +285,9 @@ watch(cssUrl, (url) => attachCss(url));
   font-size: 1rem !important;
 }
 
-.dbcs-preview .dbcs-avatar img,
-.dbcs-preview .dbcs-avatar-fallback {
+.dbcs-preview .dbcs-avatar img {
   width: 48px !important;
   height: 48px !important;
-  font-size: 18px !important;
 }
 
 .dbcs-preview .dbcs-qr,
