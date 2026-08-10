@@ -8,7 +8,7 @@ from app.core.config import settings
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version=settings.app_version,
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
         docs_url="/api/docs" if settings.docs_enabled else None,
         redoc_url="/api/redoc" if settings.redoc_enabled else None,

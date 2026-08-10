@@ -86,6 +86,46 @@ class Card(Base):
         nullable=True,
     )
 
+    phone_additional: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    telegram: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    whatsapp: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    viber: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    wechat: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    messenger_max: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    discord: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    vk: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
     email: Mapped[str | None] = mapped_column(
         String(320),
         nullable=True,

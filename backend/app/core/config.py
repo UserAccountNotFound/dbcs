@@ -9,6 +9,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     app_name: str = "Digital Bussines Card Service API"
+    app_version: str = "1.1.0"
     environment: str = "development"
     debug: bool = False
 

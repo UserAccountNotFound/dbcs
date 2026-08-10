@@ -17,6 +17,16 @@ from app.core.config import settings
 
 PHONE_PATTERN = re.compile(r"^\+?[0-9\s\-().]{7,64}$")
 
+MESSENGER_FIELDS = (
+    "telegram",
+    "whatsapp",
+    "viber",
+    "wechat",
+    "messenger_max",
+    "discord",
+    "vk",
+)
+
 
 def _normalize_optional_string(value: str | None) -> str | None:
     if value is None:
@@ -34,6 +44,10 @@ def _validate_phone_value(value: str | None) -> str | None:
     if not PHONE_PATTERN.fullmatch(value):
         raise ValueError("Invalid phone number format.")
     return value
+
+
+def _validate_messenger_value(value: str | None) -> str | None:
+    return _normalize_optional_string(value)
 
 
 def _validate_website_value(value: str | None) -> str | None:
@@ -69,6 +83,14 @@ class CardBase(BaseModel):
     company: str | None = Field(default=None, max_length=255)
 
     phone: str | None = Field(default=None, max_length=64)
+    phone_additional: str | None = Field(default=None, max_length=64)
+    telegram: str | None = Field(default=None, max_length=255)
+    whatsapp: str | None = Field(default=None, max_length=255)
+    viber: str | None = Field(default=None, max_length=255)
+    wechat: str | None = Field(default=None, max_length=255)
+    messenger_max: str | None = Field(default=None, max_length=255)
+    discord: str | None = Field(default=None, max_length=255)
+    vk: str | None = Field(default=None, max_length=255)
     email: EmailStr | None = None
     website: str | None = Field(default=None, max_length=2048)
     address: str | None = Field(default=None, max_length=512)
@@ -93,10 +115,15 @@ class CardBase(BaseModel):
     def normalize_optional_fields(cls, value: str | None) -> str | None:
         return _normalize_optional_string(value)
 
-    @field_validator("phone")
+    @field_validator("phone", "phone_additional")
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         return _validate_phone_value(value)
+
+    @field_validator(*MESSENGER_FIELDS)
+    @classmethod
+    def validate_messengers(cls, value: str | None) -> str | None:
+        return _validate_messenger_value(value)
 
     @field_validator("website")
     @classmethod
@@ -117,6 +144,14 @@ class CardUpdate(BaseModel):
     company: str | None = Field(default=None, max_length=255)
 
     phone: str | None = Field(default=None, max_length=64)
+    phone_additional: str | None = Field(default=None, max_length=64)
+    telegram: str | None = Field(default=None, max_length=255)
+    whatsapp: str | None = Field(default=None, max_length=255)
+    viber: str | None = Field(default=None, max_length=255)
+    wechat: str | None = Field(default=None, max_length=255)
+    messenger_max: str | None = Field(default=None, max_length=255)
+    discord: str | None = Field(default=None, max_length=255)
+    vk: str | None = Field(default=None, max_length=255)
     email: EmailStr | None = None
     website: str | None = Field(default=None, max_length=2048)
     address: str | None = Field(default=None, max_length=512)
@@ -144,10 +179,15 @@ class CardUpdate(BaseModel):
     def normalize_optional_fields(cls, value: str | None) -> str | None:
         return _normalize_optional_string(value)
 
-    @field_validator("phone")
+    @field_validator("phone", "phone_additional")
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         return _validate_phone_value(value)
+
+    @field_validator(*MESSENGER_FIELDS)
+    @classmethod
+    def validate_messengers(cls, value: str | None) -> str | None:
+        return _validate_messenger_value(value)
 
     @field_validator("website")
     @classmethod
@@ -169,6 +209,14 @@ class CardResponse(BaseModel):
     company: str | None
 
     phone: str | None
+    phone_additional: str | None
+    telegram: str | None
+    whatsapp: str | None
+    viber: str | None
+    wechat: str | None
+    messenger_max: str | None
+    discord: str | None
+    vk: str | None
     email: EmailStr | None
     website: str | None
     address: str | None

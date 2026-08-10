@@ -16,6 +16,14 @@ class PublicCardResponse(BaseModel):
     department: str | None
     company: str | None
     phone: str | None
+    phone_additional: str | None = None
+    telegram: str | None = None
+    whatsapp: str | None = None
+    viber: str | None = None
+    wechat: str | None = None
+    messenger_max: str | None = None
+    discord: str | None = None
+    vk: str | None = None
     email: EmailStr | None
     website: str | None
     address: str | None
@@ -69,6 +77,14 @@ def build_public_card_response(card: Card) -> PublicCardResponse:
         department=card.department,
         company=card.company,
         phone=card.phone,
+        phone_additional=card.phone_additional,
+        telegram=card.telegram,
+        whatsapp=card.whatsapp,
+        viber=card.viber,
+        wechat=card.wechat,
+        messenger_max=card.messenger_max,
+        discord=card.discord,
+        vk=card.vk,
         email=card.email,
         website=card.website,
         address=card.address,

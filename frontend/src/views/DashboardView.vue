@@ -77,7 +77,7 @@ function handleShowStats(cardId: string) {
               to="/admin" 
               class="text-sm text-primary hover:text-teal-800 font-medium px-3 py-1.5 rounded-lg hover:bg-teal-50 transition-colors"
             >
-              Админ-панель
+              Панель управления сервисом
             </router-link>
             
             <button 
