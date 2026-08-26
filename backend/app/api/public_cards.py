@@ -8,7 +8,7 @@ from app.api.schemas.public_card import (
     build_public_card_response,
 )
 from app.core.urls import get_public_card_url
-from app.core.utils import get_client_ip, get_user_agent
+from app.core.utils import get_client_ip, get_user_agent, get_visit_referrer
 from app.services import file_service, public_card_service, qr_service, vcard_service
 from app.services.exceptions import CardNotFoundError
 
@@ -36,6 +36,7 @@ def get_public_card(
     # Записываем визит (best-effort: сбой аналитики не должен ломать публичную страницу)
     client_ip = get_client_ip(request)
     user_agent = get_user_agent(request)
+    referer = get_visit_referrer(request)
 
     try:
         public_card_service.record_visit(
@@ -43,7 +44,7 @@ def get_public_card(
             card_id=card.id,
             ip=client_ip,
             user_agent=user_agent,
-            referer=request.headers.get("referer"),
+            referer=referer,
             source=public_card_service.SOURCE_CARD_VIEW,
         )
     except Exception:
@@ -152,6 +153,7 @@ def get_public_card_vcard(
     # Записываем визит как vCard download (best-effort)
     client_ip = get_client_ip(request)
     user_agent = get_user_agent(request)
+    referer = get_visit_referrer(request)
 
     try:
         public_card_service.record_visit(
@@ -159,7 +161,7 @@ def get_public_card_vcard(
             card_id=card.id,
             ip=client_ip,
             user_agent=user_agent,
-            referer=request.headers.get("referer"),
+            referer=referer,
             source=public_card_service.SOURCE_VCARD_DOWNLOAD,
         )
     except Exception:

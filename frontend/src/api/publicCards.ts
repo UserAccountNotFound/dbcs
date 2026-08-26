@@ -5,7 +5,16 @@ const PUBLIC_CARDS_ENDPOINT = '/public/cards';
 
 export const publicCardApi = {
   async getPublicCard(slug: string): Promise<PublicCard> {
-    const { data } = await apiClient.get(`${PUBLIC_CARDS_ENDPOINT}/${slug}`);
+    // Передаём document.referrer — реальный внешний источник перехода на страницу визитки.
+    // Обычный HTTP Referer на /api/... указывает на саму SPA-страницу и для аналитики бесполезен.
+    const originalReferrer =
+      typeof document !== 'undefined' ? document.referrer || '' : '';
+
+    const { data } = await apiClient.get(`${PUBLIC_CARDS_ENDPOINT}/${slug}`, {
+      headers: {
+        'X-DBCS-Referrer': originalReferrer,
+      },
+    });
     return data;
   },
 

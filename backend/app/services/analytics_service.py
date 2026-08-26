@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import utcnow
 from app.models import Card, CardVisit, User
+from app.core.utils import is_internal_referrer
 from app.services.public_card_service import SOURCE_CARD_VIEW, SOURCE_VCARD_DOWNLOAD
 
 Period = Literal["7d", "30d", "90d"]
@@ -50,11 +51,14 @@ def _as_date(value: object) -> date:
 def _normalize_referer(referer: str | None) -> str:
     if not referer or referer == "-":
         return "Direct"
-    referer = referer.lower()
+    # Старые записи с URL своей визитки (Referer API) считаем прямым заходом
+    if is_internal_referrer(referer):
+        return "Direct"
+    referer_l = referer.lower()
     for key, label in KNOWN_REFERRERS.items():
-        if key in referer:
+        if key in referer_l:
             return label
-    match = re.search(r"https?://([^/]+)", referer)
+    match = re.search(r"https?://([^/]+)", referer_l)
     if match:
         domain = match.group(1)
         if domain.startswith("www."):

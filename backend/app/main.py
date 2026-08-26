@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
                 "Authorization",
                 "Content-Type",
                 "X-Requested-With",
+                "X-DBCS-Referrer",
             ],
             expose_headers=[
                 "Content-Disposition",

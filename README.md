@@ -73,6 +73,8 @@
 
 ## Быстрый старт
 
+curl -s https://github.com/UserAccountNotFound/dbcs/blob/main/install.sh | bash
+
 ### Предварительные требования
 - Python 3.10 или выше
 - Node.js 18+ и npm
@@ -110,8 +112,8 @@ npm run dev
 ## API Документация
 
 После запуска backend документация доступна по адресам:
-- **Swagger UI:** http://localhost:8000/api/docs
-- **ReDoc:** http://localhost:8000/api/redoc
+- **Swagger UI:** http://{Backend-IP}:8000/api/docs
+- **ReDoc:** http://{Backend-IP}:8000/api/redoc
 
 ### Основные эндпоинты
 
@@ -186,7 +188,7 @@ dbcs/
 ```
 
 # Contributing
-Кроме меня этот говнокод ни кому не нужон.
+Кроме меня этот говнокод ни кому не нужон. =)
 
 # License
 Проект распространяется под MIT - подробности смотрите в файле LICENSE.
