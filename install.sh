@@ -577,6 +577,7 @@ deploy_frontend() {
     fi
 
     log_info "Запуск deploy_frontend.sh..."
+    # TLS уже выбран в deploy_backend.sh → /opt/dbcs/.tls.env (frontend не переспрашивает)
     if [[ -r /dev/tty ]]; then
         bash "${FRONTEND_DEPLOY_SCRIPT}" </dev/tty
     else
@@ -593,6 +594,11 @@ usage() {
   --update | update Проверить версии и обновить/перезапустить при необходимости
   --force-update    Принудительно обновить backend и frontend
   -h | --help       Справка
+
+Переменные окружения (TLS, опционально):
+  SSL_MODE=http|selfsigned|letsencrypt
+  LETSENCRYPT_EMAIL=admin@example.com
+  PUBLIC_BASE_URL=https://example.com
 EOF
 }
 
