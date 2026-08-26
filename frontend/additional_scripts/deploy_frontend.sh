@@ -131,6 +131,12 @@ deploy_static() {
     # Копируем новую сборку
     cp -r "${FRONTEND_DIR}/dist/"* "${WEB_ROOT}/"
 
+    # Метка версии для install.sh / мониторинга
+    if [[ -f "${FRONTEND_DIR}/package.json" ]]; then
+        python3 -c "import json; print(json.load(open('${FRONTEND_DIR}/package.json'))['version'])" \
+            > "${WEB_ROOT}/VERSION"
+    fi
+
     # Устанавливаем владельца (www-data для Nginx) и права
     chown -R www-data:www-data "${WEB_ROOT}"
     chmod -R 755 "${WEB_ROOT}"
