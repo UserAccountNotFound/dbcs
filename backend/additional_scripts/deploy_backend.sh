@@ -42,6 +42,42 @@ log_info()  { echo -e "${GREEN}[INFO_(backend)]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN_(backend)]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR_(backend)]${NC} $1"; }
 
+# При curl|bash stdin = скрипт; читаем с /dev/tty. EOF → default (set -e не валит).
+# read_from_tty VAR "prompt" "default" [--silent]
+read_from_tty() {
+    local __var="$1"
+    local __prompt="$2"
+    local __default="${3:-}"
+    local __silent=0
+    local __reply=""
+    shift 3 || true
+    [[ "${1:-}" == "--silent" ]] && __silent=1
+
+    if [[ -r /dev/tty ]]; then
+        if [[ "${__silent}" -eq 1 ]]; then
+            IFS= read -r -s -p "${__prompt}" __reply </dev/tty || true
+            echo "" >/dev/tty 2>/dev/null || echo ""
+        else
+            IFS= read -r -p "${__prompt}" __reply </dev/tty || true
+        fi
+    elif [[ -t 0 ]]; then
+        if [[ "${__silent}" -eq 1 ]]; then
+            IFS= read -r -s -p "${__prompt}" __reply || true
+            echo ""
+        else
+            IFS= read -r -p "${__prompt}" __reply || true
+        fi
+    else
+        log_warn "Нет TTY — используем значение по умолчанию."
+        __reply="${__default}"
+    fi
+
+    if [[ -z "${__reply}" ]]; then
+        __reply="${__default}"
+    fi
+    printf -v "${__var}" '%s' "${__reply}"
+}
+
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "Этот скрипт должен быть запущен от имени root (или через sudo)."
@@ -147,55 +183,62 @@ detect_base_url() {
 DETECTED_URL=$(detect_base_url)
 DEFAULT_BASE_URL="$DETECTED_URL"
 
-log_info "Автоматически определен PUBLIC_BASE_URL: ${DETECTED_URL}"
-echo ""
-echo "=============================================================================="
-echo "Настройка PUBLIC_BASE_URL"
-echo "=============================================================================="
-echo "Скрипт обнаружил следующий URL сервера: ${DETECTED_URL}"
-echo ""
-echo "Этот URL будет использоваться для:"
-echo "  - CORS настроек (ALLOWED_ORIGINS)"
-echo "  - Генерации ссылок в API ответах"
-echo "  - Redirect URI после аутентификации"
-echo ""
-read -p "Использовать это значение по умолчанию? [Y/n] или введите свой URL: " -r user_input
-
-if [[ -z "$user_input" || "$user_input" =~ ^[Yy]$ ]]; then
-    PUBLIC_BASE_URL="$DEFAULT_BASE_URL"
-    log_info "Используем определенное значение: ${PUBLIC_BASE_URL}"
-elif [[ "$user_input" =~ ^[Nn]$ ]]; then
-    # Пользователь хочет ввести свое значение
-    while true; do
-        read -p "Введите PUBLIC_BASE_URL (например, https://mydomain.com): " -r PUBLIC_BASE_URL
-        
-        # Валидация ввода
-        if [[ "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-            # Проверяем, что URL не заканчивается на /
-            PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-            log_info "Установлено значение: ${PUBLIC_BASE_URL}"
-            break
-        else
-            log_error "URL должен начинаться с http:// или https://"
-            read -p "Попробовать снова? [Y/n]: " -r retry
-            if [[ "$retry" =~ ^[Nn]$ ]]; then
-                log_error "Необходимо указать корректный PUBLIC_BASE_URL для продолжения."
-                exit 1
-            fi
-        fi
-    done
-else
-    # Пользователь ввел свое значение напрямую
-    PUBLIC_BASE_URL="$user_input"
-    # Убираем trailing slash если есть
+# Уже задан в окружении — не спрашиваем (удобно для автоматизации).
+if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
     PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-    
     if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-        log_warn "Введенное значение не начинается с http:// или https://, добавляем http://"
         PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
     fi
-    
-    log_info "Используем введенное значение: ${PUBLIC_BASE_URL}"
+    log_info "PUBLIC_BASE_URL из окружения: ${PUBLIC_BASE_URL}"
+else
+    log_info "Автоматически определен PUBLIC_BASE_URL: ${DETECTED_URL}"
+    echo ""
+    echo "=============================================================================="
+    echo "Настройка PUBLIC_BASE_URL"
+    echo "=============================================================================="
+    echo "Скрипт обнаружил следующий URL сервера: ${DETECTED_URL}"
+    echo ""
+    echo "Этот URL будет использоваться для:"
+    echo "  - CORS настроек (ALLOWED_ORIGINS)"
+    echo "  - Генерации ссылок в API ответах"
+    echo "  - Redirect URI после аутентификации"
+    echo ""
+    user_input=""
+    read_from_tty user_input "Использовать это значение по умолчанию? [Y/n] или введите свой URL: " "Y"
+
+    if [[ -z "$user_input" || "$user_input" =~ ^[Yy]$ ]]; then
+        PUBLIC_BASE_URL="$DEFAULT_BASE_URL"
+        log_info "Используем определенное значение: ${PUBLIC_BASE_URL}"
+    elif [[ "$user_input" =~ ^[Nn]$ ]]; then
+        while true; do
+            PUBLIC_BASE_URL=""
+            read_from_tty PUBLIC_BASE_URL "Введите PUBLIC_BASE_URL (например, https://mydomain.com): " ""
+
+            if [[ "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+                PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+                log_info "Установлено значение: ${PUBLIC_BASE_URL}"
+                break
+            else
+                log_error "URL должен начинаться с http:// или https://"
+                retry=""
+                read_from_tty retry "Попробовать снова? [Y/n]: " "Y"
+                if [[ "$retry" =~ ^[Nn]$ ]]; then
+                    log_error "Необходимо указать корректный PUBLIC_BASE_URL для продолжения."
+                    exit 1
+                fi
+            fi
+        done
+    else
+        PUBLIC_BASE_URL="$user_input"
+        PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+
+        if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+            log_warn "Введенное значение не начинается с http:// или https://, добавляем http://"
+            PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+        fi
+
+        log_info "Используем введенное значение: ${PUBLIC_BASE_URL}"
+    fi
 fi
 
 echo ""
@@ -388,11 +431,9 @@ setup_database() {
 
     log_warn "Не удалось подключиться к БД. Требуется создание базы и пользователя."
     log_info "Пожалуйста, введите пароль root для MariaDB (символы не будут отображаться):"
-    
-    set +e
-    read -r -s DB_ROOT_PASSWORD
-    echo ""
-    set -e
+
+    DB_ROOT_PASSWORD=""
+    read_from_tty DB_ROOT_PASSWORD "" "" --silent
 
     if [[ -z "$DB_ROOT_PASSWORD" ]]; then
         log_error "Пароль root не может быть пустым."

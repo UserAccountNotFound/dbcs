@@ -505,7 +505,12 @@ deploy_backend() {
     fi
 
     log_info "Запуск deploy_backend.sh..."
-    bash "${BACKEND_DEPLOY_SCRIPT}"
+    # stdin с /dev/tty: при curl|bash иначе интерактивные read в дочернем скрипте падают
+    if [[ -r /dev/tty ]]; then
+        bash "${BACKEND_DEPLOY_SCRIPT}" </dev/tty
+    else
+        bash "${BACKEND_DEPLOY_SCRIPT}"
+    fi
 
     echo
     echo "──────────────────────────────────────────────"
@@ -552,7 +557,11 @@ deploy_frontend() {
     fi
 
     log_info "Запуск deploy_frontend.sh..."
-    bash "${FRONTEND_DEPLOY_SCRIPT}"
+    if [[ -r /dev/tty ]]; then
+        bash "${FRONTEND_DEPLOY_SCRIPT}" </dev/tty
+    else
+        bash "${FRONTEND_DEPLOY_SCRIPT}"
+    fi
 }
 
 usage() {
