@@ -6,11 +6,11 @@ set -euo pipefail
 #
 # Использование:
 #   sudo ./install.sh              # полная установка / обновление кода из git
-#   sudo ./install.sh --check      # только показать версии
+#   sudo ./install.sh --check      # версии: main / dev / текущая (без изменений)
 #   sudo ./install.sh --update     # проверить версии и обновить при необходимости
 #   sudo ./install.sh check|update # то же самое
 #
-# version 0.1.0
+# version 1.0.0
 # =============================================================================
 
 readonly INSTALL_DIR="/opt"
@@ -74,43 +74,104 @@ preinstall_system_pkg() {
     log_info "Системные зависимости установлены."
 }
 
+# Выбранная git-ветка (по умолчанию main)
+GIT_BRANCH="main"
+
+select_git_branch() {
+    echo
+    echo "──────────────────────────────────────────────"
+    echo " Выбор ветки репозитория"
+    echo "──────────────────────────────────────────────"
+    echo "  [1] main  — стабильная (по умолчанию)"
+    echo "  [2] dev   — разработка"
+    echo "──────────────────────────────────────────────"
+
+    local answer=""
+    while true; do
+        read -r -p "С какой веткой работать? [main/dev] (Enter = main): " answer
+        answer="$(echo "${answer:-main}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        case "${answer}" in
+            ""|1|main|m)
+                GIT_BRANCH="main"
+                break
+                ;;
+            2|dev|d)
+                GIT_BRANCH="dev"
+                break
+                ;;
+            *)
+                log_warn "Введите main или dev."
+                ;;
+        esac
+    done
+
+    log_info "Выбрана ветка: ${GIT_BRANCH}"
+}
+
 clone_repository() {
+    local branch="${GIT_BRANCH:-main}"
+
     if [[ -d "${DBCS_DIR}/.git" ]]; then
-        log_warn "Репозиторий уже клонирован. Обновляем..."
-        git -C "${DBCS_DIR}" fetch origin
-        # main или master — берём то, что есть на remote
-        local branch="main"
-        if git -C "${DBCS_DIR}" rev-parse --verify "origin/main" >/dev/null 2>&1; then
-            branch="main"
-        elif git -C "${DBCS_DIR}" rev-parse --verify "origin/master" >/dev/null 2>&1; then
-            branch="master"
+        log_warn "Репозиторий уже клонирован. Обновляем ветку «${branch}»..."
+        git -C "${DBCS_DIR}" fetch origin --prune
+        if ! git -C "${DBCS_DIR}" rev-parse --verify "origin/${branch}" >/dev/null 2>&1; then
+            log_error "Ветка origin/${branch} не найдена на remote."
+            exit 1
         fi
-        git -C "${DBCS_DIR}" checkout "${branch}"
+        git -C "${DBCS_DIR}" checkout -B "${branch}" "origin/${branch}"
         git -C "${DBCS_DIR}" reset --hard "origin/${branch}"
     else
-        log_info "Клонирование репозитория..."
+        log_info "Клонирование репозитория (ветка ${branch})..."
         mkdir -p "${INSTALL_DIR}"
-        git clone --depth 1 "${REPO_URL}" "${DBCS_DIR}"
+        git clone --depth 1 --branch "${branch}" "${REPO_URL}" "${DBCS_DIR}"
     fi
 
-    log_info "Текущий коммит: $(git -C "${DBCS_DIR}" rev-parse HEAD)"
+    log_info "Ветка: $(git -C "${DBCS_DIR}" rev-parse --abbrev-ref HEAD)"
+    log_info "Коммит: $(git -C "${DBCS_DIR}" rev-parse HEAD)"
 }
 
 # -----------------------------------------------------------------------------
 # Версии
 # -----------------------------------------------------------------------------
 
-get_source_backend_version() {
+# Извлечь app_version из текста config.py (stdin или файл).
+parse_backend_version_text() {
     local ver=""
-    if [[ -f "${BACKEND_DIR}/app/core/config.py" ]]; then
-        ver="$(
-            grep -E 'app_version[[:space:]]*:[[:space:]]*str[[:space:]]*=' "${BACKEND_DIR}/app/core/config.py" \
-                | head -n1 \
-                | sed -E 's/.*app_version[[:space:]]*:[[:space:]]*str[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/' \
-                || true
-        )"
-    fi
+    ver="$(
+        grep -E 'app_version[[:space:]]*:[[:space:]]*str[[:space:]]*=' \
+            | head -n1 \
+            | sed -E 's/.*app_version[[:space:]]*:[[:space:]]*str[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/' \
+            || true
+    )"
     echo "${ver:-unknown}"
+}
+
+get_source_backend_version() {
+    if [[ -f "${BACKEND_DIR}/app/core/config.py" ]]; then
+        parse_backend_version_text < "${BACKEND_DIR}/app/core/config.py"
+    else
+        echo "unknown"
+    fi
+}
+
+# Версия backend в git-ref (например origin/main), без checkout.
+get_backend_version_at_ref() {
+    local ref="${1:-}"
+    local content=""
+    if [[ -z "${ref}" ]] || [[ ! -d "${DBCS_DIR}/.git" ]]; then
+        echo "unknown"
+        return 0
+    fi
+    if ! git -C "${DBCS_DIR}" rev-parse --verify "${ref}" >/dev/null 2>&1; then
+        echo "n/a"
+        return 0
+    fi
+    content="$(git -C "${DBCS_DIR}" show "${ref}:backend/app/core/config.py" 2>/dev/null || true)"
+    if [[ -z "${content}" ]]; then
+        echo "unknown"
+        return 0
+    fi
+    printf '%s\n' "${content}" | parse_backend_version_text
 }
 
 get_running_backend_version() {
@@ -132,6 +193,36 @@ get_source_frontend_version() {
     else
         echo "unknown"
     fi
+}
+
+# Версия frontend в git-ref (например origin/dev), без checkout.
+get_frontend_version_at_ref() {
+    local ref="${1:-}"
+    local content=""
+    if [[ -z "${ref}" ]] || [[ ! -d "${DBCS_DIR}/.git" ]]; then
+        echo "unknown"
+        return 0
+    fi
+    if ! git -C "${DBCS_DIR}" rev-parse --verify "${ref}" >/dev/null 2>&1; then
+        echo "n/a"
+        return 0
+    fi
+    content="$(git -C "${DBCS_DIR}" show "${ref}:frontend/package.json" 2>/dev/null || true)"
+    if [[ -z "${content}" ]]; then
+        echo "unknown"
+        return 0
+    fi
+    printf '%s\n' "${content}" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("version","unknown"))' 2>/dev/null \
+        || echo "unknown"
+}
+
+git_short_commit() {
+    local ref="${1:-}"
+    if [[ -z "${ref}" ]] || [[ ! -d "${DBCS_DIR}/.git" ]]; then
+        echo "n/a"
+        return 0
+    fi
+    git -C "${DBCS_DIR}" rev-parse --short "${ref}" 2>/dev/null || echo "n/a"
 }
 
 get_deployed_frontend_version() {
@@ -168,6 +259,71 @@ print_versions() {
     if systemctl is-active --quiet "${BACKEND_SERVICE}" 2>/dev/null; then
         echo "  Сервис ${BACKEND_SERVICE}: active"
     else
+        echo "  Сервис ${BACKEND_SERVICE}: inactive/missing"
+    fi
+    echo "──────────────────────────────────────────────"
+    echo
+}
+
+# --check: версии в origin/main, origin/dev и текущем рабочем дереве (+ runtime).
+print_check_versions() {
+    local local_branch="n/a"
+    local local_commit="n/a"
+    local be_main be_dev be_cur be_run
+    local fe_main fe_dev fe_cur fe_dep
+    local c_main c_dev
+
+    if [[ -d "${DBCS_DIR}/.git" ]]; then
+        log_info "Обновление сведений с origin (main, dev)..."
+        if ! git -C "${DBCS_DIR}" fetch origin main dev --prune >/dev/null 2>&1; then
+            # fallback: обычный fetch (shallow / частичные remotes)
+            if ! git -C "${DBCS_DIR}" fetch origin --prune >/dev/null 2>&1; then
+                log_warn "Не удалось выполнить git fetch (сеть/доступ) — показываем кэш remote."
+            fi
+        fi
+        local_branch="$(git -C "${DBCS_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+        local_commit="$(git_short_commit HEAD)"
+    else
+        log_warn "Репозиторий git не найден в ${DBCS_DIR} — remote-ветки недоступны."
+    fi
+
+    be_main="$(get_backend_version_at_ref origin/main)"
+    be_dev="$(get_backend_version_at_ref origin/dev)"
+    be_cur="$(get_source_backend_version)"
+    be_run="$(get_running_backend_version)"
+
+    fe_main="$(get_frontend_version_at_ref origin/main)"
+    fe_dev="$(get_frontend_version_at_ref origin/dev)"
+    fe_cur="$(get_source_frontend_version)"
+    fe_dep="$(get_deployed_frontend_version)"
+
+    c_main="$(git_short_commit origin/main)"
+    c_dev="$(git_short_commit origin/dev)"
+
+    echo
+    echo "──────────────────────────────────────────────"
+    echo " Версии DBCS (--check)"
+    echo "──────────────────────────────────────────────"
+    echo "  Текущая ветка:  ${local_branch} @ ${local_commit}"
+    echo "  origin/main:    ${c_main}"
+    echo "  origin/dev:     ${c_dev}"
+    echo
+    echo "  Backend:"
+    echo "    origin/main:     ${be_main}"
+    echo "    origin/dev:      ${be_dev}"
+    echo "    текущий код:     ${be_cur}"
+    echo "    запущено:        ${be_run}"
+    echo
+    echo "  Frontend:"
+    echo "    origin/main:     ${fe_main}"
+    echo "    origin/dev:      ${fe_dev}"
+    echo "    текущий код:     ${fe_cur}"
+    echo "    на сайте:        ${fe_dep}"
+    if systemctl is-active --quiet "${BACKEND_SERVICE}" 2>/dev/null; then
+        echo
+        echo "  Сервис ${BACKEND_SERVICE}: active"
+    else
+        echo
         echo "  Сервис ${BACKEND_SERVICE}: inactive/missing"
     fi
     echo "──────────────────────────────────────────────"
@@ -359,7 +515,7 @@ usage() {
 Использование: $0 [команда]
 
   (без аргументов)  Полная установка: git, backend, frontend
-  --check | check   Показать версии backend/frontend
+  --check | check   Версии в main / dev / текущей (без изменений кода)
   --update | update Проверить версии и обновить/перезапустить при необходимости
   --force-update    Принудительно обновить backend и frontend
   -h | --help       Справка
@@ -371,6 +527,7 @@ full_install() {
     check_root
     check_os
     preinstall_system_pkg
+    select_git_branch
     clone_repository
     deploy_backend
     deploy_frontend
@@ -389,7 +546,7 @@ main() {
             ;;
         --check|check)
             check_root
-            print_versions
+            print_check_versions
             trap - EXIT
             exit 0
             ;;
