@@ -491,7 +491,12 @@ run_backend_python() {
             source .env
             set +a
         fi
-        .venv/bin/python "$@"
+        # stdin с /dev/tty: create_SuperAdminUser и др. при curl|bash
+        if [[ -r /dev/tty ]]; then
+            .venv/bin/python "$@" </dev/tty
+        else
+            .venv/bin/python "$@"
+        fi
     )
 }
 

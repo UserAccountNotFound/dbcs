@@ -2,12 +2,17 @@
 """
 Наполнение БД метаданными шаблонов (CSS лежит в templates/css/{code}.css).
 
+Неинтерактивный скрипт — безопасен при запуске из install.sh / curl|bash
+(stdin не используется).
+
 Запуск:
     cd /opt/dbcs/backend
-    source .venv/bin/activate
     set -a && source .env && set +a
-    python seed_templates_vCard.py
+    .venv/bin/python additional_scripts/seed_templates_vCard.py
 """
+from __future__ import annotations
+
+import os
 import sys
 
 from sqlalchemy import select
@@ -73,12 +78,19 @@ BASE_TEMPLATES = [
 
 
 def seed_templates() -> None:
+    if not os.environ.get("DATABASE_URL", "").strip():
+        print(
+            "Ошибка: DATABASE_URL не задан. "
+            "Загрузите .env (set -a && source .env && set +a) перед запуском."
+        )
+        sys.exit(1)
+
     db = SessionLocal()
 
     try:
         created_count = 0
         updated_count = 0
-        missing_css = []
+        missing_css: list[str] = []
 
         for template_data in BASE_TEMPLATES:
             code = template_data["code"]
