@@ -73,7 +73,19 @@
 
 ## Быстрый старт
 
-curl -s https://github.com/UserAccountNotFound/dbcs/blob/main/install.sh | bash
+```bash
+# Надёжнее: скачать файл, затем запустить (stdin свободен для вопросов)
+curl -fsSL https://raw.githubusercontent.com/UserAccountNotFound/dbcs/main/install.sh -o /tmp/dbcs-install.sh
+sudo bash /tmp/dbcs-install.sh
+
+# Или одной строкой (вопросы идут через /dev/tty)
+curl -fsSL https://raw.githubusercontent.com/UserAccountNotFound/dbcs/main/install.sh | sudo bash
+
+# Без вопросов: ветка main|dev
+DBCS_BRANCH=main curl -fsSL https://raw.githubusercontent.com/UserAccountNotFound/dbcs/main/install.sh | sudo bash
+```
+
+> URL должен быть `raw.githubusercontent.com` (или `curl -fsSL` с редиректом). Без `-L`/`-f` старый URL `github.com/.../raw/...` может отдать пустой 302.
 
 ### Предварительные требования
 - Python 3.10 или выше
