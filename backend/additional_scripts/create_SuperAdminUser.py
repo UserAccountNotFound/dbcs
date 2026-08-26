@@ -20,7 +20,13 @@ from __future__ import annotations
 import getpass
 import os
 import sys
+from pathlib import Path
 from typing import Optional, TextIO
+
+# При запуске как additional_scripts/*.py в sys.path попадает эта папка, не backend/
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError

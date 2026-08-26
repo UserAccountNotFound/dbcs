@@ -491,6 +491,7 @@ run_backend_python() {
             source .env
             set +a
         fi
+        export PYTHONPATH="${BACKEND_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
         # stdin с /dev/tty: create_SuperAdminUser и др. при curl|bash
         if [[ -r /dev/tty ]]; then
             .venv/bin/python "$@" </dev/tty
