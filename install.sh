@@ -77,7 +77,52 @@ preinstall_system_pkg() {
 # Выбранная git-ветка (по умолчанию main)
 GIT_BRANCH="main"
 
+# Чтение с реального терминала (при curl|bash stdin = скрипт, не клавиатура).
+# EOF / отсутствие TTY → значение по умолчанию; set -e не прерывает.
+# read_from_tty VAR "prompt: " "default"
+read_from_tty() {
+    local __var="$1"
+    local __prompt="$2"
+    local __default="${3:-}"
+    local __reply=""
+
+    if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+        printf -v "${__var}" '%s' "${__default}"
+        return 0
+    fi
+
+    if [[ -r /dev/tty ]]; then
+        IFS= read -r -p "${__prompt}" __reply </dev/tty || true
+    elif [[ -t 0 ]]; then
+        IFS= read -r -p "${__prompt}" __reply || true
+    else
+        log_warn "Нет интерактивного TTY — «${__default}»"
+        __reply="${__default}"
+    fi
+
+    if [[ -z "${__reply}" ]]; then
+        __reply="${__default}"
+    fi
+    printf -v "${__var}" '%s' "${__reply}"
+}
+
 select_git_branch() {
+    # Неинтерактивно: DBCS_BRANCH=main|dev
+    local preset="${DBCS_BRANCH:-}"
+    if [[ -n "${preset}" ]]; then
+        preset="$(echo "${preset}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        case "${preset}" in
+            main|dev)
+                GIT_BRANCH="${preset}"
+                log_info "Ветка из DBCS_BRANCH: ${GIT_BRANCH}"
+                return 0
+                ;;
+            *)
+                log_warn "DBCS_BRANCH=${DBCS_BRANCH} неверна, спрашиваем интерактивно."
+                ;;
+        esac
+    fi
+
     echo
     echo "──────────────────────────────────────────────"
     echo " Выбор ветки репозитория"
@@ -88,8 +133,8 @@ select_git_branch() {
 
     local answer=""
     while true; do
-        read -r -p "С какой веткой работать? [main/dev] (Enter = main): " answer
-        answer="$(echo "${answer:-main}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        read_from_tty answer "С какой веткой работать? [main/dev] (Enter = main): " "main"
+        answer="$(echo "${answer}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
         case "${answer}" in
             ""|1|main|m)
                 GIT_BRANCH="main"
@@ -473,7 +518,7 @@ deploy_backend() {
 
     local create_admin_answer=""
     while true; do
-        read -r -p "Создать SUPERADMIN сейчас? [y/N]: " create_admin_answer
+        read_from_tty create_admin_answer "Создать SUPERADMIN сейчас? [y/N]: " "N"
         create_admin_answer="${create_admin_answer:-N}"
         case "${create_admin_answer}" in
             [yY]|[yY][eE][sS]|[дД]|[дД][аА])
