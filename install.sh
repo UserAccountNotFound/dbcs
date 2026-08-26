@@ -158,7 +158,17 @@ clone_repository() {
 
     if [[ -d "${DBCS_DIR}/.git" ]]; then
         log_warn "Репозиторий уже клонирован. Обновляем ветку «${branch}»..."
-        git -C "${DBCS_DIR}" fetch origin --prune
+        # shallow/--single-branch: в fetch только одна ветка — явно тянем нужную
+        git -C "${DBCS_DIR}" remote set-branches --add origin "${branch}" >/dev/null 2>&1 || true
+        if ! git -C "${DBCS_DIR}" fetch origin \
+            "+refs/heads/${branch}:refs/remotes/origin/${branch}" >/dev/null 2>&1; then
+            # запасной путь: разрешить все ветки и fetch
+            git -C "${DBCS_DIR}" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+            if ! git -C "${DBCS_DIR}" fetch origin --prune; then
+                log_error "Не удалось выполнить git fetch origin."
+                exit 1
+            fi
+        fi
         if ! git -C "${DBCS_DIR}" rev-parse --verify "origin/${branch}" >/dev/null 2>&1; then
             log_error "Ветка origin/${branch} не найдена на remote."
             exit 1
@@ -320,8 +330,12 @@ print_check_versions() {
 
     if [[ -d "${DBCS_DIR}/.git" ]]; then
         log_info "Обновление сведений с origin (main, dev)..."
-        if ! git -C "${DBCS_DIR}" fetch origin main dev --prune >/dev/null 2>&1; then
-            # fallback: обычный fetch (shallow / частичные remotes)
+        # shallow/--single-branch: явный refspec, иначе origin/dev не появляется
+        git -C "${DBCS_DIR}" remote set-branches --add origin main >/dev/null 2>&1 || true
+        git -C "${DBCS_DIR}" remote set-branches --add origin dev >/dev/null 2>&1 || true
+        if ! git -C "${DBCS_DIR}" fetch origin \
+            "+refs/heads/main:refs/remotes/origin/main" \
+            "+refs/heads/dev:refs/remotes/origin/dev" >/dev/null 2>&1; then
             if ! git -C "${DBCS_DIR}" fetch origin --prune >/dev/null 2>&1; then
                 log_warn "Не удалось выполнить git fetch (сеть/доступ) — показываем кэш remote."
             fi
@@ -363,7 +377,7 @@ print_check_versions() {
     echo "    origin/main:     ${fe_main}"
     echo "    origin/dev:      ${fe_dev}"
     echo "    текущий код:     ${fe_cur}"
-    echo "    на сайте:        ${fe_dep}"
+    echo "    запущено:        ${fe_dep}"
     if systemctl is-active --quiet "${BACKEND_SERVICE}" 2>/dev/null; then
         echo
         echo "  Сервис ${BACKEND_SERVICE}: active"
