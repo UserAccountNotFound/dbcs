@@ -237,15 +237,13 @@ EOF
 }
 
 configure_tls() {
-    SERVER_NAME="$(extract_url_host "${PUBLIC_BASE_URL}")"
     if [[ -z "${SERVER_NAME}" ]]; then
-        log_error "Не удалось извлечь hostname из PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+        log_error "SERVER_NAME не задан — сначала вызовите configure_server_host."
         exit 1
     fi
 
     if find_existing_certs "${SERVER_NAME}"; then
         SSL_MODE="existing"
-        set_public_scheme https
         log_info "Найдены SSL-сертификаты для ${SERVER_NAME} — используем HTTPS."
         log_info "  cert: ${SSL_CERT_PATH}"
         return 0
@@ -271,30 +269,25 @@ configure_tls() {
             SSL_MODE="http"
             SSL_CERT_PATH=""
             SSL_KEY_PATH=""
-            set_public_scheme http
             log_warn "Выбран HTTP без TLS. PWA (service worker) работать не будет."
             ;;
         3|letsencrypt|le|LE)
             SSL_MODE="letsencrypt"
-            set_public_scheme https
             log_info "Выбран Let's Encrypt — сертификат будет получен при настройке Nginx."
             ;;
         2|selfsigned|self|"")
             SSL_MODE="selfsigned"
             generate_self_signed_cert "${SERVER_NAME}"
-            set_public_scheme https
             log_warn "Самоподписанный сертификат: браузер покажет предупреждение (для PWA обычно достаточно)."
             ;;
         *)
             log_warn "Неизвестный SSL_MODE=${choice}, используем самоподписанный."
             SSL_MODE="selfsigned"
             generate_self_signed_cert "${SERVER_NAME}"
-            set_public_scheme https
             ;;
     esac
 
-    log_info "PUBLIC_BASE_URL после выбора TLS: ${PUBLIC_BASE_URL}"
-    write_tls_state
+    log_info "TLS настроен: mode=${SSL_MODE}, host=${SERVER_NAME}"
 }
 
 
@@ -443,29 +436,24 @@ PY
     log_warn "DB_PASSWORD не задан — сгенерирован случайный пароль (будет записан в DATABASE_URL в .env)."
 }
 
+
 # ==============================================================================
-# Определение PUBLIC_BASE_URL (FQDN сервера)
+# Имя сервера и PUBLIC_BASE_URL (после выбора TLS)
 # ==============================================================================
-log_info "Определение PUBLIC_BASE_URL..."
-detect_base_url() {   
-    # Попытка определить FQDN сервера
+
+detect_server_host() {
     local fqdn=""
-    
-    # Способ 1: через команду hostname -f (возвращает FQDN если настроен /etc/hosts или DNS)
+
     if command -v hostname &>/dev/null; then
         fqdn=$(hostname -f 2>/dev/null || echo "")
     fi
-    
-    # Способ 2: если hostname -f не вернул результат, пробуем получить IP и сделать reverse lookup
+
     if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
-        # Получаем основной IP адрес сервера
         local ip_addr=""
         if command -v hostname &>/dev/null; then
             ip_addr=$(hostname -I 2>/dev/null | awk '{print $1}')
         fi
-        
         if [[ -n "$ip_addr" && ! "$ip_addr" =~ ^127\. ]]; then
-            # Пытаемся сделать reverse DNS lookup
             if command -v host &>/dev/null; then
                 fqdn=$(host "$ip_addr" 2>/dev/null | grep -oP 'name pointer \K.*' || echo "")
             elif command -v dig &>/dev/null; then
@@ -473,8 +461,7 @@ detect_base_url() {
             fi
         fi
     fi
-    
-    # Способ 3: если все еще пусто, используем hostname без домена
+
     if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
         if command -v hostname &>/dev/null; then
             fqdn=$(hostname 2>/dev/null || echo "localhost")
@@ -482,85 +469,144 @@ detect_base_url() {
             fqdn="localhost"
         fi
     fi
-    
-    # Очищаем fqdn от лишних пробелов
-    fqdn=$(echo "$fqdn" | xargs)
-    
-    # Определяем протокол (если есть SSL сертификаты, можно использовать https)
-    local protocol="http"
-    if [[ -f "/etc/letsencrypt/live/${fqdn}/fullchain.pem" ]] || \
-       [[ -f "/etc/ssl/certs/${fqdn}.crt" ]] || \
-       [[ -f "/etc/nginx/ssl/${fqdn}.crt" ]]; then
-        protocol="https"
-        log_info "Обнаружен SSL сертификат для ${fqdn}, используем https://"
-    fi
-    
-    echo "${protocol}://${fqdn}"
+
+    echo "$(echo "$fqdn" | xargs)"
 }
 
-# Определяем базовый URL
-DETECTED_URL=$(detect_base_url)
-DEFAULT_BASE_URL="$DETECTED_URL"
-
-# Уже задан в окружении — не спрашиваем (удобно для автоматизации).
-if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
-    PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-    if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-        PUBLIC_BASE_URL="https://${PUBLIC_BASE_URL}"
+tls_scheme_for_mode() {
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        echo "http"
+    else
+        echo "https"
     fi
-    log_info "PUBLIC_BASE_URL из окружения: ${PUBLIC_BASE_URL}"
-else
-    log_info "Автоматически определен PUBLIC_BASE_URL: ${DETECTED_URL}"
-    echo ""
+}
+
+build_public_url() {
+    local scheme host path
+    scheme="$(tls_scheme_for_mode)"
+    host="${1:-${SERVER_NAME}}"
+    path="${2:-}"
+    path="${path%/}"
+    echo "${scheme}://${host}${path}"
+}
+
+configure_server_host() {
+    log_info "Определение имени сервера..."
+
+    if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
+        SERVER_NAME="$(extract_url_host "${PUBLIC_BASE_URL}")"
+        if [[ -z "${SERVER_NAME}" ]]; then
+            log_error "Не удалось извлечь hostname из PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+            exit 1
+        fi
+        log_info "Имя сервера из PUBLIC_BASE_URL: ${SERVER_NAME}"
+        return 0
+    fi
+
+    local detected
+    detected="$(detect_server_host)"
+    SERVER_NAME="${detected}"
+
+    echo
     echo "=============================================================================="
-    echo "Настройка PUBLIC_BASE_URL"
+    echo " Имя сервера (hostname / FQDN)"
     echo "=============================================================================="
-    echo "Скрипт обнаружил следующий URL сервера: ${DETECTED_URL}"
+    echo " Обнаружено: ${detected}"
+    echo " (схема http/https будет выбрана после настройки TLS)"
+    echo "=============================================================================="
+
+    local answer=""
+    read_from_tty answer "Использовать это имя? [Y/n] или введите своё: " "Y"
+
+    if [[ -z "$answer" || "$answer" =~ ^[Yy]$ ]]; then
+        SERVER_NAME="${detected}"
+    elif [[ "$answer" =~ ^[Nn]$ ]]; then
+        read_from_tty SERVER_NAME "Введите hostname или FQDN: " "${detected}"
+        SERVER_NAME="$(echo "${SERVER_NAME}" | xargs)"
+    else
+        answer="${answer#http://}"
+        answer="${answer#https://}"
+        answer="${answer%%/*}"
+        SERVER_NAME="$(echo "${answer}" | xargs)"
+    fi
+
+    if [[ -z "${SERVER_NAME}" ]]; then
+        log_error "Имя сервера не может быть пустым."
+        exit 1
+    fi
+    log_info "Имя сервера: ${SERVER_NAME}"
+}
+
+configure_public_base_url() {
+    local scheme default_url user_input
+
+    scheme="$(tls_scheme_for_mode)"
+    default_url="$(build_public_url "${SERVER_NAME}")"
+
+    if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
+        PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+        if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+            PUBLIC_BASE_URL="${scheme}://${PUBLIC_BASE_URL}"
+        fi
+        # Приводим схему к выбранному TLS
+        PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "${PUBLIC_BASE_URL}")")"
+        log_info "PUBLIC_BASE_URL из окружения (схема ${scheme}): ${PUBLIC_BASE_URL}"
+        write_tls_state
+        return 0
+    fi
+
+    echo
+    echo "=============================================================================="
+    echo " Настройка PUBLIC_BASE_URL"
+    echo "=============================================================================="
+    echo " TLS: ${SSL_MODE} → схема ${scheme}"
+    echo " Предлагаемый URL: ${default_url}"
     echo ""
-    echo "Этот URL будет использоваться для:"
-    echo "  - CORS настроек (ALLOWED_ORIGINS)"
-    echo "  - Генерации ссылок в API ответах"
-    echo "  - Redirect URI после аутентификации"
-    echo ""
+    echo " Используется для:"
+    echo "  - CORS (ALLOWED_ORIGINS)"
+    echo "  - ссылок в API"
+    echo "  - redirect после аутентификации"
+    echo "=============================================================================="
+
     user_input=""
-    read_from_tty user_input "Использовать это значение по умолчанию? [Y/n] или введите свой URL: " "Y"
+    read_from_tty user_input "Использовать предложенный URL? [Y/n] или введите свой: " "Y"
 
     if [[ -z "$user_input" || "$user_input" =~ ^[Yy]$ ]]; then
-        PUBLIC_BASE_URL="$DEFAULT_BASE_URL"
-        log_info "Используем определенное значение: ${PUBLIC_BASE_URL}"
+        PUBLIC_BASE_URL="${default_url}"
     elif [[ "$user_input" =~ ^[Nn]$ ]]; then
         while true; do
-            PUBLIC_BASE_URL=""
-            read_from_tty PUBLIC_BASE_URL "Введите PUBLIC_BASE_URL (например, https://mydomain.com): " ""
+            local raw=""
+            read_from_tty raw "Введите PUBLIC_BASE_URL (hostname или полный URL): " ""
 
-            if [[ "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-                PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-                log_info "Установлено значение: ${PUBLIC_BASE_URL}"
-                break
-            else
-                log_error "URL должен начинаться с http:// или https://"
-                retry=""
-                read_from_tty retry "Попробовать снова? [Y/n]: " "Y"
-                if [[ "$retry" =~ ^[Nn]$ ]]; then
-                    log_error "Необходимо указать корректный PUBLIC_BASE_URL для продолжения."
-                    exit 1
-                fi
+            if [[ -z "$raw" ]]; then
+                log_error "URL не может быть пустым."
+                continue
             fi
+            if [[ "$raw" =~ ^https?:// ]]; then
+                PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "$raw")")"
+            else
+                raw="${raw#http://}"
+                raw="${raw#https://}"
+                raw="${raw%%/*}"
+                PUBLIC_BASE_URL="$(build_public_url "$raw")"
+            fi
+            log_info "Установлено: ${PUBLIC_BASE_URL}"
+            break
         done
     else
-        PUBLIC_BASE_URL="$user_input"
-        PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-
-        if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-            log_warn "Введенное значение не начинается с http:// или https://, добавляем http://"
-            PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+        if [[ "$user_input" =~ ^https?:// ]]; then
+            PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "$user_input")")"
+        else
+            user_input="${user_input#http://}"
+            user_input="${user_input#https://}"
+            user_input="${user_input%%/*}"
+            PUBLIC_BASE_URL="$(build_public_url "$user_input")"
         fi
-
-        log_info "Используем введенное значение: ${PUBLIC_BASE_URL}"
     fi
-fi
 
-echo ""
+    log_info "PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}"
+    write_tls_state
+}
 
 # ==============================================================================
 # 1. Установка системных зависимостей и регенерация локалей
@@ -1035,8 +1081,10 @@ main() {
     check_root
     install_dependencies
     setup_user_and_dirs
-    # TLS после apt (нужен openssl); до setup_env (пишет PUBLIC_BASE_URL / cookies)
+    # hostname → TLS → PUBLIC_BASE_URL (схема по TLS); до setup_env
+    configure_server_host
     configure_tls
+    configure_public_base_url
     resolve_db_password
     setup_env
     setup_database
