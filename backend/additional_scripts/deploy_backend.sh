@@ -187,7 +187,7 @@ DEFAULT_BASE_URL="$DETECTED_URL"
 if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
     PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
     if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-        PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+        PUBLIC_BASE_URL="https://${PUBLIC_BASE_URL}"
     fi
     log_info "PUBLIC_BASE_URL из окружения: ${PUBLIC_BASE_URL}"
 else
