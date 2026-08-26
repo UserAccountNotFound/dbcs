@@ -14,6 +14,15 @@ NGINX_MAIN_CONF="/etc/nginx/nginx.conf"
 # Настройки бэкенда (для проксирования API в Nginx)
 APP_PORT="8000"
 API_PREFIX="/api"
+BACKEND_ENV="/opt/${APP_NAME}/backend/.env"
+TLS_STATE_FILE="/opt/${APP_NAME}/.tls.env"
+SSL_MODE="${SSL_MODE:-}"
+SSL_CERT_PATH="${SSL_CERT_PATH:-}"
+SSL_KEY_PATH="${SSL_KEY_PATH:-}"
+SERVER_NAME="${SERVER_NAME:-}"
+ACME_WEBROOT="${ACME_WEBROOT:-/var/www/letsencrypt}"
+SSL_DIR="${SSL_DIR:-/etc/nginx/ssl/${APP_NAME}}"
+PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -183,38 +192,92 @@ deploy_static() {
 
 # ==============================================================================
 # 5. Настройка Nginx (Объединяем API Proxy и Frontend Static)
-# ==============================================================================
-setup_nginx() {
-    log_info "Настройка Nginx для раздачи PWA и проксирования API..."
-    
-    # Убеждаемся, что зоны Rate Limiting существуют
-    if ! grep -q "limit_req_zone.*auth_limit" "$NGINX_MAIN_CONF"; then
-        log_info "Добавление зон Rate Limiting в глобальный nginx.conf..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;\n    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' "$NGINX_MAIN_CONF"
-    fi
-    
-    # Генерируем финальный конфиг сайта
-    cat <<EOF > "$NGINX_CONF"
-server {
-    listen 80;
-    server_name _; # Замените на ваш домен или IP
 
-    # Корень для фронтенда
+# =============================================================================
+# TLS: состояние от deploy_backend.sh (без повторного вопроса)
+# =============================================================================
+
+load_tls_state() {
+    if [[ -f "${TLS_STATE_FILE}" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "${TLS_STATE_FILE}"
+        set +a
+        log_info "TLS-состояние загружено из ${TLS_STATE_FILE} (mode=${SSL_MODE:-?})"
+    fi
+
+    if [[ -z "${PUBLIC_BASE_URL}" && -f "${BACKEND_ENV}" ]]; then
+        PUBLIC_BASE_URL="$(grep -E '^PUBLIC_BASE_URL=' "${BACKEND_ENV}" | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
+    fi
+
+    if [[ -z "${SERVER_NAME}" && -n "${PUBLIC_BASE_URL}" ]]; then
+        SERVER_NAME="$(python3 -c 'from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).hostname or "")' "${PUBLIC_BASE_URL}" 2>/dev/null || true)"
+    fi
+    if [[ -z "${SERVER_NAME}" ]]; then
+        SERVER_NAME="$(hostname -f 2>/dev/null || hostname || echo _)"
+    fi
+
+    if [[ -z "${SSL_CERT_PATH}" || -z "${SSL_KEY_PATH}" || ! -f "${SSL_CERT_PATH:-/n}" || ! -f "${SSL_KEY_PATH:-/n}" ]]; then
+        local host="${SERVER_NAME}"
+        if [[ -f "/etc/letsencrypt/live/${host}/fullchain.pem" && -f "/etc/letsencrypt/live/${host}/privkey.pem" ]]; then
+            SSL_CERT_PATH="/etc/letsencrypt/live/${host}/fullchain.pem"
+            SSL_KEY_PATH="/etc/letsencrypt/live/${host}/privkey.pem"
+            SSL_MODE="${SSL_MODE:-existing}"
+        elif [[ -f "${SSL_DIR}/${host}.crt" && -f "${SSL_DIR}/${host}.key" ]]; then
+            SSL_CERT_PATH="${SSL_DIR}/${host}.crt"
+            SSL_KEY_PATH="${SSL_DIR}/${host}.key"
+            SSL_MODE="${SSL_MODE:-existing}"
+        elif [[ -f "/etc/nginx/ssl/${host}.crt" && -f "/etc/nginx/ssl/${host}.key" ]]; then
+            SSL_CERT_PATH="/etc/nginx/ssl/${host}.crt"
+            SSL_KEY_PATH="/etc/nginx/ssl/${host}.key"
+            SSL_MODE="${SSL_MODE:-existing}"
+        fi
+    fi
+
+    if [[ -z "${SSL_MODE}" ]]; then
+        if [[ "${PUBLIC_BASE_URL}" == https://* && -n "${SSL_CERT_PATH}" && -f "${SSL_CERT_PATH}" ]]; then
+            SSL_MODE="existing"
+        else
+            SSL_MODE="http"
+        fi
+    fi
+
+    if [[ "${SSL_MODE}" != "http" ]]; then
+        if [[ -z "${SSL_CERT_PATH}" || -z "${SSL_KEY_PATH}" || ! -f "${SSL_CERT_PATH}" || ! -f "${SSL_KEY_PATH}" ]]; then
+            log_warn "SSL_MODE=${SSL_MODE}, но сертификаты не найдены — откат на HTTP (PWA недоступно)."
+            SSL_MODE="http"
+        fi
+    fi
+}
+
+nginx_ensure_rate_limits() {
+    # Имена зон совпадают с deploy_backend.sh
+    if ! grep -q "limit_req_zone.*auth_limit" "$NGINX_MAIN_CONF"; then
+        log_info "Добавление зоны Rate Limiting: auth_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;' "$NGINX_MAIN_CONF"
+    fi
+    if ! grep -q "limit_req_zone.*public_limit" "$NGINX_MAIN_CONF"; then
+        log_info "Добавление зоны Rate Limiting: public_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' "$NGINX_MAIN_CONF"
+    fi
+    if ! grep -q "limit_req_zone.*uploads_limit" "$NGINX_MAIN_CONF"; then
+        log_info "Добавление зоны Rate Limiting: uploads_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=uploads_limit:10m rate=10r/m;' "$NGINX_MAIN_CONF"
+    fi
+}
+
+nginx_site_locations() {
+    cat <<EOF
     root ${WEB_ROOT};
     index index.html;
-
     client_max_body_size 10M;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-    
-    # CSP для PWA (разрешаем same-origin, inline стили для Tailwind, blob/data для QR и vCard)
     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self';" always;
 
-    # 1. Rate Limiting & API Proxy (Бэкенд)
     location ${API_PREFIX}/v1/auth/ {
         limit_req zone=auth_limit burst=10 nodelay;
         limit_req_status 429;
@@ -223,6 +286,19 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ${API_PREFIX}/v1/files/ {
+        limit_req zone=uploads_limit burst=5 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 90s;
+        proxy_send_timeout 90s;
+        proxy_read_timeout 90s;
     }
 
     location ${API_PREFIX}/v1/public/ {
@@ -246,7 +322,6 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # 2. PWA Service Worker и Manifest (СТРОГО без кэширования)
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files \$uri =404;
@@ -256,36 +331,98 @@ server {
         try_files \$uri =404;
     }
 
-    # 3. Static Assets (Vite hashes) - Агрессивное кэширование на год
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files \$uri =404;
     }
 
-    # 4. Fallback для Vue Router (History Mode) и index.html
     location / {
         try_files \$uri \$uri/ /index.html;
-        # index.html не должен кэшироваться, чтобы пользователь всегда получал свежую версию PWA
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
-    # Запрет доступа к скрытым файлам
-    location ~ /\. {
+    location ~ /\\. {
         deny all;
         access_log off;
         log_not_found off;
     }
+EOF
+}
+
+# ==============================================================================
+# 5. Настройка Nginx (статика + API + TLS из backend)
+# ==============================================================================
+setup_nginx() {
+    log_info "Настройка Nginx для PWA + API (с учётом TLS)..."
+    load_tls_state
+    nginx_ensure_rate_limits
+
+    local server_name="${SERVER_NAME:-_}"
+    local locations
+    locations="$(nginx_site_locations)"
+
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        log_warn "HTTP без TLS — PWA (service worker) будет недоступно."
+        cat > "${NGINX_CONF}" <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${server_name};
+
+${locations}
 }
 EOF
+    else
+        log_info "HTTPS (${SSL_MODE}): ${SSL_CERT_PATH}"
+        mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+        cat > "${NGINX_CONF}" <<EOF
+# HTTP → HTTPS (+ ACME)
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${server_name};
 
-    ln -sf "$NGINX_CONF" "$NGINX_LINK"
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${server_name};
+
+    ssl_certificate     ${SSL_CERT_PATH};
+    ssl_certificate_key ${SSL_KEY_PATH};
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+${locations}
+}
+EOF
+    fi
+
+    ln -sf "${NGINX_CONF}" "${NGINX_LINK}"
     rm -f /etc/nginx/sites-enabled/default
 
     nginx -t
     systemctl reload nginx
-    
-    log_info "Nginx настроен и перезагружен."
+
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        log_info "Nginx: HTTP. Откройте http://${server_name}/login"
+    else
+        log_info "Nginx: HTTPS. Откройте https://${server_name}/login"
+    fi
 }
 
 # ==============================================================================
@@ -305,7 +442,11 @@ main() {
     setup_nginx
     
     log_info "=== Развертывание Frontend завершено ==="
-    log_info "Откройте браузер и перейдите по адресу вашего сервера (например, http://<IP>/login)"
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        log_info "Откройте http://<host>/login (без HTTPS PWA недоступно)"
+    else
+        log_info "Откройте https://<host>/login"
+    fi
 }
 
 main "$@"

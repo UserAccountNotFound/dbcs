@@ -29,6 +29,17 @@ APP_PORT="8000"
 API_PREFIX="/api"
 MAX_UPLOAD_SIZE_MB=5  # НОВОЕ: максимальный размер загружаемого файла
 
+# TLS: http | selfsigned | letsencrypt | existing
+# SSL_MODE из окружения пропускает интерактивный вопрос.
+SSL_MODE="${SSL_MODE:-}"
+SSL_CERT_PATH=""
+SSL_KEY_PATH=""
+SSL_DIR="/etc/nginx/ssl/${APP_NAME}"
+ACME_WEBROOT="/var/www/letsencrypt"
+SERVER_NAME=""
+LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
+TLS_STATE_FILE="/opt/${APP_NAME}/.tls.env"
+
 # Цвета для вывода
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -77,6 +88,314 @@ read_from_tty() {
     fi
     printf -v "${__var}" '%s' "${__reply}"
 }
+
+# =============================================================================
+# TLS / сертификаты
+# =============================================================================
+
+extract_url_host() {
+    python3 -c 'from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).hostname or "")' "$1"
+}
+
+set_public_scheme() {
+    local scheme="$1"
+    local host path
+    host="$(extract_url_host "${PUBLIC_BASE_URL}")"
+    path="$(python3 -c 'from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).path or "")' "${PUBLIC_BASE_URL}")"
+    path="${path%/}"
+    PUBLIC_BASE_URL="${scheme}://${host}${path}"
+}
+
+is_ip_host() {
+    local h="$1"
+    [[ "$h" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && return 0
+    [[ "$h" == *:* ]] && return 0
+    return 1
+}
+
+find_existing_certs() {
+    local host="$1"
+    SSL_CERT_PATH=""
+    SSL_KEY_PATH=""
+
+    if [[ -f "/etc/letsencrypt/live/${host}/fullchain.pem" && -f "/etc/letsencrypt/live/${host}/privkey.pem" ]]; then
+        SSL_CERT_PATH="/etc/letsencrypt/live/${host}/fullchain.pem"
+        SSL_KEY_PATH="/etc/letsencrypt/live/${host}/privkey.pem"
+        return 0
+    fi
+    if [[ -f "${SSL_DIR}/${host}.crt" && -f "${SSL_DIR}/${host}.key" ]]; then
+        SSL_CERT_PATH="${SSL_DIR}/${host}.crt"
+        SSL_KEY_PATH="${SSL_DIR}/${host}.key"
+        return 0
+    fi
+    if [[ -f "/etc/nginx/ssl/${host}.crt" && -f "/etc/nginx/ssl/${host}.key" ]]; then
+        SSL_CERT_PATH="/etc/nginx/ssl/${host}.crt"
+        SSL_KEY_PATH="/etc/nginx/ssl/${host}.key"
+        return 0
+    fi
+    if [[ -f "/etc/ssl/certs/${host}.crt" && -f "/etc/ssl/private/${host}.key" ]]; then
+        SSL_CERT_PATH="/etc/ssl/certs/${host}.crt"
+        SSL_KEY_PATH="/etc/ssl/private/${host}.key"
+        return 0
+    fi
+    return 1
+}
+
+generate_self_signed_cert() {
+    local host="$1"
+    local san
+
+    mkdir -p "${SSL_DIR}"
+    SSL_CERT_PATH="${SSL_DIR}/${host}.crt"
+    SSL_KEY_PATH="${SSL_DIR}/${host}.key"
+
+    if is_ip_host "${host}"; then
+        san="IP:${host}"
+    else
+        san="DNS:${host},DNS:localhost,IP:127.0.0.1"
+    fi
+
+    log_info "Генерация самоподписанного сертификата для ${host}..."
+    if ! openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+        -keyout "${SSL_KEY_PATH}" \
+        -out "${SSL_CERT_PATH}" \
+        -subj "/CN=${host}/O=DBCS/C=RU" \
+        -addext "subjectAltName=${san}" 2>/dev/null; then
+        openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+            -keyout "${SSL_KEY_PATH}" \
+            -out "${SSL_CERT_PATH}" \
+            -subj "/CN=${host}/O=DBCS/C=RU"
+    fi
+
+    chmod 640 "${SSL_KEY_PATH}" || true
+    chmod 644 "${SSL_CERT_PATH}" || true
+    log_info "Сертификат: ${SSL_CERT_PATH}"
+}
+
+obtain_letsencrypt_cert() {
+    local host="$1"
+    local email="${LETSENCRYPT_EMAIL:-}"
+
+    if is_ip_host "${host}"; then
+        log_error "Let's Encrypt не выдаёт сертификаты на IP — нужен домен."
+        return 1
+    fi
+    if [[ "${host}" == "localhost" || "${host}" == *".local" ]]; then
+        log_error "Let's Encrypt недоступен для localhost / .local."
+        return 1
+    fi
+
+    if [[ -z "${email}" ]]; then
+        read_from_tty email "Email для Let's Encrypt: " ""
+    fi
+    if [[ -z "${email}" || "${email}" != *@* ]]; then
+        log_error "Нужен корректный email для Let's Encrypt."
+        return 1
+    fi
+    LETSENCRYPT_EMAIL="${email}"
+
+    log_info "Установка certbot..."
+    apt-get install -y -qq certbot >/dev/null
+
+    mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+
+    cat > "${NGINX_CONF}" <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${host};
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+    }
+    location / {
+        return 200 'DBCS ACME bootstrap\n';
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+    ln -sf "${NGINX_CONF}" "${NGINX_LINK}"
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t
+    systemctl reload nginx
+
+    log_info "Запрос сертификата Let's Encrypt для ${host}..."
+    if ! certbot certonly --webroot -w "${ACME_WEBROOT}" \
+        -d "${host}" \
+        --email "${email}" \
+        --agree-tos \
+        --non-interactive \
+        --keep-until-expiring; then
+        log_error "certbot не получил сертификат (проверьте DNS A-запись и порт 80)."
+        return 1
+    fi
+
+    SSL_CERT_PATH="/etc/letsencrypt/live/${host}/fullchain.pem"
+    SSL_KEY_PATH="/etc/letsencrypt/live/${host}/privkey.pem"
+    log_info "Let's Encrypt сертификат получен."
+    return 0
+}
+
+configure_tls() {
+    SERVER_NAME="$(extract_url_host "${PUBLIC_BASE_URL}")"
+    if [[ -z "${SERVER_NAME}" ]]; then
+        log_error "Не удалось извлечь hostname из PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+        exit 1
+    fi
+
+    if find_existing_certs "${SERVER_NAME}"; then
+        SSL_MODE="existing"
+        set_public_scheme https
+        log_info "Найдены SSL-сертификаты для ${SERVER_NAME} — используем HTTPS."
+        log_info "  cert: ${SSL_CERT_PATH}"
+        return 0
+    fi
+
+    local choice="${SSL_MODE}"
+    if [[ -z "${choice}" ]]; then
+        echo
+        echo "=============================================================================="
+        echo " SSL / HTTPS (нужен для PWA)"
+        echo "=============================================================================="
+        echo " Сертификаты для «${SERVER_NAME}» не найдены."
+        echo
+        echo "  [1] HTTP только — без TLS (PWA будет недоступно)"
+        echo "  [2] Самоподписанный сертификат (по умолчанию)"
+        echo "  [3] Let's Encrypt (нужен публичный DNS на этот сервер)"
+        echo "=============================================================================="
+        read_from_tty choice "Выберите вариант [1/2/3] (Enter = 2): " "2"
+    fi
+
+    case "${choice}" in
+        1|http|HTTP)
+            SSL_MODE="http"
+            SSL_CERT_PATH=""
+            SSL_KEY_PATH=""
+            set_public_scheme http
+            log_warn "Выбран HTTP без TLS. PWA (service worker) работать не будет."
+            ;;
+        3|letsencrypt|le|LE)
+            SSL_MODE="letsencrypt"
+            set_public_scheme https
+            log_info "Выбран Let's Encrypt — сертификат будет получен при настройке Nginx."
+            ;;
+        2|selfsigned|self|"")
+            SSL_MODE="selfsigned"
+            generate_self_signed_cert "${SERVER_NAME}"
+            set_public_scheme https
+            log_warn "Самоподписанный сертификат: браузер покажет предупреждение (для PWA обычно достаточно)."
+            ;;
+        *)
+            log_warn "Неизвестный SSL_MODE=${choice}, используем самоподписанный."
+            SSL_MODE="selfsigned"
+            generate_self_signed_cert "${SERVER_NAME}"
+            set_public_scheme https
+            ;;
+    esac
+
+    log_info "PUBLIC_BASE_URL после выбора TLS: ${PUBLIC_BASE_URL}"
+    write_tls_state
+}
+
+
+write_tls_state() {
+    mkdir -p "$(dirname "${TLS_STATE_FILE}")"
+    cat > "${TLS_STATE_FILE}" <<EOF
+# Сгенерировано deploy_backend.sh — читает deploy_frontend.sh
+SSL_MODE=${SSL_MODE}
+SSL_CERT_PATH=${SSL_CERT_PATH}
+SSL_KEY_PATH=${SSL_KEY_PATH}
+SERVER_NAME=${SERVER_NAME}
+PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+ACME_WEBROOT=${ACME_WEBROOT}
+SSL_DIR=${SSL_DIR}
+EOF
+    chmod 644 "${TLS_STATE_FILE}"
+    log_info "Состояние TLS записано: ${TLS_STATE_FILE}"
+}
+
+nginx_ensure_rate_limits() {
+    if ! grep -q "limit_req_zone.*auth_limit" /etc/nginx/nginx.conf; then
+        log_info "Добавление зоны Rate Limiting: auth_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;' /etc/nginx/nginx.conf
+    fi
+    if ! grep -q "limit_req_zone.*public_limit" /etc/nginx/nginx.conf; then
+        log_info "Добавление зоны Rate Limiting: public_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
+    fi
+    if ! grep -q "limit_req_zone.*uploads_limit" /etc/nginx/nginx.conf; then
+        log_info "Добавление зоны Rate Limiting: uploads_limit..."
+        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=uploads_limit:10m rate=10r/m;' /etc/nginx/nginx.conf
+    fi
+}
+
+# Общие location-блоки API для HTTP/HTTPS server
+nginx_api_locations() {
+    cat <<EOF
+    client_max_body_size 10M;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    location ${API_PREFIX}/v1/auth/ {
+        limit_req zone=auth_limit burst=10 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ${API_PREFIX}/v1/files/ {
+        limit_req zone=uploads_limit burst=5 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 90s;
+        proxy_send_timeout 90s;
+        proxy_read_timeout 90s;
+    }
+
+    location ${API_PREFIX}/v1/public/ {
+        limit_req zone=public_limit burst=20 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ${API_PREFIX}/ {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location /uploads/ {
+        deny all;
+        return 404;
+    }
+
+    location ~ /\\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+EOF
+}
+
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -187,7 +506,7 @@ DEFAULT_BASE_URL="$DETECTED_URL"
 if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
     PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
     if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-        PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+        PUBLIC_BASE_URL="https://${PUBLIC_BASE_URL}"
     fi
     log_info "PUBLIC_BASE_URL из окружения: ${PUBLIC_BASE_URL}"
 else
@@ -243,7 +562,6 @@ fi
 
 echo ""
 
-
 # ==============================================================================
 # 1. Установка системных зависимостей и регенерация локалей
 # ==============================================================================
@@ -257,7 +575,7 @@ install_dependencies() {
     apt-get update -qq
     
     # libmagic1 нужен для python-magic (валидация MIME-типов загружаемых файлов)
-    apt-get install -y -qq sudo locales python3 python3-venv python3-pip libmagic1 mariadb-server mariadb-client nginx curl rsync
+    apt-get install -y -qq sudo locales python3 python3-venv python3-pip libmagic1 mariadb-server mariadb-client nginx curl rsync openssl
     
     log_info "Настройка системных локалей..."
     
@@ -359,7 +677,11 @@ EOF
     NEW_SECRET=$(generate_secret)
     DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
     
-    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL UPLOADS_DIR MAX_UPLOAD_SIZE_MB
+    COOKIE_SECURE=false
+    if [[ "${PUBLIC_BASE_URL}" == https://* ]]; then
+        COOKIE_SECURE=true
+    fi
+    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL UPLOADS_DIR MAX_UPLOAD_SIZE_MB COOKIE_SECURE
     
     python3 -c '
 import os
@@ -369,6 +691,7 @@ new_secret = os.environ["NEW_SECRET"]
 public_url = os.environ["PUBLIC_BASE_URL"]
 uploads_dir = os.environ["UPLOADS_DIR"]
 max_upload_mb = os.environ["MAX_UPLOAD_SIZE_MB"]
+cookie_secure = os.environ.get("COOKIE_SECURE", "true")
 
 with open(env_file, "r") as f:
     lines = f.readlines()
@@ -387,6 +710,8 @@ with open(env_file, "w") as f:
             f.write(f"UPLOADS_DIR={uploads_dir}\n")
         elif line.startswith("MAX_UPLOAD_SIZE_MB="):
             f.write(f"MAX_UPLOAD_SIZE_MB={max_upload_mb}\n")
+        elif line.startswith("REFRESH_COOKIE_SECURE="):
+            f.write(f"REFRESH_COOKIE_SECURE={cookie_secure}\n")
         else:
             f.write(line)
     # Если DATABASE_URL не было в файле, добавляем в конец
@@ -397,7 +722,7 @@ with open(env_file, "w") as f:
     required_vars = {
         "SELF_REGISTRATION_ENABLED": "false",
         "REFRESH_COOKIE_NAME": "refresh_token",
-        "REFRESH_COOKIE_SECURE": "true",
+        "REFRESH_COOKIE_SECURE": cookie_secure,
         "REFRESH_COOKIE_SAMESITE": "lax",
         "API_V1_PREFIX": "/api/v1",
         "UPLOADS_DIR": uploads_dir,
@@ -599,124 +924,91 @@ EOF
 # ==============================================================================
 # 7. Настройка Nginx
 # ==============================================================================
+
 setup_nginx() {
     log_info "Настройка Nginx..."
-    
-    # Проверяем и добавляем каждую зону rate limit отдельно
-    # Это нужно, так как скрипт может запускаться многократно с разными версиями
-    
-    if ! grep -q "limit_req_zone.*auth_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: auth_limit..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;' /etc/nginx/nginx.conf
+    nginx_ensure_rate_limits
+
+    local server_name="${SERVER_NAME:-_}"
+    local api_locations
+    api_locations="$(nginx_api_locations)"
+
+    if [[ "${SSL_MODE}" == "letsencrypt" ]]; then
+        if ! obtain_letsencrypt_cert "${server_name}"; then
+            log_warn "Let's Encrypt не удался — откат на самоподписанный сертификат."
+            SSL_MODE="selfsigned"
+            generate_self_signed_cert "${server_name}"
+            set_public_scheme https
+        fi
     fi
-    
-    if ! grep -q "limit_req_zone.*public_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: public_limit..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
-    fi
-    
-    if ! grep -q "limit_req_zone.*uploads_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: uploads_limit..."
-        sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=uploads_limit:10m rate=10r/m;' /etc/nginx/nginx.conf
-    fi
-    
-    cat <<EOF > "$NGINX_CONF"
+
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        cat > "${NGINX_CONF}" <<EOF
 server {
-    listen 80;
-    server_name _; # Замените на ваш домен или IP
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${server_name};
 
-    # Лимит на загрузку файлов (аватары, логотипы) - 10 Мегабайт
-    # Должен быть чуть больше MAX_UPLOAD_SIZE_MB в приложении (5MB) с запасом на overhead
-    client_max_body_size 10M;
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-
-    # Строгий лимит на Auth (защита от брутфорса)
-    location ${API_PREFIX}/v1/auth/ {
-        limit_req zone=auth_limit burst=10 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Строгий лимит на загрузку файлов (защита от DoS)
-    location ${API_PREFIX}/v1/files/ {
-        limit_req zone=uploads_limit burst=5 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Увеличенный таймаут для загрузки больших файлов
-        proxy_connect_timeout 90s;
-        proxy_send_timeout 90s;
-        proxy_read_timeout 90s;
-    }
-
-    # Умеренный лимит на публичные визитки (защита от парсинга/DDoS)
-    location ${API_PREFIX}/v1/public/ {
-        limit_req zone=public_limit burst=20 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Проксирование API на Gunicorn
-    location ${API_PREFIX}/ {
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Timeout settings
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    # Блокируем прямой доступ к директории загрузок через Nginx (на всякий случай)
-    location /uploads/ {
-        deny all;
-        return 404;
-    }
-
-    # Запрет доступа к скрытым файлам (например, .env, .git)
-    location ~ /\. {
-        deny all;
-        access_log off;
-        log_not_found off;
-    }
+${api_locations}
 }
 EOF
+    else
+        if [[ -z "${SSL_CERT_PATH}" || -z "${SSL_KEY_PATH}" || ! -f "${SSL_CERT_PATH}" || ! -f "${SSL_KEY_PATH}" ]]; then
+            log_error "SSL включён, но файлы сертификата не найдены."
+            exit 1
+        fi
+        cat > "${NGINX_CONF}" <<EOF
+# HTTP → HTTPS (+ ACME challenge для продления LE)
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${server_name};
 
-    ln -sf "$NGINX_CONF" "$NGINX_LINK"
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${server_name};
+
+    ssl_certificate     ${SSL_CERT_PATH};
+    ssl_certificate_key ${SSL_KEY_PATH};
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+${api_locations}
+}
+EOF
+        mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+    fi
+
+    ln -sf "${NGINX_CONF}" "${NGINX_LINK}"
     rm -f /etc/nginx/sites-enabled/default
 
     nginx -t
     systemctl restart nginx
-    
-    log_info "Nginx настроен и перезапущен."
+
+    if [[ "${SSL_MODE}" == "http" ]]; then
+        log_info "Nginx: HTTP (без TLS). PWA недоступно."
+    else
+        log_info "Nginx: HTTPS (${SSL_MODE}), cert=${SSL_CERT_PATH}"
+    fi
+    write_tls_state
 }
 
-# ==============================================================================
-# 8. Финальная проверка
-# ==============================================================================
+
 verify_deployment() {
     log_info "Ожидание запуска приложения (5 секунд)..."
     sleep 5
@@ -743,6 +1035,8 @@ main() {
     check_root
     install_dependencies
     setup_user_and_dirs
+    # TLS после apt (нужен openssl); до setup_env (пишет PUBLIC_BASE_URL / cookies)
+    configure_tls
     resolve_db_password
     setup_env
     setup_database
