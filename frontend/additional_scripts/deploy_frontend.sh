@@ -28,6 +28,42 @@ log_info()  { echo -e "${GREEN}[INFO_(frontend)]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN_(frontend)]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR_(frontend)]${NC} $1"; }
 
+# При curl|bash stdin = скрипт; читаем с /dev/tty. EOF → default (set -e не валит).
+# read_from_tty VAR "prompt" "default" [--silent]
+read_from_tty() {
+    local __var="$1"
+    local __prompt="$2"
+    local __default="${3:-}"
+    local __silent=0
+    local __reply=""
+    shift 3 || true
+    [[ "${1:-}" == "--silent" ]] && __silent=1
+
+    if [[ -r /dev/tty ]]; then
+        if [[ "${__silent}" -eq 1 ]]; then
+            IFS= read -r -s -p "${__prompt}" __reply </dev/tty || true
+            echo "" >/dev/tty 2>/dev/null || echo ""
+        else
+            IFS= read -r -p "${__prompt}" __reply </dev/tty || true
+        fi
+    elif [[ -t 0 ]]; then
+        if [[ "${__silent}" -eq 1 ]]; then
+            IFS= read -r -s -p "${__prompt}" __reply || true
+            echo ""
+        else
+            IFS= read -r -p "${__prompt}" __reply || true
+        fi
+    else
+        log_warn "Нет TTY — используем значение по умолчанию."
+        __reply="${__default}"
+    fi
+
+    if [[ -z "${__reply}" ]]; then
+        __reply="${__default}"
+    fi
+    printf -v "${__var}" '%s' "${__reply}"
+}
+
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "Этот скрипт должен быть запущен от имени root (или через sudo)."
@@ -52,9 +88,10 @@ install_node() {
     
     apt-get update -qq
     apt-get install -y -qq curl ca-certificates
-    
+
+    # nodesource setup читает свой stdin из pipe — не трогаем /dev/tty здесь
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y -qq nodejs
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
     
     log_info "Node.js успешно установлен: $(node -v)"
 }
@@ -256,7 +293,10 @@ EOF
 # ==============================================================================
 main() {
     log_info "=== Начало развертывания DBCS Frontend ==="
-    
+
+    # apt/dpkg не должны ждать ввода при установке из curl|bash
+    export DEBIAN_FRONTEND=noninteractive
+
     check_root
     install_node
     prepare_pwa_assets
