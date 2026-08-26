@@ -10,7 +10,7 @@ set -euo pipefail
 #   sudo ./install.sh --update     # проверить версии и обновить при необходимости
 #   sudo ./install.sh check|update # то же самое
 #
-# version 1.0.0
+# version 1.0.1
 # =============================================================================
 
 readonly INSTALL_DIR="/opt"
