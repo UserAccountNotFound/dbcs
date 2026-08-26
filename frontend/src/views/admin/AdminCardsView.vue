@@ -98,7 +98,19 @@ function prevPage() {
           <tr v-for="card in cards" :key="card.id" class="hover:bg-gray-50">
             <td class="px-6 py-4">
               <div class="font-medium text-gray-900">{{ card.title }}</div>
-              <div class="text-sm text-gray-500">{{ card.full_name }} • {{ card.slug }}</div>
+              <div class="text-sm text-gray-500">
+                {{ card.full_name }} •
+                <router-link
+                  :to="`/public/card/${card.slug}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="font-mono text-primary hover:text-teal-800 hover:underline"
+                  :title="`Открыть публичную визитку /public/card/${card.slug}`"
+                  @click.stop
+                >
+                  {{ card.slug }}
+                </router-link>
+              </div>
             </td>
             <td class="px-6 py-4 text-sm text-gray-600">{{ card.user_email }}</td>
             <td class="px-6 py-4 text-gray-600">{{ card.visits_count }}</td>

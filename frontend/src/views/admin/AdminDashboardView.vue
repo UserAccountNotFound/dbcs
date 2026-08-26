@@ -9,6 +9,7 @@ import BarChart from '../../components/analytics/BarChart.vue';
 import DonutChart from '../../components/analytics/DonutChart.vue';
 import HeatmapChart from '../../components/analytics/HeatmapChart.vue';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+import { deviceHint, referrerHint } from '../../utils/analyticsHints';
 
 const overview = ref<OverviewStats | null>(null);
 const data = ref<ExtendedAnalytics | null>(null);
@@ -72,6 +73,7 @@ const referrersBarData = computed(() => {
     label: r.source,
     value: r.count,
     color: colors[i % colors.length],
+    hint: referrerHint(r.source),
   }));
 });
 
@@ -87,6 +89,7 @@ const devicesDonutData = computed(() => {
     label: d.device,
     value: d.count,
     color: colorMap[d.device] || '#d1d5db',
+    hint: deviceHint(d.device),
   }));
 });
 
@@ -191,7 +194,8 @@ function formatNumber(n: number): string {
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-            <h4 class="text-lg font-semibold text-gray-900 mb-4">Источники трафика</h4>
+            <h4 class="text-lg font-semibold text-gray-900 mb-1">Источники трафика</h4>
+            <p class="text-xs text-gray-500 mb-4">Откуда клиенты пришли на страницу визитки</p>
             <BarChart v-if="data.referrers.length > 0" :data="referrersBarData" />
             <p v-else class="text-gray-500 text-sm py-8 text-center">Нет данных об источниках</p>
           </div>
