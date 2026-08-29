@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { AdminTemplate } from '../../types/admin';
 import TemplatePreview from '../../components/cards/TemplatePreview.vue';
 import TemplatePreviewModal from '../../components/cards/TemplatePreviewModal.vue';
 import TemplateCreateModal from '../../components/admin/TemplateCreateModal.vue';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+
+const { t } = useI18n();
 
 const templates = ref<AdminTemplate[]>([]);
 const total = ref(0);
@@ -46,23 +49,23 @@ async function toggleActive(template: AdminTemplate) {
     await adminApi.toggleTemplate(template.id);
     template.is_active = !template.is_active;
   } catch (e: unknown) {
-    alert(getAxiosErrorMessage(e, 'Ошибка при изменении статуса'));
+    alert(getAxiosErrorMessage(e, t('errors.toggleStatus')));
   }
 }
 
 async function deleteTemplate(template: AdminTemplate) {
   if (template.cards_count > 0) {
-    alert(`Нельзя удалить: шаблон используется ${template.cards_count} визитками.`);
+    alert(t('template.deleteInUse', { count: template.cards_count }));
     return;
   }
 
-  if (!confirm(`Удалить шаблон "${template.name}"?`)) return;
+  if (!confirm(t('template.deleteConfirm', { name: template.name }))) return;
 
   try {
     await adminApi.deleteTemplate(template.id);
     await loadTemplates();
   } catch (e: unknown) {
-    alert(getAxiosErrorMessage(e, 'Ошибка при удалении'));
+    alert(getAxiosErrorMessage(e, t('errors.deleteFailed')));
   }
 }
 
@@ -73,7 +76,7 @@ async function onCssSelected(template: AdminTemplate, event: Event) {
   if (!file) return;
 
   if (!file.name.endsWith('.css')) {
-    alert('Нужен файл .css');
+    alert(t('errors.cssRequired'));
     return;
   }
 
@@ -81,9 +84,9 @@ async function onCssSelected(template: AdminTemplate, event: Event) {
   try {
     const updated = await adminApi.uploadTemplateCss(template.id, file);
     Object.assign(template, updated);
-    alert(`CSS для «${template.name}» загружен.`);
+    alert(t('template.cssUploaded', { name: template.name }));
   } catch (e: unknown) {
-    alert(getAxiosErrorMessage(e, 'Ошибка загрузки CSS'));
+    alert(getAxiosErrorMessage(e, t('errors.cssUpload')));
   } finally {
     uploadingId.value = null;
   }
@@ -98,18 +101,18 @@ function openPreview(template: AdminTemplate) {
   <div>
     <div class="flex justify-between items-center mb-6 gap-4 flex-wrap">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Шаблоны визиток</h2>
-        <p class="text-sm text-gray-500 mt-1">Визуал задаётся CSS-файлами на диске</p>
+        <h2 class="text-2xl font-bold text-gray-900">{{ t('template.title') }}</h2>
+        <p class="text-sm text-gray-500 mt-1">{{ t('template.subtitle') }}</p>
       </div>
       <div class="flex gap-3 flex-wrap">
         <input
           v-model="search"
           type="text"
-          placeholder="Поиск по названию или коду..."
+          :placeholder="t('template.searchPlaceholder')"
           class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary w-64"
         />
         <button type="button" class="btn-primary" @click="createOpen = true">
-          + Добавить шаблон
+          {{ t('template.add') }}
         </button>
       </div>
     </div>
@@ -119,10 +122,10 @@ function openPreview(template: AdminTemplate) {
     </div>
 
     <div v-else-if="templates.length === 0" class="text-center py-12 text-gray-500">
-      Шаблоны не найдены
+      {{ t('template.notFound') }}
       <div class="mt-4">
         <button type="button" class="btn-primary" @click="createOpen = true">
-          Создать первый шаблон
+          {{ t('template.createFirst') }}
         </button>
       </div>
     </div>
@@ -155,18 +158,18 @@ function openPreview(template: AdminTemplate) {
           </div>
 
           <div class="flex justify-between items-center text-xs text-gray-500 mb-2">
-            <span>{{ template.cards_count }} виз.</span>
+            <span>{{ t('cards.cardsCount', { count: template.cards_count }) }}</span>
             <span :class="template.has_css ? 'text-green-600' : 'text-orange-600'">
-              {{ template.has_css ? 'CSS' : 'нет CSS' }}
+              {{ template.has_css ? 'CSS' : t('cards.noCss') }}
             </span>
           </div>
 
           <div class="flex flex-col gap-1.5">
             <button type="button" class="btn-secondary text-xs w-full" @click="openPreview(template)">
-              Просмотр
+              {{ t('cards.preview') }}
             </button>
             <label class="btn-secondary text-xs text-center cursor-pointer">
-              <span v-if="uploadingId === template.id">Загрузка…</span>
+              <span v-if="uploadingId === template.id">{{ t('cards.uploadCss') }}</span>
               <span v-else>CSS</span>
               <input
                 type="file"
@@ -178,7 +181,7 @@ function openPreview(template: AdminTemplate) {
             </label>
             <div class="flex gap-1.5">
               <button @click="toggleActive(template)" class="btn-secondary flex-1 text-xs">
-                {{ template.is_active ? 'Выкл.' : 'Вкл.' }}
+                {{ template.is_active ? t('cards.toggleOff') : t('cards.toggleOn') }}
               </button>
               <button
                 @click="deleteTemplate(template)"
@@ -194,7 +197,7 @@ function openPreview(template: AdminTemplate) {
     </div>
 
     <div class="flex justify-between items-center mt-6">
-      <p class="text-sm text-gray-500">Всего: {{ total }}</p>
+      <p class="text-sm text-gray-500">{{ t('common.total') }}: {{ total }}</p>
     </div>
 
     <TemplatePreviewModal

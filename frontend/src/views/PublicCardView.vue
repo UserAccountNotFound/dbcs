@@ -1,81 +1,79 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { publicCardApi } from '../api/publicCards';
 import type { PublicCard } from '../types/publicCard';
 import PublicCardRenderer from '../components/public/PublicCardRenderer.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const card = ref<PublicCard | null>(null);
 const isLoading = ref(true);
 const error = ref('');
 
-// Состояние модального окна шаринга
 const showShareModal = ref(false);
 const copyStatus = ref<'idle' | 'success' | 'error'>('idle');
 
 const slug = computed(() => route.params.slug as string);
 const vcardUrl = computed(() => publicCardApi.getVCardUrl(slug.value));
 
+function shareCompanySuffix(c: PublicCard): string {
+  return c.company ? ` • ${c.company}` : '';
+}
+
+function shareText(c: PublicCard): string {
+  return t('public.shareText', { name: c.full_name, company: shareCompanySuffix(c) });
+}
+
 onMounted(async () => {
   try {
     card.value = await publicCardApi.getPublicCard(slug.value);
   } catch (e: any) {
     if (e.response?.status === 404) {
-      error.value = 'Визитка не найдена или была отключена владельцем.';
+      error.value = t('errors.publicNotFound');
     } else {
-      error.value = 'Не удалось загрузить визитку. Попробуйте позже.';
+      error.value = t('errors.publicLoad');
     }
   } finally {
     isLoading.value = false;
   }
 });
 
-// ============================================================
-// ШАРИНГ
-// ============================================================
-
-// Проверяем, доступен ли Web Share API (работает только по HTTPS и на мобильных)
 const canUseNativeShare = computed(() => {
-  return typeof navigator !== 'undefined' && 
+  return typeof navigator !== 'undefined' &&
          typeof navigator.share === 'function' &&
-         window.isSecureContext; // HTTPS или localhost
+         window.isSecureContext;
 });
 
 async function handleShare() {
   if (!card.value) return;
 
-  // Если доступен нативный шаринг — используем его
   if (canUseNativeShare.value) {
     try {
       await navigator.share({
         title: card.value.full_name,
-        text: `Визитка: ${card.value.full_name}${card.value.company ? ` • ${card.value.company}` : ''}`,
+        text: shareText(card.value),
         url: card.value.public_url,
       });
-      return; // Успешно поделились
+      return;
     } catch (err: any) {
-      // Пользователь отменил — не показываем модалку
       if (err.name === 'AbortError') return;
-      // Другая ошибка — показываем fallback-модалку
       console.warn('Native share failed, using fallback:', err);
     }
   }
 
-  // Fallback: показываем модалку с вариантами шаринга
   showShareModal.value = true;
 }
 
-// Копирование ссылки в буфер обмена
 async function copyLink() {
   if (!card.value) return;
-  
+
   try {
     await navigator.clipboard.writeText(card.value.public_url);
     copyStatus.value = 'success';
     setTimeout(() => (copyStatus.value = 'idle'), 2000);
   } catch (err) {
-    // Fallback для старых браузеров
     const textArea = document.createElement('textarea');
     textArea.value = card.value.public_url;
     textArea.style.position = 'fixed';
@@ -93,24 +91,20 @@ async function copyLink() {
   }
 }
 
-// URL для шаринга в соцсетях
 const shareUrls = computed(() => {
   if (!card.value) return {};
-  
+
   const url = encodeURIComponent(card.value.public_url);
-  const text = encodeURIComponent(
-    `Визитка: ${card.value.full_name}${card.value.company ? ` • ${card.value.company}` : ''}`
-  );
+  const text = encodeURIComponent(shareText(card.value));
 
   return {
     telegram: `https://t.me/share/url?url=${url}&text=${text}`,
     whatsapp: `https://wa.me/?text=${text}%20${url}`,
-    email: `mailto:?subject=${encodeURIComponent('Электронная визитка')}&body=${text}%0A%0A${url}`,
+    email: `mailto:?subject=${encodeURIComponent(t('public.emailSubject'))}&body=${text}%0A%0A${url}`,
     sms: `sms:?body=${text}%20${url}`,
   };
 });
 
-// Закрытие модалки по клику на фон
 function closeShareModal(event: MouseEvent) {
   if ((event.target as HTMLElement).dataset.modalBg === 'true') {
     showShareModal.value = false;
@@ -120,27 +114,24 @@ function closeShareModal(event: MouseEvent) {
 
 <template>
   <div class="min-h-screen flex flex-col">
-    <!-- Загрузка -->
     <div v-if="isLoading" class="flex-1 flex items-center justify-center bg-slate-950">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400"></div>
     </div>
 
-    <!-- Ошибка -->
     <div v-else-if="error" class="flex-1 flex items-center justify-center bg-slate-950 p-4">
       <div class="text-center max-w-md text-slate-100">
         <div class="text-6xl mb-6">🔒</div>
-        <h2 class="text-2xl font-bold mb-2">Визитка недоступна</h2>
+        <h2 class="text-2xl font-bold mb-2">{{ t('public.unavailable') }}</h2>
         <p class="text-slate-400 mb-8">{{ error }}</p>
         <router-link
           to="/"
           class="inline-block px-6 py-3 bg-teal-600 text-white rounded-full hover:bg-teal-500 transition-colors font-medium"
         >
-          На главную
+          {{ t('public.home') }}
         </router-link>
       </div>
     </div>
 
-    <!-- Визитка: каркас + CSS шаблона -->
     <div v-else-if="card" class="flex-1 flex flex-col min-h-screen">
       <PublicCardRenderer
         class="flex-1"
@@ -151,9 +142,6 @@ function closeShareModal(event: MouseEvent) {
       />
     </div>
 
-    <!-- ============================================================ -->
-    <!-- МОДАЛЬНОЕ ОКНО ШАРИНГА -->
-    <!-- ============================================================ -->
     <Transition
       enter-active-class="transition ease-out duration-200"
       enter-from-class="opacity-0"
@@ -169,9 +157,8 @@ function closeShareModal(event: MouseEvent) {
         @click="closeShareModal"
       >
         <div class="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-          <!-- Шапка -->
           <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Поделиться визиткой</h3>
+            <h3 class="text-lg font-semibold text-gray-900">{{ t('public.shareTitle') }}</h3>
             <button
               @click="showShareModal = false"
               class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
@@ -180,9 +167,8 @@ function closeShareModal(event: MouseEvent) {
             </button>
           </div>
 
-          <!-- Превью ссылки -->
           <div class="px-6 py-4 bg-gray-50">
-            <p class="text-xs text-gray-500 mb-1">Ссылка на визитку:</p>
+            <p class="text-xs text-gray-500 mb-1">{{ t('public.linkLabel') }}</p>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-sm text-gray-700 bg-white px-3 py-2 rounded-lg border border-gray-200 truncate">
                 {{ card.public_url }}
@@ -198,17 +184,16 @@ function closeShareModal(event: MouseEvent) {
             </div>
             <Transition name="fade">
               <p v-if="copyStatus === 'success'" class="text-xs text-green-600 mt-2">
-                Ссылка скопирована в буфер обмена
+                {{ t('public.copied') }}
               </p>
               <p v-else-if="copyStatus === 'error'" class="text-xs text-red-600 mt-2">
-                Не удалось скопировать. Выделите ссылку вручную.
+                {{ t('errors.copyFailed') }}
               </p>
             </Transition>
           </div>
 
-          <!-- Кнопки соцсетей -->
           <div class="p-6">
-            <p class="text-sm text-gray-600 mb-4">Или отправьте через:</p>
+            <p class="text-sm text-gray-600 mb-4">{{ t('public.shareVia') }}</p>
             <div class="grid grid-cols-4 gap-3">
               <a
                 :href="shareUrls.telegram"

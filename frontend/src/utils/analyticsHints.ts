@@ -1,36 +1,23 @@
-/** Краткие описания обозначений аналитики (источники и устройства). */
+import { i18n } from '../i18n';
 
-const REFERRER_HINTS: Record<string, string> = {
-  Direct:
-    'Прямой заход: ссылка введена вручную, из закладок, QR-кода или мессенджера без передаваемого источника перехода.',
-  Google: 'Переход из поиска или сервисов Google.',
-  Yandex: 'Переход из поиска или сервисов Яндекса.',
-  Bing: 'Переход из поиска Bing.',
-  DuckDuckGo: 'Переход из поиска DuckDuckGo.',
-  Telegram: 'Переход из Telegram (ссылка или встроенный браузер).',
-  WhatsApp: 'Переход из WhatsApp.',
-  Facebook: 'Переход из Facebook.',
-  Twitter: 'Переход из Twitter / X.',
-  LinkedIn: 'Переход из LinkedIn.',
-  VK: 'Переход из ВКонтакте.',
-  Instagram: 'Переход из Instagram.',
-  Reddit: 'Переход из Reddit.',
-  Other: 'Источник распознан, но не относится к известным сервисам.',
-};
+const REFERRER_KEYS = [
+  'Direct', 'Google', 'Yandex', 'Bing', 'DuckDuckGo',
+  'Telegram', 'WhatsApp', 'Facebook', 'Twitter', 'LinkedIn',
+  'VK', 'Instagram', 'Reddit', 'Other',
+] as const;
 
-const DEVICE_HINTS: Record<string, string> = {
-  Desktop: 'Компьютер или ноутбук (по User-Agent браузера).',
-  Mobile: 'Смартфон (по User-Agent браузера).',
-  Tablet: 'Планшет (по User-Agent браузера).',
-  Unknown: 'Тип устройства определить не удалось.',
-};
+const DEVICE_KEYS = ['Desktop', 'Mobile', 'Tablet', 'Unknown'] as const;
 
 export function referrerHint(label: string): string {
-  if (REFERRER_HINTS[label]) return REFERRER_HINTS[label];
-  return `Переходы с сайта «${label}» (домен из адреса источника).`;
+  if (REFERRER_KEYS.includes(label as typeof REFERRER_KEYS[number])) {
+    return i18n.global.t(`analytics.referrerHints.${label}`);
+  }
+  return i18n.global.t('analytics.referrerHints.domain', { label });
 }
 
 export function deviceHint(label: string): string {
-  if (DEVICE_HINTS[label]) return DEVICE_HINTS[label];
-  return `Устройство: ${label}.`;
+  if (DEVICE_KEYS.includes(label as typeof DEVICE_KEYS[number])) {
+    return i18n.global.t(`analytics.deviceHints.${label}`);
+  }
+  return i18n.global.t('analytics.deviceHints.generic', { label });
 }

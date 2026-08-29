@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { DocsSettings, SmtpSettings } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
 
+const { t } = useI18n();
 const auth = useAuthStore();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
@@ -76,7 +78,7 @@ async function loadSettings() {
     applySettings(smtp);
     applyDocsSettings(docs);
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Не удалось загрузить настройки');
+    error.value = getAxiosErrorMessage(e, t('errors.loadSettings'));
   } finally {
     isLoading.value = false;
   }
@@ -118,9 +120,9 @@ async function saveDocsSettings() {
       redoc_enabled: docsForm.value.redoc_enabled,
     });
     applyDocsSettings(s);
-    message.value = 'Настройки документации сохранены.';
+    message.value = t('admin.docsSaved');
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка сохранения документации');
+    error.value = getAxiosErrorMessage(e, t('errors.saveDocs'));
   } finally {
     isSavingDocs.value = false;
   }
@@ -146,9 +148,9 @@ async function saveSettings() {
     }
     const s = await adminApi.updateSmtpSettings(payload);
     applySettings(s);
-    message.value = 'SMTP-настройки сохранены.';
+    message.value = t('admin.smtpSaved');
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка сохранения');
+    error.value = getAxiosErrorMessage(e, t('errors.saveFailed'));
   } finally {
     isSaving.value = false;
   }
@@ -175,7 +177,7 @@ async function testSmtp() {
     const result = await adminApi.testSmtpSettings(payload);
     message.value = result.detail;
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка тестовой отправки');
+    error.value = getAxiosErrorMessage(e, t('errors.smtpTest'));
   } finally {
     isTesting.value = false;
   }
@@ -186,8 +188,8 @@ async function testSmtp() {
   <div>
     <div class="flex justify-between items-center mb-6">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Настройки</h2>
-        <p class="text-sm text-gray-500 mt-1">Системные параметры сервиса</p>
+        <h2 class="text-2xl font-bold text-gray-900">{{ t('admin.settings') }}</h2>
+        <p class="text-sm text-gray-500 mt-1">{{ t('admin.settingsSubtitle') }}</p>
       </div>
     </div>
 
@@ -195,10 +197,10 @@ async function testSmtp() {
       v-if="!isSuperAdmin"
       class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3"
     >
-      Раздел доступен только супер-администратору.
+      {{ t('admin.superAdminOnly') }}
     </div>
 
-    <div v-else-if="isLoading" class="text-gray-500">Загрузка…</div>
+    <div v-else-if="isLoading" class="text-gray-500">{{ t('common.loading') }}</div>
 
     <template v-else>
       <div
@@ -216,9 +218,9 @@ async function testSmtp() {
 
       <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
         <div class="mb-6">
-          <h3 class="text-lg font-semibold text-gray-900">API-документация</h3>
+          <h3 class="text-lg font-semibold text-gray-900">{{ t('admin.docsTitle') }}</h3>
           <p class="text-sm text-gray-500 mt-1">
-            Публичный доступ к Swagger UI и ReDoc. Изменения применяются сразу, без перезапуска сервиса.
+            {{ t('admin.docsHint') }}
           </p>
         </div>
 
@@ -265,7 +267,7 @@ async function testSmtp() {
             :disabled="isSavingDocs || isSaving"
             @click="saveDocsSettings"
           >
-            {{ isSavingDocs ? 'Сохранение…' : 'Сохранить' }}
+            {{ isSavingDocs ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </section>
@@ -273,18 +275,17 @@ async function testSmtp() {
       <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
-            <h3 class="text-lg font-semibold text-gray-900">SMTP-релей</h3>
+            <h3 class="text-lg font-semibold text-gray-900">{{ t('admin.smtpTitle') }}</h3>
             <p class="text-sm text-gray-500 mt-1">
-              Исходящая почта через SMTP. По умолчанию — Google (smtp.gmail.com:587, STARTTLS).
-              Для Gmail обычно нужен пароль приложения.
+              {{ t('admin.smtpHint') }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <button type="button" class="btn-secondary text-sm" @click="applyGoogleDefaults">
-              Пресет Google
+              {{ t('admin.presetGoogle') }}
             </button>
             <button type="button" class="btn-secondary text-sm" @click="applyYandexDefaults">
-              Пресет Yandex
+              {{ t('admin.presetYandex') }}
             </button>
           </div>
         </div>
@@ -292,11 +293,11 @@ async function testSmtp() {
         <div class="grid gap-4 md:grid-cols-2">
           <label class="flex items-center gap-3 md:col-span-2">
             <input v-model="form.enabled" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
-            <span class="text-sm font-medium text-gray-800">Включить отправку через SMTP</span>
+            <span class="text-sm font-medium text-gray-800">{{ t('admin.smtpEnable') }}</span>
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">Хост</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.host') }}</span>
             <input
               v-model="form.host"
               type="text"
@@ -306,7 +307,7 @@ async function testSmtp() {
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">Порт</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.port') }}</span>
             <input
               v-model.number="form.port"
               type="number"
@@ -319,16 +320,16 @@ async function testSmtp() {
 
           <label class="flex items-center gap-3">
             <input v-model="form.use_tls" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
-            <span class="text-sm text-gray-800">STARTTLS (обычно порт 587)</span>
+            <span class="text-sm text-gray-800">{{ t('admin.startTls') }}</span>
           </label>
 
           <label class="flex items-center gap-3">
             <input v-model="form.use_ssl" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
-            <span class="text-sm text-gray-800">SSL/TLS (обычно порт 465)</span>
+            <span class="text-sm text-gray-800">{{ t('admin.sslTls') }}</span>
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">Username / логин</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.username') }}</span>
             <input
               v-model="form.username"
               type="text"
@@ -345,7 +346,7 @@ async function testSmtp() {
               type="password"
               autocomplete="new-password"
               class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              :placeholder="settings?.password_set ? '•••••••• (оставьте пустым, чтобы не менять)' : 'Пароль или app password'"
+              :placeholder="settings?.password_set ? t('admin.passwordPlaceholderKeep') : t('admin.passwordPlaceholder')"
             />
           </label>
 
@@ -369,7 +370,7 @@ async function testSmtp() {
             />
           </label>
           <label class="block md:col-span-2">
-            <span class="text-sm font-medium text-gray-700">Получатель тестового письма</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.testRecipient') }}</span>
             <input
               v-model="testToEmail"
               type="email"
@@ -381,10 +382,10 @@ async function testSmtp() {
 
         <div class="mt-6 flex flex-wrap gap-3">
           <button type="button" class="btn-primary" :disabled="isSaving || isTesting" @click="saveSettings">
-            {{ isSaving ? 'Сохранение…' : 'Сохранить' }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
           <button type="button" class="btn-secondary" :disabled="isSaving || isTesting" @click="testSmtp">
-            {{ isTesting ? 'Отправка…' : 'Проверить отправку' }}
+            {{ isTesting ? t('admin.testSending') : t('admin.testSend') }}
           </button>
         </div>
       </section>

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { BackupFile, BackupSettings } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleDate } from '../../composables/useLocaleDate';
 
+const { t, tm } = useI18n();
+const { formatDateTime } = useLocaleDate();
 const auth = useAuthStore();
 const router = useRouter();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
@@ -28,15 +32,7 @@ const form = ref({
   enabled: true,
 });
 
-const weekdayLabels = [
-  'Понедельник',
-  'Вторник',
-  'Среда',
-  'Четверг',
-  'Пятница',
-  'Суббота',
-  'Воскресенье',
-];
+const weekdayLabels = computed(() => tm('admin.weekdays') as string[]);
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -45,12 +41,7 @@ function formatBytes(n: number): string {
 }
 
 function formatDt(value: string | null): string {
-  if (!value) return '—';
-  try {
-    return new Date(value.endsWith('Z') ? value : `${value}Z`).toLocaleString('ru-RU');
-  } catch {
-    return value;
-  }
+  return formatDateTime(value);
 }
 
 function applySettings(s: BackupSettings) {
@@ -85,13 +76,13 @@ async function loadAll() {
     if (settingsResult.status === 'fulfilled') {
       applySettings(settingsResult.value);
     } else {
-      errors.push(getAxiosErrorMessage(settingsResult.reason, 'Не удалось загрузить настройки'));
+      errors.push(getAxiosErrorMessage(settingsResult.reason, t('errors.loadSettings')));
     }
 
     if (filesResult.status === 'fulfilled') {
       files.value = filesResult.value.items;
     } else {
-      errors.push(getAxiosErrorMessage(filesResult.reason, 'Не удалось загрузить список копий'));
+      errors.push(getAxiosErrorMessage(filesResult.reason, t('errors.loadBackupList')));
     }
 
     if (errors.length) {
@@ -118,36 +109,34 @@ async function saveSettings() {
       enabled: form.value.schedule !== 'off',
     });
     applySettings(s);
-    message.value = 'Настройки сохранены.';
+    message.value = t('admin.backupSaved');
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка сохранения');
+    error.value = getAxiosErrorMessage(e, t('errors.saveFailed'));
   } finally {
     isSaving.value = false;
   }
 }
 
 async function runBackup() {
-  if (!confirm('Создать резервную копию сейчас?')) return;
+  if (!confirm(t('admin.backupConfirm'))) return;
   isRunning.value = true;
   message.value = null;
   error.value = null;
   try {
     const result = await adminApi.runBackup();
-    message.value = `Создано: ${result.filename} (${formatBytes(result.size_bytes)})`;
+    message.value = t('admin.backupCreated', { filename: result.filename, size: formatBytes(result.size_bytes) });
     await loadAll();
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка создания копии');
+    error.value = getAxiosErrorMessage(e, t('errors.backupCreate'));
   } finally {
     isRunning.value = false;
   }
 }
 
 async function restoreBackup(file: BackupFile) {
-  const ok = confirm(
-    `Восстановить из «${file.filename}»?\n\nТекущая база и uploads будут перезаписаны. Действие необратимо.\nПосле восстановления потребуется повторный вход.`,
-  );
+  const ok = confirm(t('admin.restoreConfirm', { filename: file.filename }));
   if (!ok) return;
-  const ok2 = confirm('Подтвердите ещё раз: восстановить систему из этой копии?');
+  const ok2 = confirm(t('admin.restoreConfirm2'));
   if (!ok2) return;
 
   restoringName.value = file.filename;
@@ -156,22 +145,19 @@ async function restoreBackup(file: BackupFile) {
   try {
     const result = await adminApi.restoreBackup(file.filename);
     message.value = result.detail;
-    alert(`${result.detail}\n\nСейчас откроется страница входа.`);
+    alert(t('admin.restoreSuccess', { detail: result.detail }));
     await auth.forceLogout({ callApi: false });
     await router.push('/login');
   } catch (e: unknown) {
-    // Nginx/прокси мог оборвать ответ после успешного restore — сессии уже сброшены.
     const status = (e as { response?: { status?: number } })?.response?.status;
     const isNetwork = !(e as { response?: unknown })?.response;
     if (isNetwork || status === 502 || status === 504) {
-      alert(
-        'Связь с сервером прервалась во время восстановления.\nПроверьте данные и войдите заново.',
-      );
+      alert(t('admin.restoreConnectionLost'));
       await auth.forceLogout({ callApi: false });
       await router.push('/login');
       return;
     }
-    error.value = getAxiosErrorMessage(e, 'Ошибка восстановления');
+    error.value = getAxiosErrorMessage(e, t('errors.backupRestore'));
   } finally {
     restoringName.value = null;
   }
@@ -181,17 +167,17 @@ async function restoreBackup(file: BackupFile) {
 <template>
   <div>
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-900">Резервное копирование</h2>
+      <h2 class="text-2xl font-bold text-gray-900">{{ t('admin.backup') }}</h2>
     </div>
 
     <div
       v-if="!isSuperAdmin"
       class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3"
     >
-      Раздел доступен только супер-администратору.
+      {{ t('admin.superAdminOnly') }}
     </div>
 
-    <div v-else-if="isLoading" class="text-gray-500">Загрузка…</div>
+    <div v-else-if="isLoading" class="text-gray-500">{{ t('common.loading') }}</div>
 
     <template v-else>
       <div
@@ -208,14 +194,14 @@ async function restoreBackup(file: BackupFile) {
       </div>
 
       <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-1">Резервное копирование</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-1">{{ t('admin.backup') }}</h3>
         <p class="text-sm text-gray-500 mb-6">
-          Копия включает дамп базы данных и каталог загрузок (uploads).
+          {{ t('admin.backupHint') }}
         </p>
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="block md:col-span-2">
-            <span class="text-sm font-medium text-gray-700">Путь хранения</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.storagePath') }}</span>
             <input
               v-model="form.storage_path"
               type="text"
@@ -223,25 +209,25 @@ async function restoreBackup(file: BackupFile) {
               placeholder="/var/lib/dbcs/backups"
             />
             <span class="mt-1 block text-xs text-gray-500">
-              Только внутри /var/lib/dbcs или /opt/dbcs/backups
+              {{ t('admin.storagePathHint') }}
             </span>
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">Периодичность</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.schedule') }}</span>
             <select
               v-model="form.schedule"
               class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="off">Выключено</option>
-              <option value="hourly">Каждый час</option>
-              <option value="daily">Ежедневно</option>
-              <option value="weekly">Еженедельно</option>
+              <option value="off">{{ t('admin.scheduleOff') }}</option>
+              <option value="hourly">{{ t('admin.scheduleHourly') }}</option>
+              <option value="daily">{{ t('admin.scheduleDaily') }}</option>
+              <option value="weekly">{{ t('admin.scheduleWeekly') }}</option>
             </select>
           </label>
 
           <label class="block">
-            <span class="text-sm font-medium text-gray-700">Хранить копий</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.retention') }}</span>
             <input
               v-model.number="form.retention_count"
               type="number"
@@ -252,7 +238,7 @@ async function restoreBackup(file: BackupFile) {
           </label>
 
           <label v-if="form.schedule === 'daily' || form.schedule === 'weekly'" class="block">
-            <span class="text-sm font-medium text-gray-700">Час запуска (UTC)</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.runHour') }}</span>
             <input
               v-model.number="form.schedule_hour"
               type="number"
@@ -263,7 +249,7 @@ async function restoreBackup(file: BackupFile) {
           </label>
 
           <label v-if="form.schedule === 'weekly'" class="block">
-            <span class="text-sm font-medium text-gray-700">День недели</span>
+            <span class="text-sm font-medium text-gray-700">{{ t('admin.weekday') }}</span>
             <select
               v-model.number="form.schedule_weekday"
               class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -279,10 +265,10 @@ async function restoreBackup(file: BackupFile) {
           v-if="settings"
           class="mt-6 grid gap-2 text-sm text-gray-600 md:grid-cols-2 bg-gray-50 rounded-lg p-4"
         >
-          <div>Последний запуск: <span class="text-gray-900">{{ formatDt(settings.last_run_at) }}</span></div>
-          <div>Статус: <span class="text-gray-900">{{ settings.last_status || '—' }}</span></div>
-          <div class="md:col-span-2">Сообщение: <span class="text-gray-900">{{ settings.last_message || '—' }}</span></div>
-          <div class="md:col-span-2">Файл: <span class="font-mono text-gray-900">{{ settings.last_backup_file || '—' }}</span></div>
+          <div>{{ t('admin.lastRun') }} <span class="text-gray-900">{{ formatDt(settings.last_run_at) }}</span></div>
+          <div>{{ t('admin.status') }} <span class="text-gray-900">{{ settings.last_status || t('common.dash') }}</span></div>
+          <div class="md:col-span-2">{{ t('admin.message') }} <span class="text-gray-900">{{ settings.last_message || t('common.dash') }}</span></div>
+          <div class="md:col-span-2">{{ t('admin.file') }} <span class="font-mono text-gray-900">{{ settings.last_backup_file || t('common.dash') }}</span></div>
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
@@ -292,7 +278,7 @@ async function restoreBackup(file: BackupFile) {
             :disabled="isSaving"
             @click="saveSettings"
           >
-            {{ isSaving ? 'Сохранение…' : 'Сохранить настройки' }}
+            {{ isSaving ? t('common.saving') : t('admin.saveSettings') }}
           </button>
           <button
             type="button"
@@ -300,24 +286,24 @@ async function restoreBackup(file: BackupFile) {
             :disabled="isRunning"
             @click="runBackup"
           >
-            {{ isRunning ? 'Создание…' : 'Создать копию сейчас' }}
+            {{ isRunning ? t('admin.running') : t('admin.runNow') }}
           </button>
         </div>
       </section>
 
       <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100">
-          <h3 class="text-lg font-semibold text-gray-900">Доступные копии</h3>
+          <h3 class="text-lg font-semibold text-gray-900">{{ t('admin.availableBackups') }}</h3>
         </div>
         <div v-if="files.length === 0" class="px-6 py-8 text-gray-500 text-sm">
-          Пока нет файлов резервных копий.
+          {{ t('admin.noBackups') }}
         </div>
         <table v-else class="w-full text-left text-sm">
           <thead class="bg-gray-50 text-gray-600">
             <tr>
-              <th class="px-6 py-3 font-medium">Файл</th>
-              <th class="px-6 py-3 font-medium">Размер</th>
-              <th class="px-6 py-3 font-medium">Дата</th>
+              <th class="px-6 py-3 font-medium">{{ t('admin.fileColumn') }}</th>
+              <th class="px-6 py-3 font-medium">{{ t('admin.sizeColumn') }}</th>
+              <th class="px-6 py-3 font-medium">{{ t('admin.dateColumn') }}</th>
               <th class="px-6 py-3 font-medium"></th>
             </tr>
           </thead>
@@ -333,7 +319,7 @@ async function restoreBackup(file: BackupFile) {
                   :disabled="restoringName !== null"
                   @click="restoreBackup(file)"
                 >
-                  {{ restoringName === file.filename ? 'Восстановление…' : 'Восстановить' }}
+                  {{ restoringName === file.filename ? t('admin.restoring') : t('admin.restore') }}
                 </button>
               </td>
             </tr>

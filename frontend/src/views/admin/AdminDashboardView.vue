@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { OverviewStats } from '../../types/admin';
 import type { ExtendedAnalytics, AnalyticsPeriod } from '../../types/analytics';
@@ -10,7 +11,10 @@ import DonutChart from '../../components/analytics/DonutChart.vue';
 import HeatmapChart from '../../components/analytics/HeatmapChart.vue';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { deviceHint, referrerHint } from '../../utils/analyticsHints';
+import { useLocaleDate } from '../../composables/useLocaleDate';
 
+const { t } = useI18n();
+const { bcp47, formatDateTime } = useLocaleDate();
 const overview = ref<OverviewStats | null>(null);
 const data = ref<ExtendedAnalytics | null>(null);
 const period = ref<AnalyticsPeriod>('30d');
@@ -18,14 +22,14 @@ const isLoadingOverview = ref(true);
 const isLoadingAnalytics = ref(true);
 const error = ref('');
 
-const overviewCards = [
-  { key: 'total_users', label: 'Всего пользователей', color: 'bg-blue-500' },
-  { key: 'active_users', label: 'Активных пользователей', color: 'bg-green-500' },
-  { key: 'total_cards', label: 'Всего визиток', color: 'bg-purple-500' },
-  { key: 'active_cards', label: 'Активных визиток', color: 'bg-teal-500' },
-  { key: 'total_visits', label: 'Всего просмотров', color: 'bg-orange-500' },
-  { key: 'total_vcard_downloads', label: 'Скачиваний vCard', color: 'bg-pink-500' },
-] as const;
+const overviewCards = computed(() => [
+  { key: 'total_users', label: t('admin.stats.totalUsers'), color: 'bg-blue-500' },
+  { key: 'active_users', label: t('admin.stats.activeUsers'), color: 'bg-green-500' },
+  { key: 'total_cards', label: t('admin.stats.totalCards'), color: 'bg-purple-500' },
+  { key: 'active_cards', label: t('admin.stats.activeCards'), color: 'bg-teal-500' },
+  { key: 'total_visits', label: t('admin.stats.totalVisits'), color: 'bg-orange-500' },
+  { key: 'total_vcard_downloads', label: t('admin.stats.totalVcardDownloads'), color: 'bg-pink-500' },
+] as const);
 
 async function loadOverview() {
   isLoadingOverview.value = true;
@@ -44,7 +48,7 @@ async function loadAnalytics() {
   try {
     data.value = await adminApi.getExtendedAnalytics(period.value);
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Не удалось загрузить аналитику');
+    error.value = getAxiosErrorMessage(e, t('errors.analyticsLoad'));
   } finally {
     isLoadingAnalytics.value = false;
   }
@@ -94,7 +98,7 @@ const devicesDonutData = computed(() => {
 });
 
 function formatNumber(n: number): string {
-  return n.toLocaleString('ru-RU');
+  return n.toLocaleString(bcp47.value);
 }
 </script>
 
@@ -102,10 +106,10 @@ function formatNumber(n: number): string {
   <div class="space-y-8">
     <div class="flex flex-wrap justify-between items-start gap-4">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Обзор и аналитика</h2>
+        <h2 class="text-2xl font-bold text-gray-900">{{ t('admin.overviewTitle') }}</h2>
         <p class="text-sm text-gray-500 mt-1">
-          Сводка по системе и детальная статистика
-          <span v-if="data"> • Обновлено: {{ new Date(data.generated_at).toLocaleString('ru-RU') }}</span>
+          {{ t('admin.overviewSubtitle') }}
+          <span v-if="data">{{ t('admin.updatedAt', { date: formatDateTime(data.generated_at) }) }}</span>
         </p>
       </div>
       <PeriodSelector v-model="period" />
@@ -113,7 +117,7 @@ function formatNumber(n: number): string {
 
     <!-- Сводка по системе -->
     <section>
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">Сводка по системе</h3>
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.systemSummary') }}</h3>
 
       <div v-if="isLoadingOverview" class="flex justify-center py-12">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -140,7 +144,7 @@ function formatNumber(n: number): string {
 
     <!-- Аналитика за период -->
     <section>
-      <h3 class="text-lg font-semibold text-gray-900 mb-4">Аналитика за период</h3>
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.periodAnalytics') }}</h3>
 
       <div v-if="isLoadingAnalytics" class="flex justify-center py-20">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
@@ -148,69 +152,69 @@ function formatNumber(n: number): string {
 
       <div v-else-if="error" class="text-center py-12 bg-red-50 rounded-xl">
         <p class="text-red-600">{{ error }}</p>
-        <button @click="loadAnalytics" class="mt-4 btn-primary">Попробовать снова</button>
+        <button @click="loadAnalytics" class="mt-4 btn-primary">{{ t('common.retry') }}</button>
       </div>
 
       <div v-else-if="data" class="space-y-6">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-sm text-gray-500">Просмотров за период</div>
+            <div class="text-sm text-gray-500">{{ t('admin.viewsPeriod') }}</div>
             <div class="text-3xl font-bold text-gray-900 mt-1">{{ formatNumber(totals.views) }}</div>
           </div>
           <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-sm text-gray-500">Скачиваний vCard</div>
+            <div class="text-sm text-gray-500">{{ t('admin.downloadsPeriod') }}</div>
             <div class="text-3xl font-bold text-gray-900 mt-1">{{ formatNumber(totals.downloads) }}</div>
           </div>
           <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-sm text-gray-500">Конверсия</div>
+            <div class="text-sm text-gray-500">{{ t('admin.conversion') }}</div>
             <div class="text-3xl font-bold text-gray-900 mt-1">
               {{ totals.views > 0 ? ((totals.downloads / totals.views) * 100).toFixed(1) : '0' }}%
             </div>
           </div>
           <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-            <div class="text-sm text-gray-500">Период</div>
+            <div class="text-sm text-gray-500">{{ t('admin.period') }}</div>
             <div class="text-3xl font-bold text-gray-900 mt-1">
-              {{ data.time_series.length }} дн.
+              {{ t('admin.days', { count: data.time_series.length }) }}
             </div>
           </div>
         </div>
 
         <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-          <h4 class="text-lg font-semibold text-gray-900 mb-4">Тренды просмотров и скачиваний</h4>
+          <h4 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.trends') }}</h4>
           <LineChart :data="data.time_series" />
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm lg:col-span-2">
-            <h4 class="text-lg font-semibold text-gray-900 mb-4">Активность по дням недели и часам</h4>
+            <h4 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.heatmap') }}</h4>
             <HeatmapChart :data="data.hourly_heatmap" />
           </div>
 
           <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-            <h4 class="text-lg font-semibold text-gray-900 mb-4">Устройства</h4>
+            <h4 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.devices') }}</h4>
             <DonutChart :data="devicesDonutData" />
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-            <h4 class="text-lg font-semibold text-gray-900 mb-1">Источники трафика</h4>
-            <p class="text-xs text-gray-500 mb-4">Откуда клиенты пришли на страницу визитки</p>
+            <h4 class="text-lg font-semibold text-gray-900 mb-1">{{ t('admin.referrers') }}</h4>
+            <p class="text-xs text-gray-500 mb-4">{{ t('admin.referrersHint') }}</p>
             <BarChart v-if="data.referrers.length > 0" :data="referrersBarData" />
-            <p v-else class="text-gray-500 text-sm py-8 text-center">Нет данных об источниках</p>
+            <p v-else class="text-gray-500 text-sm py-8 text-center">{{ t('admin.noReferrers') }}</p>
           </div>
 
           <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-            <h4 class="text-lg font-semibold text-gray-900 mb-4">Топ-10 визиток</h4>
+            <h4 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.topCards') }}</h4>
             <div v-if="data.top_cards.length === 0" class="text-gray-500 text-sm py-8 text-center">
-              Нет данных
+              {{ t('common.noData') }}
             </div>
             <div v-else class="overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
                   <tr class="text-left text-xs text-gray-500 uppercase border-b">
                     <th class="pb-2 pr-2">#</th>
-                    <th class="pb-2">Визитка</th>
+                    <th class="pb-2">{{ t('cards.columnCard') }}</th>
                     <th class="pb-2 text-right">👁️</th>
                     <th class="pb-2 text-right">📥</th>
                   </tr>
@@ -236,19 +240,19 @@ function formatNumber(n: number): string {
         </div>
 
         <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-          <h4 class="text-lg font-semibold text-gray-900 mb-4">Топ-10 активных пользователей</h4>
+          <h4 class="text-lg font-semibold text-gray-900 mb-4">{{ t('admin.topUsers') }}</h4>
           <div v-if="data.top_users.length === 0" class="text-gray-500 text-sm py-8 text-center">
-            Нет данных
+            {{ t('common.noData') }}
           </div>
           <div v-else class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-left text-xs text-gray-500 uppercase border-b">
                   <th class="pb-2 pr-2">#</th>
-                  <th class="pb-2">Пользователь</th>
-                  <th class="pb-2 text-right">Визиток</th>
-                  <th class="pb-2 text-right">Просмотров</th>
-                  <th class="pb-2 text-right">Скачиваний</th>
+                  <th class="pb-2">{{ t('admin.columnUser') }}</th>
+                  <th class="pb-2 text-right">{{ t('admin.columnCards') }}</th>
+                  <th class="pb-2 text-right">{{ t('admin.columnViewsRight') }}</th>
+                  <th class="pb-2 text-right">{{ t('admin.columnDownloadsRight') }}</th>
                 </tr>
               </thead>
               <tbody>

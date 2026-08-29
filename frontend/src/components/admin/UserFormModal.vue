@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AdminUser, AdminUserCreate, AdminUserUpdate } from '../../types/admin';
 
+const { t } = useI18n();
+
 const props = defineProps<{
-  user: AdminUser | null;  // null для создания нового
+  user: AdminUser | null;
   isOpen: boolean;
 }>();
 
@@ -31,7 +34,7 @@ watch(() => props.isOpen, (newVal) => {
       form.value = {
         email: props.user.email,
         full_name: props.user.full_name,
-        password: '',  // пароль не заполняем при редактировании
+        password: '',
         role: props.user.role,
       };
     } else {
@@ -47,42 +50,39 @@ watch(() => props.isOpen, (newVal) => {
 
 function handleSubmit() {
   error.value = '';
-  
+
   if (!form.value.email || !form.value.full_name) {
-    error.value = 'Заполните email и имя';
+    error.value = t('admin.fillEmailName');
     return;
   }
-  
+
   if (!isEdit.value && form.value.password.length < 12) {
-    error.value = 'Пароль должен быть не менее 12 символов';
+    error.value = t('admin.passwordTooShort');
     return;
   }
 
   if (isEdit.value && form.value.password && form.value.password.length < 12) {
-    error.value = 'Пароль должен быть не менее 12 символов';
+    error.value = t('admin.passwordTooShort');
     return;
   }
 
   isSubmitting.value = true;
 
   let payload: AdminUserCreate | AdminUserUpdate;
-  
+
   if (isEdit.value) {
-    // Формируем объект обновления без приведения типов
     const updatePayload: AdminUserUpdate = {
       email: form.value.email,
       full_name: form.value.full_name,
       role: form.value.role,
     };
-    
-    // Добавляем пароль только если он был введен
+
     if (form.value.password) {
       updatePayload.password = form.value.password;
     }
-    
+
     payload = updatePayload;
   } else {
-    // Для создания копируем все поля формы
     payload = { ...form.value };
   }
 
@@ -95,25 +95,25 @@ function handleSubmit() {
   <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
     <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
       <h3 class="text-xl font-bold text-gray-900 mb-6">
-        {{ isEdit ? 'Редактировать пользователя' : 'Создать пользователя' }}
+        {{ isEdit ? t('admin.editUser') : t('admin.createUserTitle') }}
       </h3>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-          <input 
-            v-model="form.email" 
-            type="email" 
+          <input
+            v-model="form.email"
+            type="email"
             required
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Полное имя *</label>
-          <input 
-            v-model="form.full_name" 
-            type="text" 
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.fullName') }}</label>
+          <input
+            v-model="form.full_name"
+            type="text"
             required
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -121,27 +121,27 @@ function handleSubmit() {
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">
-            Пароль {{ isEdit ? '(оставьте пустым, чтобы не менять)' : '*' }}
+            {{ isEdit ? t('admin.passwordOptional') : t('admin.passwordRequired') }}
           </label>
-          <input 
-            v-model="form.password" 
-            type="password" 
+          <input
+            v-model="form.password"
+            type="password"
             :required="!isEdit"
             :minlength="isEdit ? undefined : 12"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Минимум 12 символов"
+            :placeholder="t('admin.passwordMin')"
           />
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Роль</label>
-          <select 
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('admin.role') }}</label>
+          <select
             v-model="form.role"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="USER">Пользователь</option>
-            <option value="ADMIN">Администратор</option>
-            <option value="SUPERADMIN">Суперадминистратор</option>
+            <option value="USER">{{ t('admin.roleUser') }}</option>
+            <option value="ADMIN">{{ t('admin.roleAdmin') }}</option>
+            <option value="SUPERADMIN">{{ t('admin.roleSuperAdmin') }}</option>
           </select>
         </div>
 
@@ -149,10 +149,10 @@ function handleSubmit() {
 
         <div class="flex gap-3 pt-4">
           <button type="button" @click="$emit('close')" class="btn-secondary flex-1">
-            Отмена
+            {{ t('common.cancel') }}
           </button>
           <button type="submit" :disabled="isSubmitting" class="btn-primary flex-1">
-            {{ isSubmitting ? 'Сохранение...' : (isEdit ? 'Сохранить' : 'Создать') }}
+            {{ isSubmitting ? t('common.savingDots') : (isEdit ? t('common.save') : t('common.create')) }}
           </button>
         </div>
       </form>

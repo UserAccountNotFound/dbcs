@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { Card, CardCreatePayload, CardUpdatePayload, CardTheme } from '../../types/card';
 import type { Template, TemplateMeta } from '../../types/template';
 import ImageUploader from './ImageUploader.vue';
@@ -13,6 +14,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'submit', payload: CardCreatePayload | CardUpdatePayload): void;
 }>();
+
+const { t } = useI18n();
 
 const defaultTheme: CardTheme = {
   color_scheme: 'light',
@@ -63,15 +66,27 @@ type MessengerRow = {
   value: string;
 };
 
-const MESSENGER_OPTIONS: Array<{ kind: MessengerKind; label: string; placeholder: string }> = [
-  { kind: 'telegram', label: 'Telegram', placeholder: '@username или t.me/...' },
-  { kind: 'whatsapp', label: 'WhatsApp', placeholder: '+7 900 000-00-00' },
-  { kind: 'viber', label: 'Viber', placeholder: '+7 900 000-00-00' },
-  { kind: 'wechat', label: 'WeChat', placeholder: 'WeChat ID' },
-  { kind: 'messenger_max', label: 'Max', placeholder: 'username или ссылка' },
-  { kind: 'discord', label: 'Discord', placeholder: 'discord.gg/...' },
-  { kind: 'vk', label: 'VK', placeholder: 'username или id123' },
+const MESSENGER_KINDS: MessengerKind[] = [
+  'telegram', 'whatsapp', 'viber', 'wechat', 'messenger_max', 'discord', 'vk',
 ];
+
+const MESSENGER_LABELS: Record<MessengerKind, string> = {
+  telegram: 'Telegram',
+  whatsapp: 'WhatsApp',
+  viber: 'Viber',
+  wechat: 'WeChat',
+  messenger_max: 'Max',
+  discord: 'Discord',
+  vk: 'VK',
+};
+
+const messengerOptions = computed(() =>
+  MESSENGER_KINDS.map((kind) => ({
+    kind,
+    label: MESSENGER_LABELS[kind],
+    placeholder: t(`cardForm.messengerPlaceholders.${kind}`),
+  })),
+);
 
 let messengerRowSeq = 1;
 const messengerRows = ref<MessengerRow[]>([{ id: messengerRowSeq++, kind: '', value: '' }]);
@@ -81,8 +96,8 @@ function createEmptyMessengerRow(): MessengerRow {
 }
 
 function syncFormMessengersFromRows() {
-  for (const opt of MESSENGER_OPTIONS) {
-    form[opt.kind] = '';
+  for (const kind of MESSENGER_KINDS) {
+    form[kind] = '';
   }
   for (const row of messengerRows.value) {
     if (!row.kind) continue;
@@ -92,27 +107,27 @@ function syncFormMessengersFromRows() {
 
 function loadMessengerRowsFromCard(card: Card) {
   const rows: MessengerRow[] = [];
-  for (const opt of MESSENGER_OPTIONS) {
-    const value = card[opt.kind];
+  for (const kind of MESSENGER_KINDS) {
+    const value = card[kind];
     if (typeof value === 'string' && value.trim()) {
-      rows.push({ id: messengerRowSeq++, kind: opt.kind, value });
+      rows.push({ id: messengerRowSeq++, kind, value });
     }
   }
   messengerRows.value = rows.length > 0 ? rows : [createEmptyMessengerRow()];
 }
 
-function availableKindsForRow(rowId: number): typeof MESSENGER_OPTIONS {
+function availableKindsForRow(rowId: number) {
   const used = new Set(
     messengerRows.value
       .filter((row) => row.id !== rowId && row.kind)
       .map((row) => row.kind),
   );
-  return MESSENGER_OPTIONS.filter((opt) => !used.has(opt.kind));
+  return messengerOptions.value.filter((opt) => !used.has(opt.kind));
 }
 
 function placeholderForKind(kind: MessengerKind | ''): string {
-  if (!kind) return 'Сначала выберите сервис';
-  return MESSENGER_OPTIONS.find((opt) => opt.kind === kind)?.placeholder || '';
+  if (!kind) return t('cardForm.selectServiceFirst');
+  return messengerOptions.value.find((opt) => opt.kind === kind)?.placeholder || '';
 }
 
 function onMessengerKindChange(row: MessengerRow, nextKind: MessengerKind | '') {
@@ -136,8 +151,8 @@ function removeMessengerRow(rowId: number) {
 }
 
 const canAddMessengerRow = computed(
-  () => messengerRows.value.filter((row) => row.kind).length < MESSENGER_OPTIONS.length
-    && messengerRows.value.length < MESSENGER_OPTIONS.length,
+  () => messengerRows.value.filter((row) => row.kind).length < MESSENGER_KINDS.length
+    && messengerRows.value.length < MESSENGER_KINDS.length,
 );
 
 // Состояние для уведомления о применении шаблона
@@ -230,7 +245,7 @@ function normalizeWebsite(value: string): string {
 function handleSubmit() {
   // Валидация обязательных полей
   if (!form.title.trim() || !form.full_name.trim()) {
-    alert('Заполните обязательные поля: Название и Полное имя');
+    alert(t('cardForm.requiredFields'));
     return;
   }
 
@@ -265,37 +280,37 @@ function handleSubmit() {
     <!-- ОСНОВНЫЕ ПОЛЯ -->
     <!-- ============================================================ -->
     <div>
-      <h3 class="text-lg font-medium text-gray-900 mb-4">Основная информация</h3>
+      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ t('cardForm.basicInfo') }}</h3>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-700">
-            Название визитки <span class="text-red-500">*</span>
+            {{ t('cardForm.cardTitle') }} <span class="text-red-500">*</span>
           </label>
           <input
             v-model="form.title"
             type="text"
             required
-            placeholder="Например: Основная рабочая визитка"
+            :placeholder="t('cardForm.titlePlaceholder')"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           />
         </div>
         
         <div>
           <label class="block text-sm font-medium text-gray-700">
-            Полное имя <span class="text-red-500">*</span>
+            {{ t('cardForm.fullName') }} <span class="text-red-500">*</span>
           </label>
           <input
             v-model="form.full_name"
             type="text"
             required
-            placeholder="Иван Петров"
+            :placeholder="t('cardForm.namePlaceholder')"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           />
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Должность</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.jobTitle') }}</label>
           <input
             v-model="form.job_title"
             type="text"
@@ -305,7 +320,7 @@ function handleSubmit() {
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Отдел</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.department') }}</label>
           <input
             v-model="form.department"
             type="text"
@@ -315,7 +330,7 @@ function handleSubmit() {
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Компания</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.company') }}</label>
           <input
             v-model="form.company"
             type="text"
@@ -325,7 +340,7 @@ function handleSubmit() {
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Телефон</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.phone') }}</label>
           <input
             v-model="form.phone"
             type="tel"
@@ -335,7 +350,7 @@ function handleSubmit() {
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700">Доп. телефон</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.phoneAdditional') }}</label>
           <input
             v-model="form.phone_additional"
             type="tel"
@@ -355,7 +370,7 @@ function handleSubmit() {
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Сайт</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.website') }}</label>
           <input
             v-model="form.website"
             type="url"
@@ -365,21 +380,21 @@ function handleSubmit() {
         </div>
         
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700">Адрес</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.address') }}</label>
           <input
             v-model="form.address"
             type="text"
-            placeholder="Москва, ул. Пример, 1"
+            :placeholder="t('cardForm.addressPlaceholder')"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           />
         </div>
         
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700">Заметка</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.note') }}</label>
           <textarea
             v-model="form.note"
             rows="3"
-            placeholder="Дополнительная информация о вас или вашей деятельности"
+            :placeholder="t('cardForm.notePlaceholder')"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           ></textarea>
         </div>
@@ -387,9 +402,9 @@ function handleSubmit() {
     </div>
 
     <div class="border-t border-gray-200 pt-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-1">Мессенджеры и соцсети</h3>
+      <h3 class="text-lg font-medium text-gray-900 mb-1">{{ t('cardForm.messengers') }}</h3>
       <p class="text-sm text-gray-500 mb-4">
-        Выберите сервис и укажите username, телефон или ссылку.
+        {{ t('cardForm.messengersHint') }}
       </p>
 
       <div class="space-y-3">
@@ -399,13 +414,13 @@ function handleSubmit() {
           class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end"
         >
           <div class="sm:w-48 shrink-0">
-            <label class="block text-sm font-medium text-gray-700">Сервис</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.service') }}</label>
             <select
               :value="row.kind"
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary bg-white"
               @change="onMessengerKindChange(row, ($event.target as HTMLSelectElement).value as MessengerKind | '')"
             >
-              <option value="">Выберите…</option>
+              <option value="">{{ t('cardForm.selectService') }}</option>
               <option
                 v-for="opt in availableKindsForRow(row.id)"
                 :key="opt.kind"
@@ -417,7 +432,7 @@ function handleSubmit() {
           </div>
 
           <div class="flex-1 min-w-0">
-            <label class="block text-sm font-medium text-gray-700">Контакт</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.contact') }}</label>
             <input
               v-model="row.value"
               type="text"
@@ -430,10 +445,10 @@ function handleSubmit() {
           <button
             type="button"
             class="shrink-0 px-3 py-2 text-sm text-gray-500 hover:text-red-600 border border-transparent hover:border-red-100 rounded-md transition-colors"
-            title="Удалить"
+            :title="t('common.delete')"
             @click="removeMessengerRow(row.id)"
           >
-            Удалить
+            {{ t('common.delete') }}
           </button>
         </div>
       </div>
@@ -444,7 +459,7 @@ function handleSubmit() {
         class="mt-3 text-sm font-medium text-primary hover:text-teal-800"
         @click="addMessengerRow"
       >
-        + Добавить ещё
+        {{ t('cardForm.addMore') }}
       </button>
     </div>
 
@@ -452,20 +467,20 @@ function handleSubmit() {
     <!-- ИЗОБРАЖЕНИЯ -->
     <!-- ============================================================ -->
     <div class="border-t border-gray-200 pt-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">Изображения</h3>
+      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ t('cardForm.images') }}</h3>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ImageUploader
           :model-value="form.avatar_file_id ?? null"
           @update:model-value="(val) => form.avatar_file_id = val"
-          label="Аватар (фото)"
+          :label="t('cardForm.avatar')"
           aspect-ratio="square"
         />
         
         <ImageUploader
           :model-value="form.logo_file_id ?? null"
           @update:model-value="(val) => form.logo_file_id = val"
-          label="Логотип компании"
+          :label="t('cardForm.logo')"
           aspect-ratio="wide"
         />
       </div>
@@ -475,7 +490,7 @@ function handleSubmit() {
     <!-- ВЫБОР ШАБЛОНА -->
     <!-- ============================================================ -->
     <div class="border-t border-gray-200 pt-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">Шаблон визитки</h3>
+      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ t('cardForm.template') }}</h3>
       
       <!-- Уведомление о применении шаблона -->
       <transition
@@ -491,7 +506,7 @@ function handleSubmit() {
           class="mb-4 flex items-center gap-2 px-4 py-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800 text-sm"
         >
           <span class="text-lg">✨</span>
-          <span>Настройки дизайна применены из шаблона. Вы можете скорректировать их ниже.</span>
+          <span>{{ t('cardForm.templateApplied') }}</span>
         </div>
       </transition>
       
@@ -507,33 +522,32 @@ function handleSubmit() {
     <!-- ============================================================ -->
     <div class="border-t border-gray-200 pt-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-medium text-gray-900">Дизайн и тема</h3>
+        <h3 class="text-lg font-medium text-gray-900">{{ t('cardForm.design') }}</h3>
         
-        <!-- Кнопка сброса к настройкам шаблона -->
         <button
           v-if="form.template_id"
           type="button"
           @click="resetThemeToTemplate"
           class="text-sm text-primary hover:text-teal-800 font-medium"
         >
-          ↺ Сбросить к настройкам шаблона
+          {{ t('cardForm.resetTheme') }}
         </button>
       </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700">Цветовая схема</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.colorScheme') }}</label>
           <select
             v-model="form.theme.color_scheme"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
           >
-            <option value="light">Светлая</option>
-            <option value="dark">Темная</option>
+            <option value="light">{{ t('cardForm.light') }}</option>
+            <option value="dark">{{ t('cardForm.dark') }}</option>
           </select>
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Шрифт</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.font') }}</label>
           <select
             v-model="form.theme.font"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
@@ -545,7 +559,7 @@ function handleSubmit() {
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700">Акцентный цвет</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('cardForm.accentColor') }}</label>
           <div class="mt-1 flex items-center gap-3">
             <input
               v-model="form.theme.accent_color"
@@ -564,7 +578,7 @@ function handleSubmit() {
             type="checkbox"
             class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
           />
-          <span class="ml-2 text-sm text-gray-700">Показывать фото</span>
+          <span class="ml-2 text-sm text-gray-700">{{ t('cardForm.showPhoto') }}</span>
         </label>
         
         <label class="flex items-center cursor-pointer">
@@ -573,7 +587,7 @@ function handleSubmit() {
             type="checkbox"
             class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
           />
-          <span class="ml-2 text-sm text-gray-700">Показывать QR-код</span>
+          <span class="ml-2 text-sm text-gray-700">{{ t('cardForm.showQr') }}</span>
         </label>
       </div>
     </div>
@@ -583,7 +597,7 @@ function handleSubmit() {
     <!-- ============================================================ -->
     <div class="flex justify-end gap-3 pt-6 border-t border-gray-200">
       <router-link to="/" class="btn-secondary">
-        Отмена
+        {{ t('common.cancel') }}
       </router-link>
       
       <button
@@ -608,9 +622,9 @@ function handleSubmit() {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
             />
           </svg>
-          Сохранение...
+          {{ t('common.savingDots') }}
         </span>
-        <span v-else>Сохранить</span>
+        <span v-else>{{ t('common.save') }}</span>
       </button>
     </div>
   </form>

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { fileApi } from '../../api/files';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: string | null;
@@ -73,13 +76,13 @@ async function handleFileSelect(event: Event) {
 
   const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
   if (!validTypes.includes(file.type)) {
-    error.value = 'Допустимы только форматы JPG, PNG, WebP';
+    error.value = t('upload.invalidFormat');
     target.value = '';
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    error.value = 'Размер файла не должен превышать 5 МБ';
+    error.value = t('upload.tooLarge');
     target.value = '';
     return;
   }
@@ -95,11 +98,10 @@ async function handleFileSelect(event: Event) {
   localPreviewUrl.value = URL.createObjectURL(file);
 
   try {
-    // Не удаляем старый файл сразу: карточка ещё может на него ссылаться до save.
     const uploaded = await fileApi.upload(file);
     emit('update:modelValue', uploaded.id);
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка при загрузке файла');
+    error.value = getAxiosErrorMessage(e, t('errors.fileUpload'));
     revokeUrl(localPreviewUrl.value);
     localPreviewUrl.value = null;
   } finally {
@@ -109,7 +111,6 @@ async function handleFileSelect(event: Event) {
 }
 
 function removeImage() {
-  // Только локально: физическое удаление — после сохранения карточки / GC.
   revokeUrl(localPreviewUrl.value);
   revokeUrl(previewUrl.value);
   localPreviewUrl.value = null;
@@ -127,53 +128,53 @@ onUnmounted(() => {
 <template>
   <div>
     <label class="block text-sm font-medium text-gray-700 mb-2">{{ label }}</label>
-    
+
     <div class="flex items-start gap-4">
-      <div 
+      <div
         :class="['w-24 h-24 rounded-lg border-2 overflow-hidden relative bg-gray-50', aspectClass]"
         :style="aspectRatio === 'wide' ? 'width: 12rem' : ''"
       >
-        <img 
-          v-if="displayUrl" 
-          :src="displayUrl" 
+        <img
+          v-if="displayUrl"
+          :src="displayUrl"
           :alt="label"
           class="w-full h-full object-cover"
         />
         <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-3xl">
           🖼️
         </div>
-        
+
         <div v-if="isUploading" class="absolute inset-0 bg-white/80 flex items-center justify-center">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       </div>
-      
+
       <div class="flex-1 space-y-2">
         <label class="btn-secondary inline-block cursor-pointer">
-          {{ displayUrl ? 'Заменить' : 'Загрузить' }}
-          <input 
-            type="file" 
+          {{ displayUrl ? t('upload.replace') : t('upload.upload') }}
+          <input
+            type="file"
             accept="image/jpeg,image/png,image/webp"
             class="hidden"
             @change="handleFileSelect"
             :disabled="isUploading"
           />
         </label>
-        
-        <button 
+
+        <button
           v-if="displayUrl"
           type="button"
           @click="removeImage"
           class="btn-danger block"
           :disabled="isUploading"
         >
-          Удалить
+          {{ t('upload.remove') }}
         </button>
-        
+
         <p class="text-xs text-gray-500">
-          JPG, PNG или WebP. Макс. 5 МБ.
+          {{ t('upload.formats') }}
         </p>
-        
+
         <p v-if="error" class="text-xs text-red-600">{{ error }}</p>
       </div>
     </div>

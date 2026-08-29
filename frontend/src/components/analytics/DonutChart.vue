@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   data: { label: string; value: number; color: string; hint?: string }[];
@@ -155,7 +158,7 @@ onBeforeUnmount(() => {
         text-anchor="middle"
         class="text-xs fill-gray-500 pointer-events-none"
       >
-        всего
+        {{ t('analytics.total') }}
       </text>
     </svg>
 

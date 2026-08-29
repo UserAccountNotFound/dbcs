@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { AuditLog } from '../../types/admin';
+import { useLocaleDate } from '../../composables/useLocaleDate';
+
+const { t } = useI18n();
+const { formatDateTime } = useLocaleDate();
 
 const logs = ref<AuditLog[]>([]);
 const total = ref(0);
@@ -24,10 +29,6 @@ async function loadLogs() {
 
 onMounted(loadLogs);
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('ru-RU');
-}
-
 function getActionBadgeClass(action: string): string {
   if (action.includes('delete') || action.includes('deactivate')) return 'bg-red-100 text-red-800';
   if (action.includes('create')) return 'bg-green-100 text-green-800';
@@ -39,28 +40,28 @@ function getActionBadgeClass(action: string): string {
 
 <template>
   <div>
-    <h2 class="text-2xl font-bold text-gray-900 mb-6">Журнал аудита</h2>
+    <h2 class="text-2xl font-bold text-gray-900 mb-6">{{ t('admin.auditTitle') }}</h2>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <table class="w-full">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Время</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Пользователь</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Действие</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Объект</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.auditTime') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.auditUser') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.auditAction') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('admin.auditEntity') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           <tr v-if="isLoading">
-            <td colspan="4" class="px-6 py-12 text-center text-gray-500">Загрузка...</td>
+            <td colspan="4" class="px-6 py-12 text-center text-gray-500">{{ t('common.loadingShort') }}</td>
           </tr>
           <tr v-else-if="logs.length === 0">
-            <td colspan="4" class="px-6 py-12 text-center text-gray-500">Записи не найдены</td>
+            <td colspan="4" class="px-6 py-12 text-center text-gray-500">{{ t('admin.auditEmpty') }}</td>
           </tr>
           <tr v-for="log in logs" :key="log.id" class="hover:bg-gray-50">
-            <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ formatDate(log.created_at) }}</td>
-            <td class="px-6 py-4 text-sm text-gray-900">{{ log.actor_email || 'Система' }}</td>
+            <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(log.created_at) }}</td>
+            <td class="px-6 py-4 text-sm text-gray-900">{{ log.actor_email || t('common.system') }}</td>
             <td class="px-6 py-4">
               <span :class="['px-2 py-1 rounded-full text-xs font-medium', getActionBadgeClass(log.action)]">
                 {{ log.action }}
@@ -68,7 +69,7 @@ function getActionBadgeClass(action: string): string {
             </td>
             <td class="px-6 py-4 text-sm text-gray-600">
               <span v-if="log.entity_type">{{ log.entity_type }}: {{ log.entity_id }}</span>
-              <span v-else>—</span>
+              <span v-else>{{ t('common.dash') }}</span>
             </td>
           </tr>
         </tbody>
@@ -76,10 +77,10 @@ function getActionBadgeClass(action: string): string {
     </div>
 
     <div class="flex justify-between items-center mt-4">
-      <p class="text-sm text-gray-500">Всего записей: {{ total }}</p>
+      <p class="text-sm text-gray-500">{{ t('admin.auditTotal', { total }) }}</p>
       <div class="flex gap-2">
-        <button @click="offset -= limit; loadLogs()" :disabled="offset === 0" class="btn-secondary disabled:opacity-50">← Назад</button>
-        <button @click="offset += limit; loadLogs()" :disabled="offset + limit >= total" class="btn-secondary disabled:opacity-50">Вперед →</button>
+        <button @click="offset -= limit; loadLogs()" :disabled="offset === 0" class="btn-secondary disabled:opacity-50">{{ t('common.back') }}</button>
+        <button @click="offset += limit; loadLogs()" :disabled="offset + limit >= total" class="btn-secondary disabled:opacity-50">{{ t('common.forward') }}</button>
       </div>
     </div>
   </div>
