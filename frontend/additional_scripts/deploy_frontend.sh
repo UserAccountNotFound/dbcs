@@ -323,6 +323,17 @@ nginx_site_locations() {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    location ^~ ${API_PREFIX}/v1/admin/settings/backup {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+    }
+
     location ${API_PREFIX}/ {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_set_header Host \$host;

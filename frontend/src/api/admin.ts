@@ -142,9 +142,11 @@ export const adminApi = {
   },
 
   async restoreBackup(filename: string): Promise<BackupRestoreResponse> {
-    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/settings/backup/restore`, {
-      filename,
-    });
+    const { data } = await apiClient.post(
+      `${ADMIN_ENDPOINT}/settings/backup/restore`,
+      { filename },
+      { timeout: 600_000 },
+    );
     return data;
   },
 };

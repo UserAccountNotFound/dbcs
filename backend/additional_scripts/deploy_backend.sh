@@ -664,59 +664,96 @@ with open(env_file, "w") as f:
 setup_database() {
     log_info "Проверка подключения к базе данных..."
 
-    if MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -e "USE $DB_NAME; SELECT 1;" &>/dev/null; then
-        log_info "База данных и пользователь уже существуют и доступны."
-        return 0
-    fi
-
-    log_warn "Не удалось подключиться к БД — создаём базу и пользователя."
-
-    # Debian/Ubuntu: root часто через unix_socket без пароля
+    # Никогда не ждём пароль в TTY: явный --password= (в т.ч. пустой) + timeout.
     run_mysql_root() {
-        if [[ -n "${DB_ROOT_PASSWORD:-}" ]]; then
-            MYSQL_PWD="$DB_ROOT_PASSWORD" mariadb -u root "$@"
+        local pwd="${DB_ROOT_PASSWORD-}"
+        if command -v timeout >/dev/null 2>&1; then
+            MYSQL_PWD="$pwd" timeout 15 mariadb -u root --password="$pwd" --batch --connect-timeout=5 "$@"
         else
-            mariadb -u root "$@"
+            MYSQL_PWD="$pwd" mariadb -u root --password="$pwd" --batch --connect-timeout=5 "$@"
         fi
     }
 
-    if ! run_mysql_root -e "SELECT 1;" &>/dev/null; then
-        log_info "Нужен пароль root MariaDB (Enter — пустой / socket; символы скрыты):"
+    ensure_mysql_root() {
+        if run_mysql_root -e "SELECT 1;" &>/dev/null; then
+            return 0
+        fi
+
+        if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+            log_error "Нет доступа MariaDB root (нужен для грантов). Задайте DB_ROOT_PASSWORD или запустите интерактивно."
+            exit 1
+        fi
+
+        log_info "Нужен пароль root MariaDB (Enter — пустой; символы скрыты):"
         DB_ROOT_PASSWORD=""
-        read_from_tty DB_ROOT_PASSWORD "" "" --silent
+        read_from_tty DB_ROOT_PASSWORD "MariaDB root password: " "" --silent
         if ! run_mysql_root -e "SELECT 1;" &>/dev/null; then
             log_error "Не удалось подключиться к MariaDB как root."
             exit 1
         fi
-    else
-        log_info "MariaDB root доступен (socket или уже заданный пароль)."
-    fi
+    }
 
-    log_info "Создание базы данных и пользователя..."
-    export DB_NAME DB_USER DB_PASSWORD
-    SQL="$(python3 - <<'PY'
+    app_user_has_drop() {
+        MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" --batch -N \
+            -e "SHOW GRANTS FOR CURRENT_USER();" 2>/dev/null | grep -q "DROP"
+    }
+
+    # Права для миграций + полного restore из mysqldump (DROP/routines).
+    DB_APP_GRANTS="SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EXECUTE, EVENT, TRIGGER, LOCK TABLES"
+
+    apply_db_grants() {
+        local recreate_user="${1:-0}"
+        export DB_NAME DB_USER DB_PASSWORD DB_APP_GRANTS
+        export DBCS_RECREATE_USER="$recreate_user"
+        SQL="$(python3 - <<'PY'
 import os
 def esc(s: str) -> str:
     return s.replace("\\", "\\\\").replace("'", "''")
 db = os.environ["DB_NAME"]
 user = os.environ["DB_USER"]
 pwd = esc(os.environ["DB_PASSWORD"])
-print(f"""CREATE DATABASE IF NOT EXISTS `{db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '{user}'@'localhost' IDENTIFIED BY '{pwd}';
-CREATE USER IF NOT EXISTS '{user}'@'127.0.0.1' IDENTIFIED BY '{pwd}';
-ALTER USER '{user}'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');
-ALTER USER '{user}'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, EVENT, TRIGGER, LOCK TABLES ON `{db}`.* TO '{user}'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, EVENT, TRIGGER, LOCK TABLES ON `{db}`.* TO '{user}'@'127.0.0.1';
-FLUSH PRIVILEGES;
-""")
+grants = os.environ["DB_APP_GRANTS"]
+recreate = os.environ.get("DBCS_RECREATE_USER", "0") == "1"
+lines = [
+    f"CREATE DATABASE IF NOT EXISTS `{db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+]
+if recreate:
+    lines.extend([
+        f"CREATE USER IF NOT EXISTS '{user}'@'localhost' IDENTIFIED BY '{pwd}';",
+        f"CREATE USER IF NOT EXISTS '{user}'@'127.0.0.1' IDENTIFIED BY '{pwd}';",
+        f"ALTER USER '{user}'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');",
+        f"ALTER USER '{user}'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');",
+    ])
+lines.extend([
+    f"GRANT {grants} ON `{db}`.* TO '{user}'@'localhost';",
+    f"GRANT {grants} ON `{db}`.* TO '{user}'@'127.0.0.1';",
+    "FLUSH PRIVILEGES;",
+])
+print("\n".join(lines))
 PY
 )"
-    if ! printf '%s\n' "$SQL" | run_mysql_root; then
-        log_error "Не удалось выполнить SQL команды."
-        exit 1
+        if ! printf '%s\n' "$SQL" | run_mysql_root; then
+            log_error "Не удалось применить права БД."
+            exit 1
+        fi
+    }
+
+    if MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -e "USE $DB_NAME; SELECT 1;" &>/dev/null; then
+        if app_user_has_drop; then
+            log_info "База данных доступна, права приложения уже достаточны (есть DROP)."
+            return 0
+        fi
+        log_info "База данных доступна — дополняем права приложения (нужен DROP для restore)."
+        ensure_mysql_root
+        apply_db_grants 0
+        log_info "Права пользователя $DB_USER обновлены."
+        return 0
     fi
 
+    log_warn "Не удалось подключиться к БД — создаём базу и пользователя."
+    ensure_mysql_root
+    log_info "Создание базы данных и пользователя..."
+    apply_db_grants 1
     log_info "База данных и пользователь успешно созданы."
 }
 

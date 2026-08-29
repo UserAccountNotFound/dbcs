@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { adminApi } from '../../api/admin';
 import type { BackupFile, BackupSettings } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
 
 const auth = useAuthStore();
+const router = useRouter();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
 const settings = ref<BackupSettings | null>(null);
@@ -71,14 +73,30 @@ async function loadAll() {
   isLoading.value = true;
   error.value = null;
   try {
-    const [s, list] = await Promise.all([
+    const results = await Promise.allSettled([
       adminApi.getBackupSettings(),
       adminApi.listBackupFiles(),
     ]);
-    applySettings(s);
-    files.value = list.items;
-  } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Не удалось загрузить настройки');
+
+    const settingsResult = results[0];
+    const filesResult = results[1];
+    const errors: string[] = [];
+
+    if (settingsResult.status === 'fulfilled') {
+      applySettings(settingsResult.value);
+    } else {
+      errors.push(getAxiosErrorMessage(settingsResult.reason, 'Не удалось загрузить настройки'));
+    }
+
+    if (filesResult.status === 'fulfilled') {
+      files.value = filesResult.value.items;
+    } else {
+      errors.push(getAxiosErrorMessage(filesResult.reason, 'Не удалось загрузить список копий'));
+    }
+
+    if (errors.length) {
+      error.value = errors.join(' · ');
+    }
   } finally {
     isLoading.value = false;
   }
@@ -126,7 +144,7 @@ async function runBackup() {
 
 async function restoreBackup(file: BackupFile) {
   const ok = confirm(
-    `Восстановить из «${file.filename}»?\n\nТекущая база и uploads будут перезаписаны. Действие необратимо.`,
+    `Восстановить из «${file.filename}»?\n\nТекущая база и uploads будут перезаписаны. Действие необратимо.\nПосле восстановления потребуется повторный вход.`,
   );
   if (!ok) return;
   const ok2 = confirm('Подтвердите ещё раз: восстановить систему из этой копии?');
@@ -138,8 +156,21 @@ async function restoreBackup(file: BackupFile) {
   try {
     const result = await adminApi.restoreBackup(file.filename);
     message.value = result.detail;
-    await loadAll();
+    alert(`${result.detail}\n\nСейчас откроется страница входа.`);
+    await auth.forceLogout({ callApi: false });
+    await router.push('/login');
   } catch (e: unknown) {
+    // Nginx/прокси мог оборвать ответ после успешного restore — сессии уже сброшены.
+    const status = (e as { response?: { status?: number } })?.response?.status;
+    const isNetwork = !(e as { response?: unknown })?.response;
+    if (isNetwork || status === 502 || status === 504) {
+      alert(
+        'Связь с сервером прервалась во время восстановления.\nПроверьте данные и войдите заново.',
+      );
+      await auth.forceLogout({ callApi: false });
+      await router.push('/login');
+      return;
+    }
     error.value = getAxiosErrorMessage(e, 'Ошибка восстановления');
   } finally {
     restoringName.value = null;

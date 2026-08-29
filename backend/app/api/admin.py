@@ -564,6 +564,7 @@ def restore_backup_now(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_superadmin),
 ) -> BackupRestoreResponse:
+    actor_id = admin.id
     try:
         detail = backup_service.restore_backup(db, payload.filename)
     except BackupError as exc:
@@ -572,12 +573,23 @@ def restore_backup_now(
             detail=str(exc),
         ) from exc
 
-    audit_service.log(
-        db=db,
-        action="admin.backup_restore",
-        actor_user_id=admin.id,
-        entity_type="backup",
-        entity_id=payload.filename,
-        request=request,
-    )
+    # После restore исходная ORM-сессия и пользовательские сессии недействительны.
+    try:
+        from app.db.session import SessionLocal
+
+        audit_db = SessionLocal()
+        try:
+            audit_service.log(
+                db=audit_db,
+                action="admin.backup_restore",
+                actor_user_id=actor_id,
+                entity_type="backup",
+                entity_id=payload.filename,
+                request=request,
+            )
+        finally:
+            audit_db.close()
+    except Exception:  # noqa: BLE001
+        pass
+
     return BackupRestoreResponse(detail=detail)
