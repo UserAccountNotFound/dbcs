@@ -9,9 +9,13 @@ APP_USER="ecard"
 BACKEND_DIR="/opt/${APP_NAME}/backend"
 LOG_DIR="/var/log/${APP_NAME}"
 UPLOADS_DIR="/var/lib/${APP_NAME}/uploads"  # директория для загруженных файлов
+BACKUPS_DIR="/var/lib/${APP_NAME}/backups"
+BACKUPS_DIR_ALT="/opt/${APP_NAME}/backups"
 ENV_FILE="${BACKEND_DIR}/.env"
 ENV_EXAMPLE="${BACKEND_DIR}/.env.example"
 SYSTEMD_SERVICE="/etc/systemd/system/${APP_NAME}-backend.service"
+SYSTEMD_BACKUP_SERVICE="/etc/systemd/system/${APP_NAME}-backup.service"
+SYSTEMD_BACKUP_TIMER="/etc/systemd/system/${APP_NAME}-backup.timer"
 NGINX_CONF="/etc/nginx/sites-available/${APP_NAME}"
 NGINX_LINK="/etc/nginx/sites-enabled/${APP_NAME}"
 
@@ -517,6 +521,9 @@ setup_user_and_dirs() {
     # НОВОЕ: Создаем директорию для загружаемых файлов вне webroot
     # Это важно для безопасности: файлы не должны быть доступны через Nginx напрямую
     mkdir -p "$UPLOADS_DIR"
+    mkdir -p "$BACKUPS_DIR"
+    # Альтернативный путь из UI; должен существовать до systemd ReadWritePaths
+    mkdir -p "$BACKUPS_DIR_ALT"
     
 #    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #    if [[ "$SCRIPT_DIR" != "$BACKEND_DIR" ]]; then
@@ -533,6 +540,12 @@ setup_user_and_dirs() {
     chown -R "$APP_USER":"$APP_USER" "$UPLOADS_DIR"
     chmod 700 "$UPLOADS_DIR"
     log_info "Директория загрузок $UPLOADS_DIR создана и защищена."
+
+    chown -R "$APP_USER":"$APP_USER" "$BACKUPS_DIR"
+    chmod 700 "$BACKUPS_DIR"
+    chown -R "$APP_USER":"$APP_USER" "$BACKUPS_DIR_ALT"
+    chmod 700 "$BACKUPS_DIR_ALT"
+    log_info "Директории бэкапов $BACKUPS_DIR и $BACKUPS_DIR_ALT созданы и защищены."
 }
 
 # ==============================================================================
@@ -780,7 +793,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} ${UPLOADS_DIR}
+ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} /var/lib/${APP_NAME} ${BACKUPS_DIR_ALT}
 
 [Install]
 WantedBy=multi-user.target
@@ -791,6 +804,51 @@ EOF
     systemctl restart "${APP_NAME}-backend.service"
     
     log_info "Systemd сервис запущен и добавлен в автозагрузку."
+}
+
+# ==============================================================================
+# 6b. Таймер резервного копирования
+# ==============================================================================
+setup_backup_timer() {
+    log_info "Настройка systemd timer для резервного копирования..."
+
+    cat <<EOF > "$SYSTEMD_BACKUP_SERVICE"
+[Unit]
+Description=DBCS scheduled backup
+After=network.target mariadb.service ${APP_NAME}-backend.service
+
+[Service]
+Type=oneshot
+User=${APP_USER}
+Group=${APP_USER}
+WorkingDirectory=${BACKEND_DIR}
+EnvironmentFile=${ENV_FILE}
+Environment=PYTHONPATH=${BACKEND_DIR}
+ExecStart=${BACKEND_DIR}/.venv/bin/python ${BACKEND_DIR}/additional_scripts/run_backup.py --if-due
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} /var/lib/${APP_NAME} ${BACKUPS_DIR_ALT}
+EOF
+
+    cat <<EOF > "$SYSTEMD_BACKUP_TIMER"
+[Unit]
+Description=DBCS backup schedule (hourly check)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now "${APP_NAME}-backup.timer"
+    log_info "Таймер ${APP_NAME}-backup.timer включён."
 }
 
 # ==============================================================================
@@ -905,6 +963,7 @@ main() {
     setup_database
     setup_python
     setup_systemd
+    setup_backup_timer
     setup_nginx
     verify_deployment
 

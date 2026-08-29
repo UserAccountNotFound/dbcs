@@ -67,6 +67,12 @@ const router = createRouter({
           component: () => import('../views/admin/AdminAuditView.vue'),
         },
         {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('../views/admin/AdminSettingsView.vue'),
+          meta: { requiresSuperAdmin: true },
+        },
+        {
           // Старый путь: обзор и аналитика объединены на /admin
           path: 'analytics',
           redirect: { name: 'admin-dashboard' },
@@ -95,7 +101,10 @@ router.beforeEach(async (to, _from, next) => {
   // Доступность только для админов
   else if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'dashboard' });
-  } 
+  }
+  else if (to.matched.some((r) => r.meta.requiresSuperAdmin) && authStore.user?.role !== 'SUPERADMIN') {
+    next({ name: 'admin-dashboard' });
+  }
   else {
     next();
   }

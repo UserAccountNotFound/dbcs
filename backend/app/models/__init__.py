@@ -7,6 +7,7 @@ from app.models.auth_session import AuthSession
 from app.models.card_visit import CardVisit
 from app.models.audit_log import AuditLog
 from app.models.file import File
+from app.models.backup_settings import BackupSettings
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "CardVisit",
     "AuditLog",
     "File",
+    "BackupSettings",
 ]

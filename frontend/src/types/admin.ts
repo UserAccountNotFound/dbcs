@@ -76,5 +76,52 @@ export interface OverviewStats {
   total_vcard_downloads: number;
 }
 
+
+export type BackupSchedule = 'off' | 'hourly' | 'daily' | 'weekly';
+
+export interface BackupSettings {
+  storage_path: string;
+  schedule: BackupSchedule;
+  schedule_hour: number;
+  schedule_weekday: number;
+  retention_count: number;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_message: string | null;
+  last_backup_file: string | null;
+  updated_at: string;
+}
+
+export interface BackupSettingsUpdate {
+  storage_path?: string;
+  schedule?: BackupSchedule;
+  schedule_hour?: number;
+  schedule_weekday?: number;
+  retention_count?: number;
+  enabled?: boolean;
+}
+
+export interface BackupFile {
+  filename: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface BackupListResponse {
+  items: BackupFile[];
+}
+
+export interface BackupRunResponse {
+  filename: string;
+  size_bytes: number;
+  created_at: string;
+  detail: string;
+}
+
+export interface BackupRestoreResponse {
+  detail: string;
+}
+
 // Реэкспорт типов шаблонов для использования в админке
 export type { AdminTemplate, TemplateMeta, TemplateSchema, Template } from './template';

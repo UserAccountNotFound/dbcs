@@ -7,6 +7,11 @@ import type {
   AdminCardListResponse,
   AuditLogListResponse,
   OverviewStats,
+  BackupSettings,
+  BackupSettingsUpdate,
+  BackupListResponse,
+  BackupRunResponse,
+  BackupRestoreResponse,
 } from '../types/admin';
 
 import type { 
@@ -112,6 +117,33 @@ export const adminApi = {
   async getExtendedAnalytics(period: AnalyticsPeriod = '30d'): Promise<ExtendedAnalytics> {
     const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/analytics/extended`, {
       params: { period },
+    });
+    return data;
+  },
+
+  async getBackupSettings(): Promise<BackupSettings> {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/settings/backup`);
+    return data;
+  },
+
+  async updateBackupSettings(payload: BackupSettingsUpdate): Promise<BackupSettings> {
+    const { data } = await apiClient.patch(`${ADMIN_ENDPOINT}/settings/backup`, payload);
+    return data;
+  },
+
+  async listBackupFiles(): Promise<BackupListResponse> {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/settings/backup/files`);
+    return data;
+  },
+
+  async runBackup(): Promise<BackupRunResponse> {
+    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/settings/backup/run`);
+    return data;
+  },
+
+  async restoreBackup(filename: string): Promise<BackupRestoreResponse> {
+    const { data } = await apiClient.post(`${ADMIN_ENDPOINT}/settings/backup/restore`, {
+      filename,
     });
     return data;
   },
