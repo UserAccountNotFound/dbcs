@@ -24,6 +24,20 @@ class SmtpSettingsError(ServiceError):
     pass
 
 
+def _validate_enabled_config(row: SmtpSettings) -> None:
+    """Ensure required fields are present when SMTP relay is enabled."""
+    if not row.enabled:
+        return
+    if not row.host:
+        raise SmtpSettingsError("Укажите SMTP host перед включением.")
+    if not row.username:
+        raise SmtpSettingsError("Укажите SMTP username перед включением.")
+    if not row.password:
+        raise SmtpSettingsError("Укажите SMTP password перед включением.")
+    if not row.from_email:
+        raise SmtpSettingsError("Укажите From email перед включением.")
+
+
 def get_or_create_settings(db: Session) -> SmtpSettings:
     row = db.get(SmtpSettings, 1)
     if row is not None:
@@ -98,15 +112,8 @@ def update_settings(
 
     if enabled is not None:
         row.enabled = enabled
-        if enabled:
-            if not row.host:
-                raise SmtpSettingsError("Укажите SMTP host перед включением.")
-            if not row.username:
-                raise SmtpSettingsError("Укажите SMTP username перед включением.")
-            if not row.password:
-                raise SmtpSettingsError("Укажите SMTP password перед включением.")
-            if not row.from_email:
-                raise SmtpSettingsError("Укажите From email перед включением.")
+
+    _validate_enabled_config(row)
 
     row.updated_at = utcnow()
     db.commit()

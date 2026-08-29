@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
-import type { DocsSettings, SmtpSettings } from '../../types/admin';
+import type { DocsSettings, SmtpSettings, SmtpSettingsUpdate } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
 
@@ -133,7 +133,7 @@ async function saveSettings() {
   message.value = null;
   error.value = null;
   try {
-    const payload: Record<string, unknown> = {
+    const payload: SmtpSettingsUpdate = {
       enabled: form.value.enabled,
       host: form.value.host.trim(),
       port: form.value.port,

@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useLocaleDate } from '../../composables/useLocaleDate';
 
 const props = defineProps<{
   data: { date: string; views: number; downloads: number }[];
   height?: number;
 }>();
+
+const { t } = useI18n();
+const { bcp47 } = useLocaleDate();
 
 const HEIGHT = computed(() => props.height || 240);
 const WIDTH = 600;
@@ -61,7 +66,6 @@ const gridLines = computed(() => {
 
 const dateLabels = computed(() => {
   if (props.data.length === 0) return [];
-  // Показываем ~5-7 меток равномерно
   const labelCount = Math.min(7, props.data.length);
   const step = Math.max(1, Math.floor(props.data.length / labelCount));
   const labels = [];
@@ -69,7 +73,7 @@ const dateLabels = computed(() => {
     const d = new Date(props.data[i].date);
     labels.push({
       x: toX(i),
-      label: d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
+      label: d.toLocaleDateString(bcp47.value, { day: 'numeric', month: 'short' }),
     });
   }
   return labels;
@@ -79,7 +83,6 @@ const dateLabels = computed(() => {
 <template>
   <div class="w-full">
     <svg :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" class="w-full h-auto" preserveAspectRatio="xMidYMid meet">
-      <!-- Сетка -->
       <g>
         <line
           v-for="(line, i) in gridLines"
@@ -104,7 +107,6 @@ const dateLabels = computed(() => {
         </text>
       </g>
 
-      <!-- Ось X -->
       <g>
         <text
           v-for="(lbl, i) in dateLabels"
@@ -118,16 +120,10 @@ const dateLabels = computed(() => {
         </text>
       </g>
 
-      <!-- Область под линией views -->
       <path :d="viewsAreaPath" fill="#0f766e" fill-opacity="0.1" />
-
-      <!-- Линия downloads -->
       <path :d="downloadsPath" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" />
-
-      <!-- Линия views -->
       <path :d="viewsPath" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linejoin="round" />
 
-      <!-- Точки (показываем, если данных немного) -->
       <template v-if="data.length <= 30">
         <circle
           v-for="(d, i) in data"
@@ -148,15 +144,14 @@ const dateLabels = computed(() => {
       </template>
     </svg>
 
-    <!-- Легенда -->
     <div class="flex justify-center gap-6 mt-3 text-sm">
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-sm" style="background: #0f766e"></div>
-        <span class="text-gray-600">Просмотры</span>
+        <span class="text-gray-600">{{ t('analytics.chartViews') }}</span>
       </div>
       <div class="flex items-center gap-2">
         <div class="w-3 h-3 rounded-sm" style="background: #10b981"></div>
-        <span class="text-gray-600">Скачивания vCard</span>
+        <span class="text-gray-600">{{ t('analytics.chartVcardDownloads') }}</span>
       </div>
     </div>
   </div>

@@ -363,6 +363,11 @@ export default {
     period30d: '30 дней',
     period90d: '90 дней',
     total: 'всего',
+    chartViews: 'Просмотры',
+    chartVcardDownloads: 'Скачивания vCard',
+    heatmapLess: 'Меньше',
+    heatmapMore: 'Больше',
+    heatmapTooltip: '{day}, {hour}:00 — {count} событий',
     referrerHints: {
       Direct: 'Прямой заход: ссылка введена вручную, из закладок, QR-кода или мессенджера без передаваемого источника перехода.',
       Google: 'Переход из поиска или сервисов Google.',

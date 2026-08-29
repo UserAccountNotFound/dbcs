@@ -363,6 +363,11 @@ export default {
     period30d: '30 days',
     period90d: '90 days',
     total: 'total',
+    chartViews: 'Views',
+    chartVcardDownloads: 'vCard downloads',
+    heatmapLess: 'Less',
+    heatmapMore: 'More',
+    heatmapTooltip: '{day}, {hour}:00 — {count} events',
     referrerHints: {
       Direct: 'Direct visit: link typed manually, from bookmarks, QR code or messenger without referrer.',
       Google: 'Visit from Google search or services.',
