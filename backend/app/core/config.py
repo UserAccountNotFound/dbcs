@@ -80,9 +80,11 @@ class Settings(BaseSettings):
         if (
             self.environment.lower() not in {"development", "dev", "test"}
             and not self.refresh_cookie_secure
+            and not self.public_base_url.lower().startswith("http://")
         ):
             raise ValueError(
-                "REFRESH_COOKIE_SECURE must be true outside development."
+                "REFRESH_COOKIE_SECURE must be true outside development "
+                "(or use PUBLIC_BASE_URL=http://... for intentional HTTP-only)."
             )
 
         return self

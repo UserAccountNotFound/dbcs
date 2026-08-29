@@ -48,6 +48,12 @@ read_from_tty() {
     shift 3 || true
     [[ "${1:-}" == "--silent" ]] && __silent=1
 
+    if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+        __reply="${__default}"
+        printf -v "${__var}" '%s' "${__reply}"
+        return 0
+    fi
+
     if [[ -r /dev/tty ]]; then
         if [[ "${__silent}" -eq 1 ]]; then
             IFS= read -r -s -p "${__prompt}" __reply </dev/tty || true
@@ -232,6 +238,12 @@ load_tls_state() {
             SSL_KEY_PATH="/etc/nginx/ssl/${host}.key"
             SSL_MODE="${SSL_MODE:-existing}"
         fi
+    fi
+
+    # proxy = TLS на внешнем reverse proxy → локально слушаем HTTP
+    if [[ "${SSL_MODE}" == "proxy" ]]; then
+        log_info "SSL_MODE=proxy — локальный nginx на HTTP, публичный URL https."
+        SSL_MODE="http"
     fi
 
     if [[ -z "${SSL_MODE}" ]]; then

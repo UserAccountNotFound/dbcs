@@ -154,8 +154,10 @@ def create_superuser(email: str, full_name: str, password: str) -> None:
     try:
         existing = db.scalar(select(User).where(User.email == email))
         if existing:
-            print(f"\nПользователь с email '{email}' уже существует.")
-            sys.exit(1)
+            print(f"\nПользователь с email '{email}' уже существует — пропускаем.")
+            if existing.role != UserRole.SUPERADMIN:
+                print(f"   Внимание: роль сейчас {existing.role.value}, не SUPERADMIN.")
+            return
 
         user = User(
             email=email,

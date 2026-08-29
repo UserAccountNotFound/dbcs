@@ -446,6 +446,18 @@ check_and_update_versions() {
     local src_be run_be src_fe dep_fe
     local need_be=0 need_fe=0
 
+    # Сначала подтянуть код из git (выбранная/текущая ветка)
+    if [[ -d "${DBCS_DIR}/.git" ]]; then
+        local branch
+        branch="$(git -C "${DBCS_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+        if [[ "${branch}" == "HEAD" ]]; then
+            branch="${GIT_BRANCH:-main}"
+        fi
+        GIT_BRANCH="${branch}"
+        log_info "Обновление кода из origin/${branch}..."
+        clone_repository
+    fi
+
     print_versions
 
     src_be="$(get_source_backend_version)"
@@ -548,7 +560,9 @@ deploy_backend() {
         case "${create_admin_answer}" in
             [yY]|[yY][eE][sS]|[дД]|[дД][аА])
                 log_info "Запуск create_SuperAdminUser.py..."
-                run_backend_python additional_scripts/create_SuperAdminUser.py
+                if ! run_backend_python additional_scripts/create_SuperAdminUser.py; then
+                    log_warn "Создание SUPERADMIN завершилось с ошибкой — продолжаем установку."
+                fi
                 break
                 ;;
             [nN]|[nN][oO]|[нН]|[нН][еЕ][тТ]|"")
@@ -596,9 +610,11 @@ usage() {
   -h | --help       Справка
 
 Переменные окружения (TLS, опционально):
-  SSL_MODE=http|selfsigned|letsencrypt
+  SSL_MODE=http|selfsigned|letsencrypt|proxy
   LETSENCRYPT_EMAIL=admin@example.com
   PUBLIC_BASE_URL=https://example.com
+  DBCS_NONINTERACTIVE=1   # без вопросов (нужны PUBLIC_BASE_URL / SSL_MODE)
+  DBCS_BRANCH=main|dev    # ветка при полной установке
 EOF
 }
 
