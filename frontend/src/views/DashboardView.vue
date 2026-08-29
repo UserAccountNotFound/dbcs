@@ -65,7 +65,7 @@ function handleShowStats(cardId: string) {
             </div>
             <div>
               <h1 class="text-xl font-bold text-gray-900 leading-tight">DBCS</h1>
-              <p class="text-xs text-gray-500">Электронные визитки</p>
+              <p class="text-xs text-gray-500">Сервис Электронных Визиток</p>
             </div>
           </div>
 

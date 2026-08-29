@@ -251,7 +251,7 @@ watch(cssUrl, (url) => attachCss(url));
       </button>
     </div>
 
-    <div v-if="showActions" class="dbcs-footer">DBCS • Электронные визитки</div>
+    <div v-if="showActions" class="dbcs-footer">DBCS • Сервис Электронных Визиток</div>
   </div>
 </template>
 
