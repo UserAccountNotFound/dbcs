@@ -67,10 +67,21 @@ const router = createRouter({
           component: () => import('../views/admin/AdminAuditView.vue'),
         },
         {
+          path: 'backup',
+          name: 'admin-backup',
+          component: () => import('../views/admin/AdminBackupView.vue'),
+          meta: { requiresSuperAdmin: true },
+        },
+        {
           path: 'settings',
           name: 'admin-settings',
           component: () => import('../views/admin/AdminSettingsView.vue'),
           meta: { requiresSuperAdmin: true },
+        },
+        {
+          // Старый путь бэкапов
+          path: 'settings/backup',
+          redirect: { name: 'admin-backup' },
         },
         {
           // Старый путь: обзор и аналитика объединены на /admin

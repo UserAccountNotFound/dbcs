@@ -136,3 +136,46 @@ class BackupRestoreRequest(BaseModel):
 
 class BackupRestoreResponse(BaseModel):
     detail: str
+
+
+class SmtpSettingsResponse(BaseModel):
+    enabled: bool
+    host: str
+    port: int
+    use_tls: bool
+    use_ssl: bool
+    username: str
+    from_email: str
+    from_name: str
+    password_set: bool
+    updated_at: datetime
+
+
+class SmtpSettingsUpdate(BaseModel):
+    enabled: bool | None = None
+    host: str | None = Field(default=None, min_length=1, max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    use_tls: bool | None = None
+    use_ssl: bool | None = None
+    username: str | None = Field(default=None, max_length=255)
+    password: str | None = Field(default=None, max_length=512)
+    from_email: str | None = Field(default=None, max_length=255)
+    from_name: str | None = Field(default=None, max_length=255)
+
+
+class SmtpTestRequest(BaseModel):
+    to_email: EmailStr | None = None
+    # Опционально — проверить значения из формы до сохранения
+    host: str | None = Field(default=None, min_length=1, max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    use_tls: bool | None = None
+    use_ssl: bool | None = None
+    username: str | None = Field(default=None, max_length=255)
+    password: str | None = Field(default=None, max_length=512)
+    from_email: str | None = Field(default=None, max_length=255)
+    from_name: str | None = Field(default=None, max_length=255)
+
+
+class SmtpTestResponse(BaseModel):
+    detail: str
+

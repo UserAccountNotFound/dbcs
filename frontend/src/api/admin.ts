@@ -12,6 +12,10 @@ import type {
   BackupListResponse,
   BackupRunResponse,
   BackupRestoreResponse,
+  SmtpSettings,
+  SmtpSettingsUpdate,
+  SmtpTestRequest,
+  SmtpTestResponse,
 } from '../types/admin';
 
 import type { 
@@ -146,6 +150,25 @@ export const adminApi = {
       `${ADMIN_ENDPOINT}/settings/backup/restore`,
       { filename },
       { timeout: 600_000 },
+    );
+    return data;
+  },
+
+  async getSmtpSettings(): Promise<SmtpSettings> {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/settings/smtp`);
+    return data;
+  },
+
+  async updateSmtpSettings(payload: SmtpSettingsUpdate): Promise<SmtpSettings> {
+    const { data } = await apiClient.patch(`${ADMIN_ENDPOINT}/settings/smtp`, payload);
+    return data;
+  },
+
+  async testSmtpSettings(payload: SmtpTestRequest = {}): Promise<SmtpTestResponse> {
+    const { data } = await apiClient.post(
+      `${ADMIN_ENDPOINT}/settings/smtp/test`,
+      payload,
+      { timeout: 60_000 },
     );
     return data;
   },

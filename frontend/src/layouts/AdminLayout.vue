@@ -31,7 +31,10 @@ const menuItems = computed(() => {
     { name: 'admin-audit', label: 'Аудит', icon: '📋' },
   ];
   if (isSuperAdmin.value) {
-    items.push({ name: 'admin-settings', label: 'Резервное копирование', icon: '⚙️' });
+    items.push(
+      { name: 'admin-backup', label: 'Резервное копирование', icon: '💾' },
+      { name: 'admin-settings', label: 'Настройки', icon: '⚙️' },
+    );
   }
   return items;
 });

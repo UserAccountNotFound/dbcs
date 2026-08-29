@@ -1,71 +1,52 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { adminApi } from '../../api/admin';
-import type { BackupFile, BackupSettings } from '../../types/admin';
+import type { SmtpSettings } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
 
 const auth = useAuthStore();
-const router = useRouter();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
-const settings = ref<BackupSettings | null>(null);
-const files = ref<BackupFile[]>([]);
+const settings = ref<SmtpSettings | null>(null);
 const isLoading = ref(true);
 const isSaving = ref(false);
-const isRunning = ref(false);
-const restoringName = ref<string | null>(null);
+const isTesting = ref(false);
 const message = ref<string | null>(null);
 const error = ref<string | null>(null);
+const testToEmail = ref('');
 
 const form = ref({
-  storage_path: '/var/lib/dbcs/backups',
-  schedule: 'daily' as BackupSettings['schedule'],
-  schedule_hour: 3,
-  schedule_weekday: 0,
-  retention_count: 7,
-  enabled: true,
+  enabled: false,
+  host: 'smtp.gmail.com',
+  port: 587,
+  use_tls: true,
+  use_ssl: false,
+  username: '',
+  password: '',
+  from_email: '',
+  from_name: 'DBCS',
 });
 
-const weekdayLabels = [
-  'Понедельник',
-  'Вторник',
-  'Среда',
-  'Четверг',
-  'Пятница',
-  'Суббота',
-  'Воскресенье',
-];
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDt(value: string | null): string {
-  if (!value) return '—';
-  try {
-    return new Date(value.endsWith('Z') ? value : `${value}Z`).toLocaleString('ru-RU');
-  } catch {
-    return value;
+function applySettings(s: SmtpSettings) {
+  settings.value = s;
+  form.value = {
+    enabled: s.enabled,
+    host: s.host,
+    port: s.port,
+    use_tls: s.use_tls,
+    use_ssl: s.use_ssl,
+    username: s.username,
+    password: '',
+    from_email: s.from_email,
+    from_name: s.from_name,
+  };
+  if (!testToEmail.value) {
+    testToEmail.value = auth.user?.email || s.from_email || '';
   }
 }
 
-function applySettings(s: BackupSettings) {
-  settings.value = s;
-  form.value = {
-    storage_path: s.storage_path,
-    schedule: s.schedule,
-    schedule_hour: s.schedule_hour,
-    schedule_weekday: s.schedule_weekday,
-    retention_count: s.retention_count,
-    enabled: s.enabled,
-  };
-}
-
-async function loadAll() {
+async function loadSettings() {
   if (!isSuperAdmin.value) {
     isLoading.value = false;
     return;
@@ -73,52 +54,61 @@ async function loadAll() {
   isLoading.value = true;
   error.value = null;
   try {
-    const results = await Promise.allSettled([
-      adminApi.getBackupSettings(),
-      adminApi.listBackupFiles(),
-    ]);
-
-    const settingsResult = results[0];
-    const filesResult = results[1];
-    const errors: string[] = [];
-
-    if (settingsResult.status === 'fulfilled') {
-      applySettings(settingsResult.value);
-    } else {
-      errors.push(getAxiosErrorMessage(settingsResult.reason, 'Не удалось загрузить настройки'));
-    }
-
-    if (filesResult.status === 'fulfilled') {
-      files.value = filesResult.value.items;
-    } else {
-      errors.push(getAxiosErrorMessage(filesResult.reason, 'Не удалось загрузить список копий'));
-    }
-
-    if (errors.length) {
-      error.value = errors.join(' · ');
-    }
+    applySettings(await adminApi.getSmtpSettings());
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Не удалось загрузить настройки');
   } finally {
     isLoading.value = false;
   }
 }
 
-onMounted(loadAll);
+onMounted(loadSettings);
+
+function applyGoogleDefaults() {
+  form.value.host = 'smtp.gmail.com';
+  form.value.port = 587;
+  form.value.use_tls = true;
+  form.value.use_ssl = false;
+}
+
+function applyYandexDefaults() {
+  form.value.host = 'smtp.yandex.ru';
+  form.value.port = 465;
+  form.value.use_tls = false;
+  form.value.use_ssl = true;
+}
+
+function onPortPreset() {
+  if (form.value.port === 465) {
+    form.value.use_ssl = true;
+    form.value.use_tls = false;
+  } else if (form.value.port === 587) {
+    form.value.use_tls = true;
+    form.value.use_ssl = false;
+  }
+}
 
 async function saveSettings() {
   isSaving.value = true;
   message.value = null;
   error.value = null;
   try {
-    const s = await adminApi.updateBackupSettings({
-      storage_path: form.value.storage_path.trim(),
-      schedule: form.value.schedule,
-      schedule_hour: form.value.schedule_hour,
-      schedule_weekday: form.value.schedule_weekday,
-      retention_count: form.value.retention_count,
-      enabled: form.value.schedule !== 'off',
-    });
+    const payload: Record<string, unknown> = {
+      enabled: form.value.enabled,
+      host: form.value.host.trim(),
+      port: form.value.port,
+      use_tls: form.value.use_tls,
+      use_ssl: form.value.use_ssl,
+      username: form.value.username.trim(),
+      from_email: form.value.from_email.trim(),
+      from_name: form.value.from_name.trim() || 'DBCS',
+    };
+    if (form.value.password.trim()) {
+      payload.password = form.value.password;
+    }
+    const s = await adminApi.updateSmtpSettings(payload);
     applySettings(s);
-    message.value = 'Настройки сохранены.';
+    message.value = 'SMTP-настройки сохранены.';
   } catch (e: unknown) {
     error.value = getAxiosErrorMessage(e, 'Ошибка сохранения');
   } finally {
@@ -126,54 +116,30 @@ async function saveSettings() {
   }
 }
 
-async function runBackup() {
-  if (!confirm('Создать резервную копию сейчас?')) return;
-  isRunning.value = true;
+async function testSmtp() {
+  isTesting.value = true;
   message.value = null;
   error.value = null;
   try {
-    const result = await adminApi.runBackup();
-    message.value = `Создано: ${result.filename} (${formatBytes(result.size_bytes)})`;
-    await loadAll();
-  } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Ошибка создания копии');
-  } finally {
-    isRunning.value = false;
-  }
-}
-
-async function restoreBackup(file: BackupFile) {
-  const ok = confirm(
-    `Восстановить из «${file.filename}»?\n\nТекущая база и uploads будут перезаписаны. Действие необратимо.\nПосле восстановления потребуется повторный вход.`,
-  );
-  if (!ok) return;
-  const ok2 = confirm('Подтвердите ещё раз: восстановить систему из этой копии?');
-  if (!ok2) return;
-
-  restoringName.value = file.filename;
-  message.value = null;
-  error.value = null;
-  try {
-    const result = await adminApi.restoreBackup(file.filename);
-    message.value = result.detail;
-    alert(`${result.detail}\n\nСейчас откроется страница входа.`);
-    await auth.forceLogout({ callApi: false });
-    await router.push('/login');
-  } catch (e: unknown) {
-    // Nginx/прокси мог оборвать ответ после успешного restore — сессии уже сброшены.
-    const status = (e as { response?: { status?: number } })?.response?.status;
-    const isNetwork = !(e as { response?: unknown })?.response;
-    if (isNetwork || status === 502 || status === 504) {
-      alert(
-        'Связь с сервером прервалась во время восстановления.\nПроверьте данные и войдите заново.',
-      );
-      await auth.forceLogout({ callApi: false });
-      await router.push('/login');
-      return;
+    const payload: Record<string, unknown> = {
+      to_email: testToEmail.value.trim() || undefined,
+      host: form.value.host.trim(),
+      port: form.value.port,
+      use_tls: form.value.use_tls,
+      use_ssl: form.value.use_ssl,
+      username: form.value.username.trim(),
+      from_email: form.value.from_email.trim(),
+      from_name: form.value.from_name.trim() || 'DBCS',
+    };
+    if (form.value.password.trim()) {
+      payload.password = form.value.password;
     }
-    error.value = getAxiosErrorMessage(e, 'Ошибка восстановления');
+    const result = await adminApi.testSmtpSettings(payload);
+    message.value = result.detail;
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Ошибка тестовой отправки');
   } finally {
-    restoringName.value = null;
+    isTesting.value = false;
   }
 }
 </script>
@@ -181,7 +147,10 @@ async function restoreBackup(file: BackupFile) {
 <template>
   <div>
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-900">Настройки</h2>
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">Настройки</h2>
+        <p class="text-sm text-gray-500 mt-1">Системные параметры сервиса</p>
+      </div>
     </div>
 
     <div
@@ -207,138 +176,123 @@ async function restoreBackup(file: BackupFile) {
         {{ error }}
       </div>
 
-      <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-1">Резервное копирование</h3>
-        <p class="text-sm text-gray-500 mb-6">
-          Копия включает дамп базы данных и каталог загрузок (uploads).
-        </p>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="block md:col-span-2">
-            <span class="text-sm font-medium text-gray-700">Путь хранения</span>
-            <input
-              v-model="form.storage_path"
-              type="text"
-              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="/var/lib/dbcs/backups"
-            />
-            <span class="mt-1 block text-xs text-gray-500">
-              Только внутри /var/lib/dbcs или /opt/dbcs/backups
-            </span>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700">Периодичность</span>
-            <select
-              v-model="form.schedule"
-              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="off">Выключено</option>
-              <option value="hourly">Каждый час</option>
-              <option value="daily">Ежедневно</option>
-              <option value="weekly">Еженедельно</option>
-            </select>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-medium text-gray-700">Хранить копий</span>
-            <input
-              v-model.number="form.retention_count"
-              type="number"
-              min="1"
-              max="100"
-              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </label>
-
-          <label v-if="form.schedule === 'daily' || form.schedule === 'weekly'" class="block">
-            <span class="text-sm font-medium text-gray-700">Час запуска (UTC)</span>
-            <input
-              v-model.number="form.schedule_hour"
-              type="number"
-              min="0"
-              max="23"
-              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </label>
-
-          <label v-if="form.schedule === 'weekly'" class="block">
-            <span class="text-sm font-medium text-gray-700">День недели</span>
-            <select
-              v-model.number="form.schedule_weekday"
-              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option v-for="(label, idx) in weekdayLabels" :key="idx" :value="idx">
-                {{ label }}
-              </option>
-            </select>
-          </label>
+      <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">SMTP-релей</h3>
+            <p class="text-sm text-gray-500 mt-1">
+              Исходящая почта через SMTP. По умолчанию — Google (smtp.gmail.com:587, STARTTLS).
+              Для Gmail обычно нужен пароль приложения.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn-secondary text-sm" @click="applyGoogleDefaults">
+              Пресет Google
+            </button>
+            <button type="button" class="btn-secondary text-sm" @click="applyYandexDefaults">
+              Пресет Yandex
+            </button>
+          </div>
         </div>
 
-        <div
-          v-if="settings"
-          class="mt-6 grid gap-2 text-sm text-gray-600 md:grid-cols-2 bg-gray-50 rounded-lg p-4"
-        >
-          <div>Последний запуск: <span class="text-gray-900">{{ formatDt(settings.last_run_at) }}</span></div>
-          <div>Статус: <span class="text-gray-900">{{ settings.last_status || '—' }}</span></div>
-          <div class="md:col-span-2">Сообщение: <span class="text-gray-900">{{ settings.last_message || '—' }}</span></div>
-          <div class="md:col-span-2">Файл: <span class="font-mono text-gray-900">{{ settings.last_backup_file || '—' }}</span></div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex items-center gap-3 md:col-span-2">
+            <input v-model="form.enabled" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
+            <span class="text-sm font-medium text-gray-800">Включить отправку через SMTP</span>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">Хост</span>
+            <input
+              v-model="form.host"
+              type="text"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="smtp.gmail.com"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">Порт</span>
+            <input
+              v-model.number="form.port"
+              type="number"
+              min="1"
+              max="65535"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              @change="onPortPreset"
+            />
+          </label>
+
+          <label class="flex items-center gap-3">
+            <input v-model="form.use_tls" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
+            <span class="text-sm text-gray-800">STARTTLS (обычно порт 587)</span>
+          </label>
+
+          <label class="flex items-center gap-3">
+            <input v-model="form.use_ssl" type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" />
+            <span class="text-sm text-gray-800">SSL/TLS (обычно порт 465)</span>
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">Username / логин</span>
+            <input
+              v-model="form.username"
+              type="text"
+              autocomplete="off"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="user@gmail.com"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">Password</span>
+            <input
+              v-model="form.password"
+              type="password"
+              autocomplete="new-password"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              :placeholder="settings?.password_set ? '•••••••• (оставьте пустым, чтобы не менять)' : 'Пароль или app password'"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">From email</span>
+            <input
+              v-model="form.from_email"
+              type="email"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="noreply@example.com"
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-gray-700">From name</span>
+            <input
+              v-model="form.from_name"
+              type="text"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="DBCS"
+            />
+          </label>
+          <label class="block md:col-span-2">
+            <span class="text-sm font-medium text-gray-700">Получатель тестового письма</span>
+            <input
+              v-model="testToEmail"
+              type="email"
+              class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="you@example.com"
+            />
+          </label>
         </div>
 
         <div class="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            class="btn-primary"
-            :disabled="isSaving"
-            @click="saveSettings"
-          >
-            {{ isSaving ? 'Сохранение…' : 'Сохранить настройки' }}
+          <button type="button" class="btn-primary" :disabled="isSaving || isTesting" @click="saveSettings">
+            {{ isSaving ? 'Сохранение…' : 'Сохранить' }}
           </button>
-          <button
-            type="button"
-            class="btn-secondary"
-            :disabled="isRunning"
-            @click="runBackup"
-          >
-            {{ isRunning ? 'Создание…' : 'Создать копию сейчас' }}
+          <button type="button" class="btn-secondary" :disabled="isSaving || isTesting" @click="testSmtp">
+            {{ isTesting ? 'Отправка…' : 'Проверить отправку' }}
           </button>
         </div>
-      </section>
-
-      <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100">
-          <h3 class="text-lg font-semibold text-gray-900">Доступные копии</h3>
-        </div>
-        <div v-if="files.length === 0" class="px-6 py-8 text-gray-500 text-sm">
-          Пока нет файлов резервных копий.
-        </div>
-        <table v-else class="w-full text-left text-sm">
-          <thead class="bg-gray-50 text-gray-600">
-            <tr>
-              <th class="px-6 py-3 font-medium">Файл</th>
-              <th class="px-6 py-3 font-medium">Размер</th>
-              <th class="px-6 py-3 font-medium">Дата</th>
-              <th class="px-6 py-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="file in files" :key="file.filename" class="border-t border-gray-100">
-              <td class="px-6 py-3 font-mono text-xs text-gray-900">{{ file.filename }}</td>
-              <td class="px-6 py-3 text-gray-700">{{ formatBytes(file.size_bytes) }}</td>
-              <td class="px-6 py-3 text-gray-700">{{ formatDt(file.created_at) }}</td>
-              <td class="px-6 py-3 text-right">
-                <button
-                  type="button"
-                  class="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
-                  :disabled="restoringName !== null"
-                  @click="restoreBackup(file)"
-                >
-                  {{ restoringName === file.filename ? 'Восстановление…' : 'Восстановить' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </section>
     </template>
   </div>
