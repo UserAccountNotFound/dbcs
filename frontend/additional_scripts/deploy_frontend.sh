@@ -48,6 +48,12 @@ read_from_tty() {
     shift 3 || true
     [[ "${1:-}" == "--silent" ]] && __silent=1
 
+    if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+        __reply="${__default}"
+        printf -v "${__var}" '%s' "${__reply}"
+        return 0
+    fi
+
     if [[ -r /dev/tty ]]; then
         if [[ "${__silent}" -eq 1 ]]; then
             IFS= read -r -s -p "${__prompt}" __reply </dev/tty || true
@@ -234,6 +240,12 @@ load_tls_state() {
         fi
     fi
 
+    # proxy = TLS на внешнем reverse proxy → локально слушаем HTTP
+    if [[ "${SSL_MODE}" == "proxy" ]]; then
+        log_info "SSL_MODE=proxy — локальный nginx на HTTP, публичный URL https."
+        SSL_MODE="http"
+    fi
+
     if [[ -z "${SSL_MODE}" ]]; then
         if [[ "${PUBLIC_BASE_URL}" == https://* && -n "${SSL_CERT_PATH}" && -f "${SSL_CERT_PATH}" ]]; then
             SSL_MODE="existing"
@@ -309,6 +321,17 @@ nginx_site_locations() {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location ^~ ${API_PREFIX}/v1/admin/settings/backup {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
     }
 
     location ${API_PREFIX}/ {

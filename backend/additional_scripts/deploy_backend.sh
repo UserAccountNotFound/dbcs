@@ -9,9 +9,13 @@ APP_USER="ecard"
 BACKEND_DIR="/opt/${APP_NAME}/backend"
 LOG_DIR="/var/log/${APP_NAME}"
 UPLOADS_DIR="/var/lib/${APP_NAME}/uploads"  # директория для загруженных файлов
+BACKUPS_DIR="/var/lib/${APP_NAME}/backups"
+BACKUPS_DIR_ALT="/opt/${APP_NAME}/backups"
 ENV_FILE="${BACKEND_DIR}/.env"
 ENV_EXAMPLE="${BACKEND_DIR}/.env.example"
 SYSTEMD_SERVICE="/etc/systemd/system/${APP_NAME}-backend.service"
+SYSTEMD_BACKUP_SERVICE="/etc/systemd/system/${APP_NAME}-backup.service"
+SYSTEMD_BACKUP_TIMER="/etc/systemd/system/${APP_NAME}-backup.timer"
 NGINX_CONF="/etc/nginx/sites-available/${APP_NAME}"
 NGINX_LINK="/etc/nginx/sites-enabled/${APP_NAME}"
 
@@ -28,6 +32,19 @@ APP_PORT="8000"
 # PUBLIC_BASE_URL будет определен ниже автоматически или введен пользователем
 API_PREFIX="/api"
 MAX_UPLOAD_SIZE_MB=5  # НОВОЕ: максимальный размер загружаемого файла
+
+# TLS: http | selfsigned | letsencrypt | existing | proxy
+# SSL_MODE из окружения пропускает интерактивный вопрос.
+# proxy = HTTP на этом хосте, HTTPS на внешнем reverse proxy (PUBLIC_BASE_URL=https://...)
+SSL_MODE="${SSL_MODE:-}"
+SSL_CERT_PATH=""
+SSL_KEY_PATH=""
+SSL_DIR="/etc/nginx/ssl/${APP_NAME}"
+ACME_WEBROOT="/var/www/letsencrypt"
+SERVER_NAME=""
+LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
+TLS_STATE_FILE="/opt/${APP_NAME}/.tls.env"
+FRONTEND_WEB_ROOT="/var/www/${APP_NAME}/frontend"
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -52,6 +69,12 @@ read_from_tty() {
     local __reply=""
     shift 3 || true
     [[ "${1:-}" == "--silent" ]] && __silent=1
+
+    if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+        __reply="${__default}"
+        printf -v "${__var}" '%s' "${__reply}"
+        return 0
+    fi
 
     if [[ -r /dev/tty ]]; then
         if [[ "${__silent}" -eq 1 ]]; then
@@ -124,124 +147,324 @@ PY
     log_warn "DB_PASSWORD не задан — сгенерирован случайный пароль (будет записан в DATABASE_URL в .env)."
 }
 
-# ==============================================================================
-# Определение PUBLIC_BASE_URL (FQDN сервера)
-# ==============================================================================
-log_info "Определение PUBLIC_BASE_URL..."
-detect_base_url() {   
-    # Попытка определить FQDN сервера
+
+# =============================================================================
+# TLS / hostname / PUBLIC_BASE_URL
+# =============================================================================
+
+extract_url_host() {
+    python3 -c 'from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).hostname or "")' "$1"
+}
+
+is_ip_host() {
+    local h="$1"
+    [[ "$h" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && return 0
+    [[ "$h" == *:* ]] && return 0
+    return 1
+}
+
+detect_server_host() {
     local fqdn=""
-    
-    # Способ 1: через команду hostname -f (возвращает FQDN если настроен /etc/hosts или DNS)
     if command -v hostname &>/dev/null; then
         fqdn=$(hostname -f 2>/dev/null || echo "")
     fi
-    
-    # Способ 2: если hostname -f не вернул результат, пробуем получить IP и сделать reverse lookup
     if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
-        # Получаем основной IP адрес сервера
         local ip_addr=""
         if command -v hostname &>/dev/null; then
             ip_addr=$(hostname -I 2>/dev/null | awk '{print $1}')
         fi
-        
         if [[ -n "$ip_addr" && ! "$ip_addr" =~ ^127\. ]]; then
-            # Пытаемся сделать reverse DNS lookup
             if command -v host &>/dev/null; then
                 fqdn=$(host "$ip_addr" 2>/dev/null | grep -oP 'name pointer \K.*' || echo "")
             elif command -v dig &>/dev/null; then
                 fqdn=$(dig -x "$ip_addr" +short 2>/dev/null | grep -v '^$' | tail -1 | sed 's/\.$//' || echo "")
             fi
+            if [[ -z "$fqdn" ]]; then
+                fqdn="$ip_addr"
+            fi
         fi
     fi
-    
-    # Способ 3: если все еще пусто, используем hostname без домена
     if [[ -z "$fqdn" || "$fqdn" == "localhost"* || "$fqdn" == "(none)" ]]; then
-        if command -v hostname &>/dev/null; then
-            fqdn=$(hostname 2>/dev/null || echo "localhost")
-        else
-            fqdn="localhost"
-        fi
+        fqdn=$(hostname 2>/dev/null || echo "localhost")
     fi
-    
-    # Очищаем fqdn от лишних пробелов
-    fqdn=$(echo "$fqdn" | xargs)
-    
-    # Определяем протокол (если есть SSL сертификаты, можно использовать https)
-    local protocol="http"
-    if [[ -f "/etc/letsencrypt/live/${fqdn}/fullchain.pem" ]] || \
-       [[ -f "/etc/ssl/certs/${fqdn}.crt" ]] || \
-       [[ -f "/etc/nginx/ssl/${fqdn}.crt" ]]; then
-        protocol="https"
-        log_info "Обнаружен SSL сертификат для ${fqdn}, используем https://"
-    fi
-    
-    echo "${protocol}://${fqdn}"
+    echo "$(echo "$fqdn" | xargs)"
 }
 
-# Определяем базовый URL
-DETECTED_URL=$(detect_base_url)
-DEFAULT_BASE_URL="$DETECTED_URL"
-
-# Уже задан в окружении — не спрашиваем (удобно для автоматизации).
-if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
-    PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-    if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-        PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+find_existing_certs() {
+    local host="$1"
+    SSL_CERT_PATH=""
+    SSL_KEY_PATH=""
+    if [[ -f "/etc/letsencrypt/live/${host}/fullchain.pem" && -f "/etc/letsencrypt/live/${host}/privkey.pem" ]]; then
+        SSL_CERT_PATH="/etc/letsencrypt/live/${host}/fullchain.pem"
+        SSL_KEY_PATH="/etc/letsencrypt/live/${host}/privkey.pem"
+        return 0
     fi
-    log_info "PUBLIC_BASE_URL из окружения: ${PUBLIC_BASE_URL}"
-else
-    log_info "Автоматически определен PUBLIC_BASE_URL: ${DETECTED_URL}"
-    echo ""
-    echo "=============================================================================="
-    echo "Настройка PUBLIC_BASE_URL"
-    echo "=============================================================================="
-    echo "Скрипт обнаружил следующий URL сервера: ${DETECTED_URL}"
-    echo ""
-    echo "Этот URL будет использоваться для:"
-    echo "  - CORS настроек (ALLOWED_ORIGINS)"
-    echo "  - Генерации ссылок в API ответах"
-    echo "  - Redirect URI после аутентификации"
-    echo ""
-    user_input=""
-    read_from_tty user_input "Использовать это значение по умолчанию? [Y/n] или введите свой URL: " "Y"
+    if [[ -f "${SSL_DIR}/${host}.crt" && -f "${SSL_DIR}/${host}.key" ]]; then
+        SSL_CERT_PATH="${SSL_DIR}/${host}.crt"
+        SSL_KEY_PATH="${SSL_DIR}/${host}.key"
+        return 0
+    fi
+    if [[ -f "/etc/nginx/ssl/${host}.crt" && -f "/etc/nginx/ssl/${host}.key" ]]; then
+        SSL_CERT_PATH="/etc/nginx/ssl/${host}.crt"
+        SSL_KEY_PATH="/etc/nginx/ssl/${host}.key"
+        return 0
+    fi
+    return 1
+}
 
+generate_self_signed_cert() {
+    local host="$1"
+    local san
+    mkdir -p "${SSL_DIR}"
+    SSL_CERT_PATH="${SSL_DIR}/${host}.crt"
+    SSL_KEY_PATH="${SSL_DIR}/${host}.key"
+    if is_ip_host "${host}"; then
+        san="IP:${host}"
+    else
+        san="DNS:${host},DNS:localhost,IP:127.0.0.1"
+    fi
+    log_info "Генерация самоподписанного сертификата для ${host}..."
+    if ! openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+        -keyout "${SSL_KEY_PATH}" -out "${SSL_CERT_PATH}" \
+        -subj "/CN=${host}/O=DBCS/C=RU" \
+        -addext "subjectAltName=${san}" 2>/dev/null; then
+        openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+            -keyout "${SSL_KEY_PATH}" -out "${SSL_CERT_PATH}" \
+            -subj "/CN=${host}/O=DBCS/C=RU"
+    fi
+    chmod 640 "${SSL_KEY_PATH}" || true
+    chmod 644 "${SSL_CERT_PATH}" || true
+    log_info "Сертификат: ${SSL_CERT_PATH}"
+}
+
+obtain_letsencrypt_cert() {
+    local host="$1"
+    local email="${LETSENCRYPT_EMAIL:-}"
+    if is_ip_host "${host}" || [[ "${host}" == "localhost" || "${host}" == *".local" ]]; then
+        log_error "Let's Encrypt недоступен для IP / localhost."
+        return 1
+    fi
+    if [[ -z "${email}" ]]; then
+        read_from_tty email "Email для Let's Encrypt: " ""
+    fi
+    if [[ -z "${email}" || "${email}" != *@* ]]; then
+        log_error "Нужен корректный email для Let's Encrypt."
+        return 1
+    fi
+    LETSENCRYPT_EMAIL="${email}"
+    log_info "Установка certbot..."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
+    mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+    cat > "${NGINX_CONF}" <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${host};
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+    }
+    location / { return 200 'DBCS ACME\n'; add_header Content-Type text/plain; }
+}
+EOF
+    ln -sf "${NGINX_CONF}" "${NGINX_LINK}"
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl reload nginx
+    if ! certbot certonly --webroot -w "${ACME_WEBROOT}" -d "${host}" \
+        --email "${email}" --agree-tos --non-interactive --keep-until-expiring; then
+        log_error "certbot не получил сертификат."
+        return 1
+    fi
+    SSL_CERT_PATH="/etc/letsencrypt/live/${host}/fullchain.pem"
+    SSL_KEY_PATH="/etc/letsencrypt/live/${host}/privkey.pem"
+    log_info "Let's Encrypt сертификат получен."
+}
+
+write_tls_state() {
+    mkdir -p "$(dirname "${TLS_STATE_FILE}")"
+    cat > "${TLS_STATE_FILE}" <<EOF
+# Сгенерировано deploy_backend.sh — читает deploy_frontend.sh
+SSL_MODE=${SSL_MODE}
+SSL_CERT_PATH=${SSL_CERT_PATH}
+SSL_KEY_PATH=${SSL_KEY_PATH}
+SERVER_NAME=${SERVER_NAME}
+PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+ACME_WEBROOT=${ACME_WEBROOT}
+SSL_DIR=${SSL_DIR}
+EOF
+    chmod 644 "${TLS_STATE_FILE}"
+    log_info "TLS-состояние: ${TLS_STATE_FILE} (mode=${SSL_MODE})"
+}
+
+tls_scheme_for_mode() {
+    case "${SSL_MODE}" in
+        http) echo "http" ;;
+        proxy) echo "https" ;;  # снаружи HTTPS
+        *) echo "https" ;;
+    esac
+}
+
+build_public_url() {
+    local scheme host
+    scheme="$(tls_scheme_for_mode)"
+    host="${1:-${SERVER_NAME}}"
+    echo "${scheme}://${host}"
+}
+
+configure_server_host() {
+    log_info "Определение имени сервера..."
+    if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
+        SERVER_NAME="$(extract_url_host "${PUBLIC_BASE_URL}")"
+        if [[ -z "${SERVER_NAME}" ]]; then
+            log_error "Не удалось извлечь hostname из PUBLIC_BASE_URL=${PUBLIC_BASE_URL}"
+            exit 1
+        fi
+        log_info "Имя сервера из PUBLIC_BASE_URL: ${SERVER_NAME}"
+        return 0
+    fi
+    local detected answer
+    detected="$(detect_server_host)"
+    SERVER_NAME="${detected}"
+    echo
+    echo "=============================================================================="
+    echo " Имя сервера (hostname / FQDN)"
+    echo "=============================================================================="
+    echo " Обнаружено: ${detected}"
+    echo " (схема http/https — после выбора TLS)"
+    echo "=============================================================================="
+    read_from_tty answer "Использовать это имя? [Y/n] или введите своё: " "Y"
+    if [[ -z "$answer" || "$answer" =~ ^[Yy]$ ]]; then
+        SERVER_NAME="${detected}"
+    elif [[ "$answer" =~ ^[Nn]$ ]]; then
+        read_from_tty SERVER_NAME "Введите hostname или FQDN: " "${detected}"
+        SERVER_NAME="$(echo "${SERVER_NAME}" | xargs)"
+    else
+        answer="${answer#http://}"; answer="${answer#https://}"; answer="${answer%%/*}"
+        SERVER_NAME="$(echo "${answer}" | xargs)"
+    fi
+    if [[ -z "${SERVER_NAME}" ]]; then
+        log_error "Имя сервера не может быть пустым."
+        exit 1
+    fi
+    log_info "Имя сервера: ${SERVER_NAME}"
+}
+
+configure_tls() {
+    if [[ -z "${SERVER_NAME}" ]]; then
+        log_error "SERVER_NAME не задан."
+        exit 1
+    fi
+    if find_existing_certs "${SERVER_NAME}"; then
+        SSL_MODE="existing"
+        log_info "Найдены SSL-сертификаты для ${SERVER_NAME}."
+        return 0
+    fi
+    local choice="${SSL_MODE}"
+    if [[ -z "${choice}" ]]; then
+        echo
+        echo "=============================================================================="
+        echo " SSL / HTTPS (нужен для PWA; за reverse proxy — вариант 4)"
+        echo "=============================================================================="
+        echo " Сертификаты для «${SERVER_NAME}» не найдены."
+        echo
+        echo "  [1] HTTP только — без TLS на этом хосте (PWA недоступно)"
+        echo "  [2] Самоподписанный сертификат (по умолчанию)"
+        echo "  [3] Let's Encrypt (нужен публичный DNS)"
+        echo "  [4] За reverse proxy — HTTP здесь, HTTPS снаружи"
+        echo "=============================================================================="
+        read_from_tty choice "Выберите [1/2/3/4] (Enter = 2): " "2"
+    fi
+    case "${choice}" in
+        1|http|HTTP)
+            SSL_MODE="http"
+            SSL_CERT_PATH=""; SSL_KEY_PATH=""
+            log_warn "HTTP без TLS. PWA недоступно."
+            ;;
+        3|letsencrypt|le|LE)
+            SSL_MODE="letsencrypt"
+            log_info "Let's Encrypt — сертификат при настройке Nginx (frontend)."
+            # Отложим certbot до nginx с ACME; сгенерируем selfsigned временно только если нужно
+            ;;
+        4|proxy|PROXY)
+            SSL_MODE="proxy"
+            SSL_CERT_PATH=""; SSL_KEY_PATH=""
+            log_info "Режим reverse proxy: локально HTTP, PUBLIC_BASE_URL будет https://"
+            ;;
+        2|selfsigned|self|"")
+            SSL_MODE="selfsigned"
+            generate_self_signed_cert "${SERVER_NAME}"
+            log_warn "Самоподписанный сертификат — браузер покажет предупреждение."
+            ;;
+        *)
+            log_warn "Неизвестный SSL_MODE=${choice} — selfsigned."
+            SSL_MODE="selfsigned"
+            generate_self_signed_cert "${SERVER_NAME}"
+            ;;
+    esac
+    log_info "TLS: mode=${SSL_MODE}, host=${SERVER_NAME}"
+}
+
+configure_public_base_url() {
+    local scheme default_url user_input
+    scheme="$(tls_scheme_for_mode)"
+    default_url="$(build_public_url "${SERVER_NAME}")"
+
+    if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
+        PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
+        if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
+            PUBLIC_BASE_URL="${scheme}://${PUBLIC_BASE_URL}"
+        fi
+        # Для локального TLS/HTTP схема должна совпадать с mode (кроме proxy — оставляем https снаружи)
+        if [[ "${SSL_MODE}" != "proxy" ]]; then
+            PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "${PUBLIC_BASE_URL}")")"
+        else
+            # proxy: принудительно https публичный URL
+            PUBLIC_BASE_URL="https://$(extract_url_host "${PUBLIC_BASE_URL}")"
+        fi
+        log_info "PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}"
+        write_tls_state
+        return 0
+    fi
+
+    echo
+    echo "=============================================================================="
+    echo " Настройка PUBLIC_BASE_URL"
+    echo "=============================================================================="
+    echo " TLS: ${SSL_MODE} → схема ${scheme}"
+    echo " Предлагаемый URL: ${default_url}"
+    echo "=============================================================================="
+    read_from_tty user_input "Использовать предложенный URL? [Y/n] или введите свой: " "Y"
     if [[ -z "$user_input" || "$user_input" =~ ^[Yy]$ ]]; then
-        PUBLIC_BASE_URL="$DEFAULT_BASE_URL"
-        log_info "Используем определенное значение: ${PUBLIC_BASE_URL}"
+        PUBLIC_BASE_URL="${default_url}"
     elif [[ "$user_input" =~ ^[Nn]$ ]]; then
+        local raw=""
         while true; do
-            PUBLIC_BASE_URL=""
-            read_from_tty PUBLIC_BASE_URL "Введите PUBLIC_BASE_URL (например, https://dbcs.example): " ""
-
-            if [[ "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-                PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-                log_info "Установлено значение: ${PUBLIC_BASE_URL}"
-                break
+            read_from_tty raw "Hostname или полный URL: " ""
+            [[ -z "$raw" ]] && { log_error "Не может быть пустым."; continue; }
+            if [[ "$raw" =~ ^https?:// ]]; then
+                PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "$raw")")"
             else
-                log_error "URL должен начинаться с http:// или https://"
-                retry=""
-                read_from_tty retry "Попробовать снова? [Y/n]: " "Y"
-                if [[ "$retry" =~ ^[Nn]$ ]]; then
-                    log_error "Необходимо указать корректный PUBLIC_BASE_URL для продолжения."
-                    exit 1
-                fi
+                raw="${raw#http://}"; raw="${raw#https://}"; raw="${raw%%/*}"
+                PUBLIC_BASE_URL="$(build_public_url "$raw")"
             fi
+            break
         done
     else
-        PUBLIC_BASE_URL="$user_input"
-        PUBLIC_BASE_URL="${PUBLIC_BASE_URL%/}"
-
-        if [[ ! "$PUBLIC_BASE_URL" =~ ^https?:// ]]; then
-            log_warn "Введенное значение не начинается с http:// или https://, добавляем http://"
-            PUBLIC_BASE_URL="http://${PUBLIC_BASE_URL}"
+        if [[ "$user_input" =~ ^https?:// ]]; then
+            PUBLIC_BASE_URL="$(build_public_url "$(extract_url_host "$user_input")")"
+        else
+            user_input="${user_input#http://}"; user_input="${user_input#https://}"; user_input="${user_input%%/*}"
+            PUBLIC_BASE_URL="$(build_public_url "$user_input")"
         fi
-
-        log_info "Используем введенное значение: ${PUBLIC_BASE_URL}"
     fi
-fi
+    # proxy: всегда https снаружи
+    if [[ "${SSL_MODE}" == "proxy" ]]; then
+        PUBLIC_BASE_URL="https://$(extract_url_host "${PUBLIC_BASE_URL}")"
+    fi
+    log_info "PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}"
+    write_tls_state
+}
 
-echo ""
 
 
 # ==============================================================================
@@ -257,7 +480,7 @@ install_dependencies() {
     apt-get update -qq
     
     # libmagic1 нужен для python-magic (валидация MIME-типов загружаемых файлов)
-    apt-get install -y -qq sudo locales python3 python3-venv python3-pip libmagic1 mariadb-server mariadb-client nginx curl rsync
+    apt-get install -y -qq sudo locales python3 python3-venv python3-pip libmagic1 mariadb-server mariadb-client nginx curl rsync openssl
     
     log_info "Настройка системных локалей..."
     
@@ -298,6 +521,9 @@ setup_user_and_dirs() {
     # НОВОЕ: Создаем директорию для загружаемых файлов вне webroot
     # Это важно для безопасности: файлы не должны быть доступны через Nginx напрямую
     mkdir -p "$UPLOADS_DIR"
+    mkdir -p "$BACKUPS_DIR"
+    # Альтернативный путь из UI; должен существовать до systemd ReadWritePaths
+    mkdir -p "$BACKUPS_DIR_ALT"
     
 #    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #    if [[ "$SCRIPT_DIR" != "$BACKEND_DIR" ]]; then
@@ -314,6 +540,12 @@ setup_user_and_dirs() {
     chown -R "$APP_USER":"$APP_USER" "$UPLOADS_DIR"
     chmod 700 "$UPLOADS_DIR"
     log_info "Директория загрузок $UPLOADS_DIR создана и защищена."
+
+    chown -R "$APP_USER":"$APP_USER" "$BACKUPS_DIR"
+    chmod 700 "$BACKUPS_DIR"
+    chown -R "$APP_USER":"$APP_USER" "$BACKUPS_DIR_ALT"
+    chmod 700 "$BACKUPS_DIR_ALT"
+    log_info "Директории бэкапов $BACKUPS_DIR и $BACKUPS_DIR_ALT созданы и защищены."
 }
 
 # ==============================================================================
@@ -344,7 +576,7 @@ ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
 SELF_REGISTRATION_ENABLED=false
 REFRESH_COOKIE_NAME=refresh_token
-REFRESH_COOKIE_SECURE=true
+REFRESH_COOKIE_SECURE=false
 REFRESH_COOKIE_SAMESITE=lax
 UPLOADS_DIR=${UPLOADS_DIR}
 MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
@@ -357,9 +589,15 @@ EOF
     log_info "Обновление секретов и DATABASE_URL в .env..."
     
     NEW_SECRET=$(generate_secret)
-    DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
-    
-    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL UPLOADS_DIR MAX_UPLOAD_SIZE_MB
+    # URL-encode пароля для DATABASE_URL
+    DB_PASSWORD_ENC="$(P="${DB_PASSWORD}" python3 -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["P"], safe=""))')"
+    DB_URL="mysql+pymysql://${DB_USER}:${DB_PASSWORD_ENC}@${DB_HOST}:${DB_PORT}/${DB_NAME}?charset=utf8mb4"
+
+    COOKIE_SECURE=false
+    if [[ "${PUBLIC_BASE_URL}" == https://* ]]; then
+        COOKIE_SECURE=true
+    fi
+    export ENV_FILE DB_URL NEW_SECRET PUBLIC_BASE_URL UPLOADS_DIR MAX_UPLOAD_SIZE_MB COOKIE_SECURE
     
     python3 -c '
 import os
@@ -369,6 +607,7 @@ new_secret = os.environ["NEW_SECRET"]
 public_url = os.environ["PUBLIC_BASE_URL"]
 uploads_dir = os.environ["UPLOADS_DIR"]
 max_upload_mb = os.environ["MAX_UPLOAD_SIZE_MB"]
+cookie_secure = os.environ.get("COOKIE_SECURE", "true")
 
 with open(env_file, "r") as f:
     lines = f.readlines()
@@ -387,6 +626,8 @@ with open(env_file, "w") as f:
             f.write(f"UPLOADS_DIR={uploads_dir}\n")
         elif line.startswith("MAX_UPLOAD_SIZE_MB="):
             f.write(f"MAX_UPLOAD_SIZE_MB={max_upload_mb}\n")
+        elif line.startswith("REFRESH_COOKIE_SECURE="):
+            f.write(f"REFRESH_COOKIE_SECURE={cookie_secure}\n")
         else:
             f.write(line)
     # Если DATABASE_URL не было в файле, добавляем в конец
@@ -397,7 +638,7 @@ with open(env_file, "w") as f:
     required_vars = {
         "SELF_REGISTRATION_ENABLED": "false",
         "REFRESH_COOKIE_NAME": "refresh_token",
-        "REFRESH_COOKIE_SECURE": "true",
+        "REFRESH_COOKIE_SECURE": cookie_secure,
         "REFRESH_COOKIE_SAMESITE": "lax",
         "API_V1_PREFIX": "/api/v1",
         "UPLOADS_DIR": uploads_dir,
@@ -422,56 +663,100 @@ with open(env_file, "w") as f:
 # ==============================================================================
 setup_database() {
     log_info "Проверка подключения к базе данных..."
-    
-    # Пытаемся подключиться под пользователем приложения
+
+    # Никогда не ждём пароль в TTY: явный --password= (в т.ч. пустой) + timeout.
+    run_mysql_root() {
+        local pwd="${DB_ROOT_PASSWORD-}"
+        if command -v timeout >/dev/null 2>&1; then
+            MYSQL_PWD="$pwd" timeout 15 mariadb -u root --password="$pwd" --batch --connect-timeout=5 "$@"
+        else
+            MYSQL_PWD="$pwd" mariadb -u root --password="$pwd" --batch --connect-timeout=5 "$@"
+        fi
+    }
+
+    ensure_mysql_root() {
+        if run_mysql_root -e "SELECT 1;" &>/dev/null; then
+            return 0
+        fi
+
+        if [[ -n "${DBCS_NONINTERACTIVE:-}" ]]; then
+            log_error "Нет доступа MariaDB root (нужен для грантов). Задайте DB_ROOT_PASSWORD или запустите интерактивно."
+            exit 1
+        fi
+
+        log_info "Нужен пароль root MariaDB (Enter — пустой; символы скрыты):"
+        DB_ROOT_PASSWORD=""
+        read_from_tty DB_ROOT_PASSWORD "MariaDB root password: " "" --silent
+        if ! run_mysql_root -e "SELECT 1;" &>/dev/null; then
+            log_error "Не удалось подключиться к MariaDB как root."
+            exit 1
+        fi
+    }
+
+    app_user_has_drop() {
+        MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" --batch -N \
+            -e "SHOW GRANTS FOR CURRENT_USER();" 2>/dev/null | grep -q "DROP"
+    }
+
+    # Права для миграций + полного restore из mysqldump (DROP/routines).
+    DB_APP_GRANTS="SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EXECUTE, EVENT, TRIGGER, LOCK TABLES"
+
+    apply_db_grants() {
+        local recreate_user="${1:-0}"
+        export DB_NAME DB_USER DB_PASSWORD DB_APP_GRANTS
+        export DBCS_RECREATE_USER="$recreate_user"
+        SQL="$(python3 - <<'PY'
+import os
+def esc(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("'", "''")
+db = os.environ["DB_NAME"]
+user = os.environ["DB_USER"]
+pwd = esc(os.environ["DB_PASSWORD"])
+grants = os.environ["DB_APP_GRANTS"]
+recreate = os.environ.get("DBCS_RECREATE_USER", "0") == "1"
+lines = [
+    f"CREATE DATABASE IF NOT EXISTS `{db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+]
+if recreate:
+    lines.extend([
+        f"CREATE USER IF NOT EXISTS '{user}'@'localhost' IDENTIFIED BY '{pwd}';",
+        f"CREATE USER IF NOT EXISTS '{user}'@'127.0.0.1' IDENTIFIED BY '{pwd}';",
+        f"ALTER USER '{user}'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');",
+        f"ALTER USER '{user}'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('{pwd}');",
+    ])
+lines.extend([
+    f"GRANT {grants} ON `{db}`.* TO '{user}'@'localhost';",
+    f"GRANT {grants} ON `{db}`.* TO '{user}'@'127.0.0.1';",
+    "FLUSH PRIVILEGES;",
+])
+print("\n".join(lines))
+PY
+)"
+        if ! printf '%s\n' "$SQL" | run_mysql_root; then
+            log_error "Не удалось применить права БД."
+            exit 1
+        fi
+    }
+
     if MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -e "USE $DB_NAME; SELECT 1;" &>/dev/null; then
-        log_info "База данных и пользователь уже существуют и доступны."
+        if app_user_has_drop; then
+            log_info "База данных доступна, права приложения уже достаточны (есть DROP)."
+            return 0
+        fi
+        log_info "База данных доступна — дополняем права приложения (нужен DROP для restore)."
+        ensure_mysql_root
+        apply_db_grants 0
+        log_info "Права пользователя $DB_USER обновлены."
         return 0
     fi
 
-    log_warn "Не удалось подключиться к БД. Требуется создание базы и пользователя."
-    log_info "Пожалуйста, введите пароль root для MariaDB (символы не будут отображаться):"
-
-    DB_ROOT_PASSWORD=""
-    read_from_tty DB_ROOT_PASSWORD "" "" --silent
-
-    if [[ -z "$DB_ROOT_PASSWORD" ]]; then
-        log_error "Пароль root не может быть пустым."
-        exit 1
-    fi
-
+    log_warn "Не удалось подключиться к БД — создаём базу и пользователя."
+    ensure_mysql_root
     log_info "Создание базы данных и пользователя..."
-    
-    set +x # Отключаем трассировку, чтобы пароль не попал в логи
-    export MYSQL_PWD="$DB_ROOT_PASSWORD"
-    mariadb -u root <<EOF
-CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
-CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWORD}';
-
--- Принудительно используем mysql_native_password для совместимости с PyMySQL
-ALTER USER '${DB_USER}'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('${DB_PASSWORD}');
-ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('${DB_PASSWORD}');
-
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, EVENT, TRIGGER, LOCK TABLES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, EVENT, TRIGGER, LOCK TABLES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
-
-FLUSH PRIVILEGES;
-EOF
-
-    if [[ $? -ne 0 ]]; then
-        log_error "Не удалось выполнить SQL команды. Проверьте пароль root MariaDB."
-        exit 1
-    fi
-    unset MYSQL_PWD
-    
+    apply_db_grants 1
     log_info "База данных и пользователь успешно созданы."
 }
 
-# ==============================================================================
-# 5. Настройка Python окружения и миграций
-# ==============================================================================
 setup_python() {
     log_info "Настройка виртуального окружения Python..."
     
@@ -491,56 +776,18 @@ setup_python() {
     
     sudo -u "$APP_USER" .venv/bin/pip install gunicorn -qq
 
-    # --- НАЧАЛО: Проверка структуры БД и генерация миграций ---
-    log_info "Проверка структуры базы данных..."
-    
-    TABLE_COUNT=$(MYSQL_PWD="$DB_PASSWORD" mariadb -u "$DB_USER" -h "$DB_HOST" -D "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}';" 2>/dev/null || echo "0")
-
-    # Проверяем наличие существующих миграций
-    MIGRATIONS_EXIST=false
-    if [[ -d "alembic/versions" ]] && find alembic/versions/ -type f -name "*.py" 2>/dev/null | grep -q .; then
-        MIGRATIONS_EXIST=true
+    # Только upgrade из репозитория — без autogenerate на сервере
+    if [[ ! -f "alembic.ini" ]]; then
+        log_error "Файл alembic.ini не найден в $BACKEND_DIR!"
+        exit 1
+    fi
+    if [[ ! -d "alembic/versions" ]] || ! find alembic/versions/ -type f -name "*.py" 2>/dev/null | grep -q .; then
+        log_error "Нет миграций в alembic/versions/. Добавьте их в репозиторий."
+        exit 1
     fi
 
-    if [[ "$TABLE_COUNT" == "0" ]]; then
-        log_warn "База данных пуста (таблицы отсутствуют)."
-        
-        if [[ "$MIGRATIONS_EXIST" == true ]]; then
-            # БД пуста, но миграции есть - применяем их
-            log_info "Найдены существующие миграции. Применяем их для создания структуры..."
-        else
-            # БД пуста и миграций нет - генерируем
-            if [[ -f "alembic.ini" ]]; then
-                log_info "Миграции не найдены. Генерируем начальную миграцию..."
-                sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'initial schema'"
-                
-                if ! find alembic/versions/ -type f -name "*.py" | grep -q .; then
-                    log_error "Миграция не сгенерирована (папка alembic/versions/ пуста)! Проверьте, что все SQLAlchemy модели импортируются в 'alembic/env.py'."
-                    exit 1
-                fi
-            else
-                log_error "Файл alembic.ini не найден в $BACKEND_DIR!"
-                exit 1
-            fi
-        fi
-    else
-        log_info "Структура БД уже существует (найдено таблиц: $TABLE_COUNT)."
-        
-        # Проверяем, не отстает ли БД от миграций
-        if [[ "$MIGRATIONS_EXIST" == true ]]; then
-            log_info "Проверка актуальности структуры БД..."
-            if ! sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic check" &>/dev/null; then
-                log_warn "Обнаружены непримененные изменения в моделях."
-                log_info "Генерируем миграцию для синхронизации..."
-                sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic revision --autogenerate -m 'auto sync'"
-            fi
-        fi
-    fi
-    # --- КОНЕЦ: Проверка структуры БД ---
-
-    log_info "Применение миграций базы данных (Alembic)..."
+    log_info "Применение миграций базы данных (Alembic upgrade head)..."
     sudo -u "$APP_USER" bash -c "set -a; source .env; set +a; .venv/bin/alembic upgrade head"
-    
     log_info "Миграции успешно применены."
 }
 
@@ -583,7 +830,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} ${UPLOADS_DIR}
+ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} /var/lib/${APP_NAME} ${BACKUPS_DIR_ALT}
 
 [Install]
 WantedBy=multi-user.target
@@ -597,126 +844,126 @@ EOF
 }
 
 # ==============================================================================
+# 6b. Таймер резервного копирования
+# ==============================================================================
+setup_backup_timer() {
+    log_info "Настройка systemd timer для резервного копирования..."
+
+    cat <<EOF > "$SYSTEMD_BACKUP_SERVICE"
+[Unit]
+Description=DBCS scheduled backup
+After=network.target mariadb.service ${APP_NAME}-backend.service
+
+[Service]
+Type=oneshot
+User=${APP_USER}
+Group=${APP_USER}
+WorkingDirectory=${BACKEND_DIR}
+EnvironmentFile=${ENV_FILE}
+Environment=PYTHONPATH=${BACKEND_DIR}
+ExecStart=${BACKEND_DIR}/.venv/bin/python ${BACKEND_DIR}/additional_scripts/run_backup.py --if-due
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=${BACKEND_DIR} ${LOG_DIR} /var/lib/${APP_NAME} ${BACKUPS_DIR_ALT}
+EOF
+
+    cat <<EOF > "$SYSTEMD_BACKUP_TIMER"
+[Unit]
+Description=DBCS backup schedule (hourly check)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now "${APP_NAME}-backup.timer"
+    log_info "Таймер ${APP_NAME}-backup.timer включён."
+}
+
+# ==============================================================================
 # 7. Настройка Nginx
 # ==============================================================================
+
 setup_nginx() {
-    log_info "Настройка Nginx..."
-    
-    # Проверяем и добавляем каждую зону rate limit отдельно
-    # Это нужно, так как скрипт может запускаться многократно с разными версиями
-    
+    log_info "Настройка Nginx (backend)..."
+
+    # Rate-limit zones (идемпотентно)
     if ! grep -q "limit_req_zone.*auth_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: auth_limit..."
         sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/m;' /etc/nginx/nginx.conf
     fi
-    
     if ! grep -q "limit_req_zone.*public_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: public_limit..."
         sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=public_limit:10m rate=30r/m;' /etc/nginx/nginx.conf
     fi
-    
     if ! grep -q "limit_req_zone.*uploads_limit" /etc/nginx/nginx.conf; then
-        log_info "Добавление зоны Rate Limiting: uploads_limit..."
         sed -i '/http {/a \    limit_req_zone $binary_remote_addr zone=uploads_limit:10m rate=10r/m;' /etc/nginx/nginx.conf
     fi
-    
-    cat <<EOF > "$NGINX_CONF"
-server {
-    listen 80;
-    server_name _; # Замените на ваш домен или IP
 
-    # Лимит на загрузку файлов (аватары, логотипы) - 10 Мегабайт
-    # Должен быть чуть больше MAX_UPLOAD_SIZE_MB в приложении (5MB) с запасом на overhead
+    local server_name="${SERVER_NAME:-_}"
+
+    # Let's Encrypt до возможного early-return (нужен ACME на :80)
+    if [[ "${SSL_MODE}" == "letsencrypt" ]]; then
+        if ! find_existing_certs "${server_name}"; then
+            if ! obtain_letsencrypt_cert "${server_name}"; then
+                log_warn "Let's Encrypt не удался — откат на selfsigned."
+                SSL_MODE="selfsigned"
+                generate_self_signed_cert "${server_name}"
+            fi
+        fi
+        write_tls_state
+    fi
+
+    # Не затираем полный vhost frontend (статика + TLS)
+    if [[ -f "${NGINX_CONF}" ]] && grep -q "root ${FRONTEND_WEB_ROOT}" "${NGINX_CONF}" 2>/dev/null; then
+        log_info "Найден nginx-конфиг frontend (${FRONTEND_WEB_ROOT}) — не перезаписываем."
+        log_info "Финальный HTTPS/статика выставит deploy_frontend.sh."
+        write_tls_state
+        return 0
+    fi
+
+    # API-only HTTP stub — frontend перезапишет полный сайт
+    cat > "${NGINX_CONF}" <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${server_name};
     client_max_body_size 10M;
 
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-
-    # Строгий лимит на Auth (защита от брутфорса)
-    location ${API_PREFIX}/v1/auth/ {
-        limit_req zone=auth_limit burst=10 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
     }
 
-    # Строгий лимит на загрузку файлов (защита от DoS)
-    location ${API_PREFIX}/v1/files/ {
-        limit_req zone=uploads_limit burst=5 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Увеличенный таймаут для загрузки больших файлов
-        proxy_connect_timeout 90s;
-        proxy_send_timeout 90s;
-        proxy_read_timeout 90s;
-    }
-
-    # Умеренный лимит на публичные визитки (защита от парсинга/DDoS)
-    location ${API_PREFIX}/v1/public/ {
-        limit_req zone=public_limit burst=20 nodelay;
-        limit_req_status 429;
-        
-        proxy_pass http://127.0.0.1:${APP_PORT};
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Проксирование API на Gunicorn
     location ${API_PREFIX}/ {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Timeout settings
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
     }
 
-    # Блокируем прямой доступ к директории загрузок через Nginx (на всякий случай)
-    location /uploads/ {
-        deny all;
-        return 404;
-    }
-
-    # Запрет доступа к скрытым файлам (например, .env, .git)
-    location ~ /\. {
-        deny all;
-        access_log off;
-        log_not_found off;
+    location / {
+        return 200 'DBCS backend OK — deploy frontend for full site\n';
+        add_header Content-Type text/plain;
     }
 }
 EOF
-
-    ln -sf "$NGINX_CONF" "$NGINX_LINK"
+    mkdir -p "${ACME_WEBROOT}/.well-known/acme-challenge"
+    ln -sf "${NGINX_CONF}" "${NGINX_LINK}"
     rm -f /etc/nginx/sites-enabled/default
-
     nginx -t
     systemctl restart nginx
-    
-    log_info "Nginx настроен и перезапущен."
+    write_tls_state
+    log_info "Временный HTTP nginx (API). Полный сайт — после deploy_frontend.sh."
 }
 
-# ==============================================================================
-# 8. Финальная проверка
-# ==============================================================================
 verify_deployment() {
     log_info "Ожидание запуска приложения (5 секунд)..."
     sleep 5
@@ -739,18 +986,24 @@ verify_deployment() {
 # ==============================================================================
 main() {
     log_info "=== Начало развертывания DBCS Backend ==="
-    
+    export DEBIAN_FRONTEND=noninteractive
+
     check_root
     install_dependencies
     setup_user_and_dirs
+    # hostname → TLS → PUBLIC_BASE_URL; затем .env
+    configure_server_host
+    configure_tls
+    configure_public_base_url
     resolve_db_password
     setup_env
     setup_database
     setup_python
     setup_systemd
+    setup_backup_timer
     setup_nginx
     verify_deployment
-    
+
     log_info "=== Развертывание завершено ==="
 }
 

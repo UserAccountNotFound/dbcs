@@ -9,7 +9,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     app_name: str = "Digital Bussines Card Service API"
-    app_version: str = "1.2.2"
+    app_version: str = "1.3.0"
     environment: str = "development"
     debug: bool = False
 
@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     uploads_dir: Path = Path("/var/lib/dbcs/uploads")
     max_upload_size_mb: int = 5
     templates_css_dir: Path = Path("/opt/dbcs/backend/templates/css")
+    backup_dir_default: Path = Path("/var/lib/dbcs/backups")
     
     docs_enabled: bool = True
     redoc_enabled: bool = True
@@ -80,9 +81,11 @@ class Settings(BaseSettings):
         if (
             self.environment.lower() not in {"development", "dev", "test"}
             and not self.refresh_cookie_secure
+            and not self.public_base_url.lower().startswith("http://")
         ):
             raise ValueError(
-                "REFRESH_COOKIE_SECURE must be true outside development."
+                "REFRESH_COOKIE_SECURE must be true outside development "
+                "(or use PUBLIC_BASE_URL=http://... for intentional HTTP-only)."
             )
 
         return self

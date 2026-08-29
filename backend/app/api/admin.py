@@ -11,12 +11,20 @@ from app.api.schemas.admin import (
     AdminUserUpdate,
     AuditLogListResponse,
     AuditLogResponse,
+    BackupFileResponse,
+    BackupListResponse,
+    BackupRestoreRequest,
+    BackupRestoreResponse,
+    BackupRunResponse,
+    BackupSettingsResponse,
+    BackupSettingsUpdate,
     OverviewStatsResponse,
 )
 from app.models import User
 from app.services import admin_service, audit_service, analytics_service, css_template_service
+from app.services import backup_service
 from app.services.admin_service import AdminError
-
+from app.services.backup_service import BackupError
 from app.api.schemas.template import (
     TemplateCreate,
     TemplateUpdate,
@@ -441,3 +449,147 @@ def get_overview_stats(
 ) -> OverviewStatsResponse:
     stats = admin_service.get_overview_stats(db)
     return OverviewStatsResponse(**stats)
+
+
+@router.get(
+    "/settings/backup",
+    response_model=BackupSettingsResponse,
+    summary="Настройки резервного копирования",
+)
+def get_backup_settings(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> BackupSettingsResponse:
+    row = backup_service.get_or_create_settings(db)
+    return BackupSettingsResponse.model_validate(row)
+
+
+@router.patch(
+    "/settings/backup",
+    response_model=BackupSettingsResponse,
+    summary="Обновить настройки резервного копирования",
+)
+def patch_backup_settings(
+    payload: BackupSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> BackupSettingsResponse:
+    try:
+        row = backup_service.update_settings(
+            db,
+            **payload.model_dump(exclude_unset=True),
+        )
+    except BackupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.backup_settings_update",
+        actor_user_id=admin.id,
+        entity_type="backup_settings",
+        entity_id="1",
+        request=request,
+        details=payload.model_dump(exclude_unset=True),
+    )
+    return BackupSettingsResponse.model_validate(row)
+
+
+@router.get(
+    "/settings/backup/files",
+    response_model=BackupListResponse,
+    summary="Список файлов резервных копий",
+)
+def list_backup_files(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> BackupListResponse:
+    try:
+        items = backup_service.list_backups(db)
+    except BackupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return BackupListResponse(
+        items=[BackupFileResponse.model_validate(i.__dict__) for i in items]
+    )
+
+
+@router.post(
+    "/settings/backup/run",
+    response_model=BackupRunResponse,
+    summary="Принудительно создать резервную копию",
+)
+def run_backup_now(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> BackupRunResponse:
+    try:
+        info = backup_service.create_backup(db)
+    except BackupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.backup_run",
+        actor_user_id=admin.id,
+        entity_type="backup",
+        entity_id=info.filename,
+        request=request,
+        details={"size_bytes": info.size_bytes},
+    )
+    return BackupRunResponse(
+        filename=info.filename,
+        size_bytes=info.size_bytes,
+        created_at=info.created_at,
+    )
+
+
+@router.post(
+    "/settings/backup/restore",
+    response_model=BackupRestoreResponse,
+    summary="Восстановить из резервной копии",
+)
+def restore_backup_now(
+    payload: BackupRestoreRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> BackupRestoreResponse:
+    actor_id = admin.id
+    try:
+        detail = backup_service.restore_backup(db, payload.filename)
+    except BackupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    # После restore исходная ORM-сессия и пользовательские сессии недействительны.
+    try:
+        from app.db.session import SessionLocal
+
+        audit_db = SessionLocal()
+        try:
+            audit_service.log(
+                db=audit_db,
+                action="admin.backup_restore",
+                actor_user_id=actor_id,
+                entity_type="backup",
+                entity_id=payload.filename,
+                request=request,
+            )
+        finally:
+            audit_db.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return BackupRestoreResponse(detail=detail)

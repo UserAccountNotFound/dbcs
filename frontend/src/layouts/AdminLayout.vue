@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { systemApi } from '../api/system';
 
 const authStore = useAuthStore();
+const isSuperAdmin = computed(() => authStore.user?.role === 'SUPERADMIN');
 
 const frontendVersion = import.meta.env.VITE_APP_VERSION;
 const apiVersion = ref<string | null>(null);
@@ -21,13 +22,19 @@ onMounted(() => {
   void loadApiVersion();
 });
 
-const menuItems = [
-  { name: 'admin-dashboard', label: 'Обзор', icon: '📊' },
-  { name: 'admin-users', label: 'Пользователи', icon: '👥' },
-  { name: 'admin-cards', label: 'Визитки', icon: '💳' },
-  { name: 'admin-templates', label: 'Шаблоны', icon: '🎨' },
-  { name: 'admin-audit', label: 'Аудит', icon: '📋' },
-];
+const menuItems = computed(() => {
+  const items = [
+    { name: 'admin-dashboard', label: 'Обзор', icon: '📊' },
+    { name: 'admin-users', label: 'Пользователи', icon: '👥' },
+    { name: 'admin-cards', label: 'Визитки', icon: '💳' },
+    { name: 'admin-templates', label: 'Шаблоны', icon: '🎨' },
+    { name: 'admin-audit', label: 'Аудит', icon: '📋' },
+  ];
+  if (isSuperAdmin.value) {
+    items.push({ name: 'admin-settings', label: 'Резервное копирование', icon: '⚙️' });
+  }
+  return items;
+});
 </script>
 
 <template>

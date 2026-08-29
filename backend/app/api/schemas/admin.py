@@ -86,3 +86,53 @@ class OverviewStatsResponse(BaseModel):
     active_cards: int
     total_visits: int
     total_vcard_downloads: int
+
+
+class BackupSettingsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    storage_path: str
+    schedule: str
+    schedule_hour: int
+    schedule_weekday: int
+    retention_count: int
+    enabled: bool
+    last_run_at: datetime | None
+    last_status: str | None
+    last_message: str | None
+    last_backup_file: str | None
+    updated_at: datetime
+
+
+class BackupSettingsUpdate(BaseModel):
+    storage_path: str | None = Field(default=None, min_length=1, max_length=512)
+    schedule: str | None = Field(default=None, pattern="^(off|hourly|daily|weekly)$")
+    schedule_hour: int | None = Field(default=None, ge=0, le=23)
+    schedule_weekday: int | None = Field(default=None, ge=0, le=6)
+    retention_count: int | None = Field(default=None, ge=1, le=100)
+    enabled: bool | None = None
+
+
+class BackupFileResponse(BaseModel):
+    filename: str
+    size_bytes: int
+    created_at: datetime
+
+
+class BackupListResponse(BaseModel):
+    items: list[BackupFileResponse]
+
+
+class BackupRunResponse(BaseModel):
+    filename: str
+    size_bytes: int
+    created_at: datetime
+    detail: str = "Резервная копия создана."
+
+
+class BackupRestoreRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+
+
+class BackupRestoreResponse(BaseModel):
+    detail: str
