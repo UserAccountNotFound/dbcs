@@ -23,11 +23,14 @@ from app.api.schemas.admin import (
     SmtpSettingsUpdate,
     SmtpTestRequest,
     SmtpTestResponse,
+    DocsSettingsResponse,
+    DocsSettingsUpdate,
 )
 from app.models import User
 from app.services import admin_service, audit_service, analytics_service, css_template_service
 from app.services import backup_service
 from app.services import smtp_settings_service
+from app.services import system_settings_service
 from app.services.admin_service import AdminError
 from app.services.backup_service import BackupError
 from app.services.smtp_settings_service import SmtpSettingsError
@@ -685,4 +688,44 @@ def test_smtp_settings(
         details={"to_email": to_email},
     )
     return SmtpTestResponse(detail=detail)
+
+
+@router.get(
+    "/settings/docs",
+    response_model=DocsSettingsResponse,
+    summary="Настройки API-документации",
+)
+def get_docs_settings(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> DocsSettingsResponse:
+    row = system_settings_service.get_or_create_settings(db)
+    return DocsSettingsResponse.model_validate(row)
+
+
+@router.patch(
+    "/settings/docs",
+    response_model=DocsSettingsResponse,
+    summary="Обновить настройки API-документации",
+)
+def patch_docs_settings(
+    payload: DocsSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> DocsSettingsResponse:
+    row = system_settings_service.update_docs_settings(
+        db,
+        **payload.model_dump(exclude_unset=True),
+    )
+    audit_service.log(
+        db=db,
+        action="admin.docs_settings_update",
+        actor_user_id=admin.id,
+        entity_type="system_settings",
+        entity_id="1",
+        request=request,
+        details=payload.model_dump(exclude_unset=True),
+    )
+    return DocsSettingsResponse.model_validate(row)
 

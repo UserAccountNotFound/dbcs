@@ -179,3 +179,16 @@ class SmtpTestRequest(BaseModel):
 class SmtpTestResponse(BaseModel):
     detail: str
 
+
+class DocsSettingsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    docs_enabled: bool
+    redoc_enabled: bool
+    updated_at: datetime
+
+
+class DocsSettingsUpdate(BaseModel):
+    docs_enabled: bool | None = None
+    redoc_enabled: bool | None = None
+

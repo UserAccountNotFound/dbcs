@@ -165,5 +165,16 @@ export interface SmtpSettingsUpdate {
   from_name?: string;
 }
 
+export interface DocsSettings {
+  docs_enabled: boolean;
+  redoc_enabled: boolean;
+  updated_at: string;
+}
+
+export interface DocsSettingsUpdate {
+  docs_enabled?: boolean;
+  redoc_enabled?: boolean;
+}
+
 // Реэкспорт типов шаблонов для использования в админке
 export type { AdminTemplate, TemplateMeta, TemplateSchema, Template } from './template';

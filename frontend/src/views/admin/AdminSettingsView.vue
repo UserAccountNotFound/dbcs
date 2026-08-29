@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { adminApi } from '../../api/admin';
-import type { SmtpSettings } from '../../types/admin';
+import type { DocsSettings, SmtpSettings } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
 import { useAuthStore } from '../../stores/auth';
 
@@ -9,8 +9,10 @@ const auth = useAuthStore();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
 const settings = ref<SmtpSettings | null>(null);
+const docsSettings = ref<DocsSettings | null>(null);
 const isLoading = ref(true);
 const isSaving = ref(false);
+const isSavingDocs = ref(false);
 const isTesting = ref(false);
 const message = ref<string | null>(null);
 const error = ref<string | null>(null);
@@ -26,6 +28,11 @@ const form = ref({
   password: '',
   from_email: '',
   from_name: 'DBCS',
+});
+
+const docsForm = ref({
+  docs_enabled: true,
+  redoc_enabled: true,
 });
 
 function applySettings(s: SmtpSettings) {
@@ -46,6 +53,14 @@ function applySettings(s: SmtpSettings) {
   }
 }
 
+function applyDocsSettings(s: DocsSettings) {
+  docsSettings.value = s;
+  docsForm.value = {
+    docs_enabled: s.docs_enabled,
+    redoc_enabled: s.redoc_enabled,
+  };
+}
+
 async function loadSettings() {
   if (!isSuperAdmin.value) {
     isLoading.value = false;
@@ -54,7 +69,12 @@ async function loadSettings() {
   isLoading.value = true;
   error.value = null;
   try {
-    applySettings(await adminApi.getSmtpSettings());
+    const [smtp, docs] = await Promise.all([
+      adminApi.getSmtpSettings(),
+      adminApi.getDocsSettings(),
+    ]);
+    applySettings(smtp);
+    applyDocsSettings(docs);
   } catch (e: unknown) {
     error.value = getAxiosErrorMessage(e, 'Не удалось загрузить настройки');
   } finally {
@@ -85,6 +105,24 @@ function onPortPreset() {
   } else if (form.value.port === 587) {
     form.value.use_tls = true;
     form.value.use_ssl = false;
+  }
+}
+
+async function saveDocsSettings() {
+  isSavingDocs.value = true;
+  message.value = null;
+  error.value = null;
+  try {
+    const s = await adminApi.updateDocsSettings({
+      docs_enabled: docsForm.value.docs_enabled,
+      redoc_enabled: docsForm.value.redoc_enabled,
+    });
+    applyDocsSettings(s);
+    message.value = 'Настройки документации сохранены.';
+  } catch (e: unknown) {
+    error.value = getAxiosErrorMessage(e, 'Ошибка сохранения документации');
+  } finally {
+    isSavingDocs.value = false;
   }
 }
 
@@ -175,6 +213,62 @@ async function testSmtp() {
       >
         {{ error }}
       </div>
+
+      <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">API-документация</h3>
+          <p class="text-sm text-gray-500 mt-1">
+            Публичный доступ к Swagger UI и ReDoc. Изменения применяются сразу, без перезапуска сервиса.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-4 py-2 border-b border-gray-100">
+            <div>
+              <p class="text-sm font-medium text-gray-900">Swagger UI</p>
+              <p class="text-xs text-gray-500 mt-0.5">/api/docs</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                v-model="docsForm.docs_enabled"
+                type="checkbox"
+                class="sr-only peer"
+              />
+              <span
+                class="relative w-11 h-6 bg-gray-200 rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"
+              />
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 py-2">
+            <div>
+              <p class="text-sm font-medium text-gray-900">ReDoc</p>
+              <p class="text-xs text-gray-500 mt-0.5">/api/redoc</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                v-model="docsForm.redoc_enabled"
+                type="checkbox"
+                class="sr-only peer"
+              />
+              <span
+                class="relative w-11 h-6 bg-gray-200 rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="isSavingDocs || isSaving"
+            @click="saveDocsSettings"
+          >
+            {{ isSavingDocs ? 'Сохранение…' : 'Сохранить' }}
+          </button>
+        </div>
+      </section>
 
       <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-6">

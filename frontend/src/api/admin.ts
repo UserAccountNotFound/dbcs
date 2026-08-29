@@ -16,6 +16,8 @@ import type {
   SmtpSettingsUpdate,
   SmtpTestRequest,
   SmtpTestResponse,
+  DocsSettings,
+  DocsSettingsUpdate,
 } from '../types/admin';
 
 import type { 
@@ -170,6 +172,16 @@ export const adminApi = {
       payload,
       { timeout: 60_000 },
     );
+    return data;
+  },
+
+  async getDocsSettings(): Promise<DocsSettings> {
+    const { data } = await apiClient.get(`${ADMIN_ENDPOINT}/settings/docs`);
+    return data;
+  },
+
+  async updateDocsSettings(payload: DocsSettingsUpdate): Promise<DocsSettings> {
+    const { data } = await apiClient.patch(`${ADMIN_ENDPOINT}/settings/docs`, payload);
     return data;
   },
 };
