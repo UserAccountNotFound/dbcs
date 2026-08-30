@@ -26,7 +26,7 @@ class BackupSettings(Base):
         default="daily",
     )
 
-    # Для daily/weekly: час UTC 0–23
+    # Для daily/weekly: час UTC 0–23 (в UI задаётся в локальном поясе)
     schedule_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
 
     # Для weekly: 0=пн … 6=вс (ISO weekday - 1)

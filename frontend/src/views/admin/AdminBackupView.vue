@@ -14,6 +14,46 @@ const auth = useAuthStore();
 const router = useRouter();
 const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
+/** JS getDay(): 0=вс … 6=сб → ISO: 0=пн … 6=вс */
+function jsDayToIso(jsDay: number): number {
+  return (jsDay + 6) % 7;
+}
+
+function utcScheduleToLocal(utcHour: number, utcWeekday: number): { hour: number; weekday: number } {
+  const d = new Date();
+  d.setUTCHours(utcHour, 0, 0, 0);
+  const currentUtcWd = jsDayToIso(d.getUTCDay());
+  d.setUTCDate(d.getUTCDate() + (utcWeekday - currentUtcWd));
+  return { hour: d.getHours(), weekday: jsDayToIso(d.getDay()) };
+}
+
+function localScheduleToUtc(localHour: number, localWeekday: number): { hour: number; weekday: number } {
+  const d = new Date();
+  d.setHours(localHour, 0, 0, 0);
+  const currentLocalWd = jsDayToIso(d.getDay());
+  d.setDate(d.getDate() + (localWeekday - currentLocalWd));
+  return { hour: d.getUTCHours(), weekday: jsDayToIso(d.getUTCDay()) };
+}
+
+function timezoneLabel(): string {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  const utc = `UTC${sign}${hh}:${mm}`;
+  return tz ? `${tz} (${utc})` : utc;
+}
+
+const hourOptions = Array.from({ length: 24 }, (_, h) => ({
+  value: h,
+  label: `${String(h).padStart(2, '0')}:00`,
+}));
+
+const localTimezone = timezoneLabel();
+const defaultLocal = utcScheduleToLocal(3, 0);
+
 const settings = ref<BackupSettings | null>(null);
 const files = ref<BackupFile[]>([]);
 const isLoading = ref(true);
@@ -26,8 +66,8 @@ const error = ref<string | null>(null);
 const form = ref({
   storage_path: '/var/lib/dbcs/backups',
   schedule: 'daily' as BackupSettings['schedule'],
-  schedule_hour: 3,
-  schedule_weekday: 0,
+  schedule_hour: defaultLocal.hour,
+  schedule_weekday: defaultLocal.weekday,
   retention_count: 7,
   enabled: true,
 });
@@ -46,11 +86,12 @@ function formatDt(value: string | null): string {
 
 function applySettings(s: BackupSettings) {
   settings.value = s;
+  const local = utcScheduleToLocal(s.schedule_hour, s.schedule_weekday);
   form.value = {
     storage_path: s.storage_path,
     schedule: s.schedule,
-    schedule_hour: s.schedule_hour,
-    schedule_weekday: s.schedule_weekday,
+    schedule_hour: local.hour,
+    schedule_weekday: local.weekday,
     retention_count: s.retention_count,
     enabled: s.enabled,
   };
@@ -100,11 +141,12 @@ async function saveSettings() {
   message.value = null;
   error.value = null;
   try {
+    const utc = localScheduleToUtc(form.value.schedule_hour, form.value.schedule_weekday);
     const s = await adminApi.updateBackupSettings({
       storage_path: form.value.storage_path.trim(),
       schedule: form.value.schedule,
-      schedule_hour: form.value.schedule_hour,
-      schedule_weekday: form.value.schedule_weekday,
+      schedule_hour: utc.hour,
+      schedule_weekday: utc.weekday,
       retention_count: form.value.retention_count,
       enabled: form.value.schedule !== 'off',
     });
@@ -239,13 +281,17 @@ async function restoreBackup(file: BackupFile) {
 
           <label v-if="form.schedule === 'daily' || form.schedule === 'weekly'" class="block">
             <span class="text-sm font-medium text-gray-700">{{ t('admin.runHour') }}</span>
-            <input
+            <select
               v-model.number="form.schedule_hour"
-              type="number"
-              min="0"
-              max="23"
               class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            >
+              <option v-for="opt in hourOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <span class="mt-1 block text-xs text-gray-500">
+              {{ t('admin.runHourHint', { tz: localTimezone }) }}
+            </span>
           </label>
 
           <label v-if="form.schedule === 'weekly'" class="block">
