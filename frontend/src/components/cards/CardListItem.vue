@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { Card } from '../../types/card';
 import { cardApi } from '../../api/cards';
 import { downloadBlob } from '../../utils/download';
+
+const { t } = useI18n();
 
 const props = defineProps<{ card: Card }>();
 const emit = defineEmits(['updated', 'deleted', 'edit', 'show-qr', 'show-stats']);
@@ -16,21 +19,21 @@ async function toggleActive() {
     await cardApi.updateCard(props.card.id, { is_active: !props.card.is_active });
     emit('updated');
   } catch (e) {
-    alert('Ошибка при изменении статуса');
+    alert(t('errors.toggleStatus'));
   } finally {
     isToggling.value = false;
   }
 }
 
 async function deleteCard() {
-  if (!confirm(`Удалить визитку "${props.card.title}"?`)) return;
+  if (!confirm(t('cards.deleteConfirm', { title: props.card.title }))) return;
   
   isDeleting.value = true;
   try {
     await cardApi.deleteCard(props.card.id);
     emit('deleted');
   } catch (e) {
-    alert('Ошибка при удалении');
+    alert(t('errors.deleteFailed'));
   } finally {
     isDeleting.value = false;
   }
@@ -41,7 +44,7 @@ async function downloadVCard() {
     const blob = await cardApi.getVCardBlob(props.card.id);
     downloadBlob(blob, `${props.card.slug}.vcf`);
   } catch (e) {
-    alert('Ошибка при скачивании vCard');
+    alert(t('errors.vcardDownload'));
   }
 }
 </script>
@@ -60,7 +63,7 @@ async function downloadVCard() {
           card.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
         ]"
       >
-        {{ card.is_active ? 'Активна' : 'Отключена' }}
+        {{ card.is_active ? t('common.active') : t('common.inactive') }}
       </span>
     </div>
 
@@ -69,14 +72,14 @@ async function downloadVCard() {
     </div>
 
     <div class="flex flex-wrap gap-2 mt-2">
-      <button @click="$emit('edit', card.id)" class="btn-primary">Редактировать</button>
+      <button @click="$emit('edit', card.id)" class="btn-primary">{{ t('common.edit') }}</button>
       <button @click="$emit('show-qr', card.id)" class="btn-secondary">QR</button>
       <button @click="$emit('show-stats', card.id)" class="btn-secondary">📊</button>
       <button @click="downloadVCard" class="btn-secondary">vCard</button>
       <button @click="toggleActive" :disabled="isToggling" class="btn-secondary">
-        {{ card.is_active ? 'Отключить' : 'Включить' }}
+        {{ card.is_active ? t('common.disable') : t('common.enable') }}
       </button>
-      <button @click="deleteCard" :disabled="isDeleting" class="btn-danger ml-auto">Удалить</button>
+      <button @click="deleteCard" :disabled="isDeleting" class="btn-danger ml-auto">{{ t('common.delete') }}</button>
     </div>
   </div>
 </template>

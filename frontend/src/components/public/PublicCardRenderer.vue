@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { PublicCard } from '../../types/publicCard';
 import type { CardTheme } from '../../types/card';
 import {
@@ -27,6 +28,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'share'): void;
 }>();
+
+const { t } = useI18n();
 
 const theme = computed<CardTheme>(() => props.card.theme);
 const templateCode = computed(() => props.card.template_code || 'classic');
@@ -228,8 +231,8 @@ watch(cssUrl, (url) => attachCss(url));
       </div>
 
       <div class="dbcs-qr">
-        <img :src="qrUrl" alt="QR код визитки" loading="lazy" />
-        <p class="dbcs-qr-label">Сканируйте для сохранения</p>
+        <img :src="qrUrl" :alt="t('public.qrAlt')" loading="lazy" />
+        <p class="dbcs-qr-label">{{ t('public.scanHint') }}</p>
       </div>
     </div>
 
@@ -240,18 +243,18 @@ watch(cssUrl, (url) => attachCss(url));
         :href="vcardUrl"
         download
       >
-        📇 Добавить в контакты
+        {{ t('public.addContact') }}
       </a>
       <button
         type="button"
         class="dbcs-action dbcs-action-secondary"
         @click="emit('share')"
       >
-        🔗 Поделиться
+        {{ t('public.share') }}
       </button>
     </div>
 
-    <div v-if="showActions" class="dbcs-footer">DBCS • Электронные визитки</div>
+    <div v-if="showActions" class="dbcs-footer">{{ t('public.footer') }}</div>
   </div>
 </template>
 

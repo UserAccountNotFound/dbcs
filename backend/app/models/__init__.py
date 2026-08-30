@@ -8,6 +8,8 @@ from app.models.card_visit import CardVisit
 from app.models.audit_log import AuditLog
 from app.models.file import File
 from app.models.backup_settings import BackupSettings
+from app.models.smtp_settings import SmtpSettings
+from app.models.system_settings import SystemSettings
 
 __all__ = [
     "Base",
@@ -20,4 +22,6 @@ __all__ = [
     "AuditLog",
     "File",
     "BackupSettings",
+    "SmtpSettings",
+    "SystemSettings",
 ]

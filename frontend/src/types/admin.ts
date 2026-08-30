@@ -123,5 +123,58 @@ export interface BackupRestoreResponse {
   detail: string;
 }
 
+
+export interface SmtpSettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  use_tls: boolean;
+  use_ssl: boolean;
+  username: string;
+  from_email: string;
+  from_name: string;
+  password_set: boolean;
+  updated_at: string;
+}
+
+export interface SmtpTestRequest {
+  to_email?: string;
+  host?: string;
+  port?: number;
+  use_tls?: boolean;
+  use_ssl?: boolean;
+  username?: string;
+  password?: string;
+  from_email?: string;
+  from_name?: string;
+}
+
+export interface SmtpTestResponse {
+  detail: string;
+}
+
+export interface SmtpSettingsUpdate {
+  enabled?: boolean;
+  host?: string;
+  port?: number;
+  use_tls?: boolean;
+  use_ssl?: boolean;
+  username?: string;
+  password?: string;
+  from_email?: string;
+  from_name?: string;
+}
+
+export interface DocsSettings {
+  docs_enabled: boolean;
+  redoc_enabled: boolean;
+  updated_at: string;
+}
+
+export interface DocsSettingsUpdate {
+  docs_enabled?: boolean;
+  redoc_enabled?: boolean;
+}
+
 // Реэкспорт типов шаблонов для использования в админке
 export type { AdminTemplate, TemplateMeta, TemplateSchema, Template } from './template';

@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { Template } from '../../types/template';
 import TemplatePreview from './TemplatePreview.vue';
 
 defineProps<{
   template: Template | null;
   selected?: boolean;
-  /** Показать кнопку выбора шаблона */
   showSelect?: boolean;
 }>();
 
@@ -13,6 +13,8 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'select', template: Template): void;
 }>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -33,7 +35,7 @@ const emit = defineEmits<{
         <button
           type="button"
           class="text-gray-400 hover:text-gray-600 text-2xl leading-none shrink-0"
-          aria-label="Закрыть"
+          :aria-label="t('common.close')"
           @click="emit('close')"
         >
           ×
@@ -46,7 +48,7 @@ const emit = defineEmits<{
 
       <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-3 shrink-0">
         <button type="button" class="btn-secondary" @click="emit('close')">
-          Закрыть
+          {{ t('common.close') }}
         </button>
         <button
           v-if="showSelect"
@@ -54,7 +56,7 @@ const emit = defineEmits<{
           class="btn-primary"
           @click="emit('select', template)"
         >
-          {{ selected ? 'Выбран' : 'Выбрать шаблон' }}
+          {{ selected ? t('template.selected') : t('template.select') }}
         </button>
       </div>
     </div>

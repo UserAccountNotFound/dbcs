@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { templateApi } from '../../api/templates';
 import type { Template } from '../../types/template';
 import TemplatePreview from './TemplatePreview.vue';
 import TemplatePreviewModal from './TemplatePreviewModal.vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: string | null;
@@ -24,7 +27,7 @@ onMounted(async () => {
     const response = await templateApi.getTemplates();
     templates.value = response.items;
   } catch (e) {
-    error.value = 'Не удалось загрузить шаблоны';
+    error.value = t('template.loadFailed');
   } finally {
     isLoading.value = false;
   }
@@ -50,8 +53,8 @@ function clearSelection() {
   <div>
     <div class="flex items-center justify-between gap-3 mb-3">
       <label class="block text-sm font-medium text-gray-700">
-        Шаблон дизайна
-        <span class="text-gray-400 font-normal">(необязательно)</span>
+        {{ t('template.design') }}
+        <span class="text-gray-400 font-normal">{{ t('template.optional') }}</span>
       </label>
       <button
         v-if="modelValue"
@@ -59,45 +62,45 @@ function clearSelection() {
         class="text-xs text-gray-500 hover:text-red-600"
         @click="clearSelection"
       >
-        Сбросить выбор
+        {{ t('template.reset') }}
       </button>
     </div>
-    
+
     <div v-if="isLoading" class="flex justify-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
-    
+
     <div v-else-if="error" class="text-red-600 text-sm py-4">
       {{ error }}
     </div>
-    
+
     <div v-else-if="templates.length === 0" class="text-gray-500 text-sm py-4">
-      Нет доступных шаблонов. Визитка будет использовать базовый стиль.
+      {{ t('template.noneAvailable') }}
     </div>
-    
+
     <div v-else class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-      <div 
-        v-for="template in templates" 
+      <div
+        v-for="template in templates"
         :key="template.id"
         class="relative"
         @click="openPreview(template)"
       >
-        <TemplatePreview 
+        <TemplatePreview
           :template="template"
           size="compact"
           :selected="modelValue === template.id"
         />
-        
+
         <div class="mt-1.5 text-center px-0.5">
-          <span 
+          <span
             class="text-xs font-medium line-clamp-1"
             :class="modelValue === template.id ? 'text-primary' : 'text-gray-700'"
           >
             {{ template.name }}
           </span>
         </div>
-        
-        <div 
+
+        <div
           v-if="modelValue === template.id"
           class="absolute top-1.5 right-1.5 w-5 h-5 bg-primary text-white rounded-full flex items-center justify-center text-[10px] shadow-md"
         >
@@ -106,7 +109,7 @@ function clearSelection() {
       </div>
     </div>
 
-    <p class="mt-2 text-xs text-gray-400">Нажмите на плитку, чтобы открыть увеличенный просмотр.</p>
+    <p class="mt-2 text-xs text-gray-400">{{ t('template.clickHint') }}</p>
 
     <TemplatePreviewModal
       :template="previewTemplate"

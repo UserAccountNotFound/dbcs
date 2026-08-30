@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AnalyticsPeriod } from '../../types/analytics';
 
 const props = defineProps<{
@@ -9,11 +11,13 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: AnalyticsPeriod): void;
 }>();
 
-const options: { value: AnalyticsPeriod; label: string }[] = [
-  { value: '7d', label: '7 дней' },
-  { value: '30d', label: '30 дней' },
-  { value: '90d', label: '90 дней' },
-];
+const { t } = useI18n();
+
+const options = computed(() => [
+  { value: '7d' as AnalyticsPeriod, label: t('analytics.period7d') },
+  { value: '30d' as AnalyticsPeriod, label: t('analytics.period30d') },
+  { value: '90d' as AnalyticsPeriod, label: t('analytics.period90d') },
+]);
 </script>
 
 <template>

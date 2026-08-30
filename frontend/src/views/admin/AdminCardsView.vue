@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { AdminCard } from '../../types/admin';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+
+const { t } = useI18n();
 
 const cards = ref<AdminCard[]>([]);
 const total = ref(0);
@@ -36,17 +39,16 @@ watch(search, () => {
 });
 
 async function deactivateCard(card: AdminCard) {
-  if (!confirm(`Отключить визитку "${card.title}"?`)) return;
-  
+  if (!confirm(t('cards.deactivateConfirm', { title: card.title }))) return;
+
   try {
     await adminApi.deactivateCard(card.id);
     card.is_active = false;
   } catch (e: unknown) {
-    alert(getAxiosErrorMessage(e, 'Ошибка при деактивации'));
+    alert(getAxiosErrorMessage(e, t('errors.deactivateFailed')));
   }
 }
 
-// ИСПРАВЛЕНО: используем computed вместо функций
 const totalPages = computed(() => Math.ceil(total.value / limit.value));
 const currentPage = computed(() => Math.floor(offset.value / limit.value) + 1);
 
@@ -68,11 +70,11 @@ function prevPage() {
 <template>
   <div>
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-900">Визитки</h2>
-      <input 
+      <h2 class="text-2xl font-bold text-gray-900">{{ t('admin.cards') }}</h2>
+      <input
         v-model="search"
         type="text"
-        placeholder="Поиск по названию, имени или slug..."
+        :placeholder="t('cards.searchPlaceholder')"
         class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary w-64"
       />
     </div>
@@ -81,19 +83,19 @@ function prevPage() {
       <table class="w-full">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Визитка</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Владелец</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Просмотры</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Действия</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('cards.columnCard') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('cards.columnOwner') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('cards.columnViews') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('cards.columnStatus') }}</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t('cards.columnActions') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           <tr v-if="isLoading">
-            <td colspan="5" class="px-6 py-12 text-center text-gray-500">Загрузка...</td>
+            <td colspan="5" class="px-6 py-12 text-center text-gray-500">{{ t('common.loadingShort') }}</td>
           </tr>
           <tr v-else-if="cards.length === 0">
-            <td colspan="5" class="px-6 py-12 text-center text-gray-500">Визитки не найдены</td>
+            <td colspan="5" class="px-6 py-12 text-center text-gray-500">{{ t('cards.notFound') }}</td>
           </tr>
           <tr v-for="card in cards" :key="card.id" class="hover:bg-gray-50">
             <td class="px-6 py-4">
@@ -105,7 +107,7 @@ function prevPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   class="font-mono text-primary hover:text-teal-800 hover:underline"
-                  :title="`Открыть публичную визитку /public/card/${card.slug}`"
+                  :title="t('cards.openPublic', { slug: card.slug })"
                   @click.stop
                 >
                   {{ card.slug }}
@@ -115,38 +117,37 @@ function prevPage() {
             <td class="px-6 py-4 text-sm text-gray-600">{{ card.user_email }}</td>
             <td class="px-6 py-4 text-gray-600">{{ card.visits_count }}</td>
             <td class="px-6 py-4">
-              <span 
+              <span
                 :class="[
                   'px-2 py-1 rounded-full text-xs font-medium',
                   card.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                 ]"
               >
-                {{ card.is_active ? 'Активна' : 'Отключена' }}
+                {{ card.is_active ? t('common.active') : t('common.inactive') }}
               </span>
             </td>
             <td class="px-6 py-4">
-              <button 
+              <button
                 v-if="card.is_active"
                 @click="deactivateCard(card)"
                 class="text-sm text-red-600 hover:bg-red-50 px-3 py-1 rounded transition-colors"
               >
-                Отключить
+                {{ t('common.disable') }}
               </button>
-              <span v-else class="text-sm text-gray-400">—</span>
+              <span v-else class="text-sm text-gray-400">{{ t('common.dash') }}</span>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Пагинация -->
     <div class="flex justify-between items-center mt-4">
       <p class="text-sm text-gray-500">
-        Всего: {{ total }} | Страница {{ currentPage }} из {{ totalPages }}
+        {{ t('common.total') }}: {{ total }} | {{ t('common.page') }} {{ currentPage }} {{ t('common.of') }} {{ totalPages }}
       </p>
       <div class="flex gap-2">
-        <button @click="prevPage" :disabled="currentPage === 1" class="btn-secondary disabled:opacity-50">← Назад</button>
-        <button @click="nextPage" :disabled="currentPage === totalPages" class="btn-secondary disabled:opacity-50">Вперед →</button>
+        <button @click="prevPage" :disabled="currentPage === 1" class="btn-secondary disabled:opacity-50">{{ t('common.back') }}</button>
+        <button @click="nextPage" :disabled="currentPage === totalPages" class="btn-secondary disabled:opacity-50">{{ t('common.forward') }}</button>
       </div>
     </div>
   </div>

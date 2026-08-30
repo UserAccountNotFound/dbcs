@@ -19,12 +19,21 @@ from app.api.schemas.admin import (
     BackupSettingsResponse,
     BackupSettingsUpdate,
     OverviewStatsResponse,
+    SmtpSettingsResponse,
+    SmtpSettingsUpdate,
+    SmtpTestRequest,
+    SmtpTestResponse,
+    DocsSettingsResponse,
+    DocsSettingsUpdate,
 )
 from app.models import User
 from app.services import admin_service, audit_service, analytics_service, css_template_service
 from app.services import backup_service
+from app.services import smtp_settings_service
+from app.services import system_settings_service
 from app.services.admin_service import AdminError
 from app.services.backup_service import BackupError
+from app.services.smtp_settings_service import SmtpSettingsError
 from app.api.schemas.template import (
     TemplateCreate,
     TemplateUpdate,
@@ -593,3 +602,130 @@ def restore_backup_now(
         pass
 
     return BackupRestoreResponse(detail=detail)
+
+
+@router.get(
+    "/settings/smtp",
+    response_model=SmtpSettingsResponse,
+    summary="SMTP-настройки",
+)
+def get_smtp_settings(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> SmtpSettingsResponse:
+    row = smtp_settings_service.get_or_create_settings(db)
+    return SmtpSettingsResponse(**smtp_settings_service.settings_to_public_dict(row))
+
+
+@router.patch(
+    "/settings/smtp",
+    response_model=SmtpSettingsResponse,
+    summary="Обновить SMTP-настройки",
+)
+def patch_smtp_settings(
+    payload: SmtpSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> SmtpSettingsResponse:
+    try:
+        row = smtp_settings_service.update_settings(
+            db,
+            **payload.model_dump(exclude_unset=True),
+        )
+    except SmtpSettingsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    details = payload.model_dump(exclude_unset=True)
+    if "password" in details:
+        details["password"] = "***"
+    audit_service.log(
+        db=db,
+        action="admin.smtp_settings_update",
+        actor_user_id=admin.id,
+        entity_type="smtp_settings",
+        entity_id="1",
+        request=request,
+        details=details,
+    )
+    return SmtpSettingsResponse(**smtp_settings_service.settings_to_public_dict(row))
+
+
+@router.post(
+    "/settings/smtp/test",
+    response_model=SmtpTestResponse,
+    summary="Отправить тестовое письмо через SMTP",
+)
+def test_smtp_settings(
+    payload: SmtpTestRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> SmtpTestResponse:
+    to_email = str(payload.to_email) if payload.to_email else admin.email
+    try:
+        detail = smtp_settings_service.send_test_email(
+            db,
+            to_email=to_email,
+            **payload.model_dump(exclude_unset=True, exclude={"to_email"}),
+        )
+    except SmtpSettingsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    audit_service.log(
+        db=db,
+        action="admin.smtp_test",
+        actor_user_id=admin.id,
+        entity_type="smtp_settings",
+        entity_id="1",
+        request=request,
+        details={"to_email": to_email},
+    )
+    return SmtpTestResponse(detail=detail)
+
+
+@router.get(
+    "/settings/docs",
+    response_model=DocsSettingsResponse,
+    summary="Настройки API-документации",
+)
+def get_docs_settings(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> DocsSettingsResponse:
+    row = system_settings_service.get_or_create_settings(db)
+    return DocsSettingsResponse.model_validate(row)
+
+
+@router.patch(
+    "/settings/docs",
+    response_model=DocsSettingsResponse,
+    summary="Обновить настройки API-документации",
+)
+def patch_docs_settings(
+    payload: DocsSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+) -> DocsSettingsResponse:
+    row = system_settings_service.update_docs_settings(
+        db,
+        **payload.model_dump(exclude_unset=True),
+    )
+    audit_service.log(
+        db=db,
+        action="admin.docs_settings_update",
+        actor_user_id=admin.id,
+        entity_type="system_settings",
+        entity_id="1",
+        request=request,
+        details=payload.model_dump(exclude_unset=True),
+    )
+    return DocsSettingsResponse.model_validate(row)
+

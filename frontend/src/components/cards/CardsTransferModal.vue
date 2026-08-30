@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { cardApi, type CardImportResult } from '../../api/cards';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
@@ -53,7 +56,7 @@ async function handleExport() {
     URL.revokeObjectURL(url);
   } catch (e) {
     console.error(e);
-    error.value = 'Не удалось экспортировать визитки.';
+    error.value = t('errors.exportFailed');
   } finally {
     isBusy.value = false;
   }
@@ -68,7 +71,7 @@ function onFileChange(event: Event) {
 
 async function handleImport() {
   if (!selectedFile.value) {
-    error.value = 'Выберите файл для импорта.';
+    error.value = t('errors.importSelectFile');
     return;
   }
 
@@ -85,7 +88,7 @@ async function handleImport() {
     console.error(e);
     const detail =
       (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-    error.value = typeof detail === 'string' ? detail : 'Не удалось импортировать визитки.';
+    error.value = typeof detail === 'string' ? detail : t('errors.importFailed');
   } finally {
     isBusy.value = false;
   }
@@ -100,7 +103,7 @@ async function handleImport() {
   >
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-gray-900">Экспорт / импорт</h3>
+        <h3 class="text-lg font-semibold text-gray-900">{{ t('transfer.title') }}</h3>
         <button
           type="button"
           class="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -119,7 +122,7 @@ async function handleImport() {
             :class="mode === 'export' ? 'bg-white shadow text-gray-900' : 'text-gray-500'"
             @click="mode = 'export'; importResult = null; error = ''"
           >
-            Экспорт
+            {{ t('transfer.export') }}
           </button>
           <button
             type="button"
@@ -127,12 +130,12 @@ async function handleImport() {
             :class="mode === 'import' ? 'bg-white shadow text-gray-900' : 'text-gray-500'"
             @click="mode = 'import'; importResult = null; error = ''"
           >
-            Импорт
+            {{ t('transfer.import') }}
           </button>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Формат</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('transfer.format') }}</label>
           <div class="flex gap-4">
             <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input v-model="format" type="radio" value="json" class="text-primary focus:ring-primary" />
@@ -147,7 +150,7 @@ async function handleImport() {
 
         <template v-if="mode === 'export'">
           <p class="text-sm text-gray-500">
-            Будут выгружены все ваши визитки (без аватаров и логотипов). Ссылки и QR при импорте создаются заново.
+            {{ t('transfer.exportHint') }}
           </p>
           <button
             type="button"
@@ -155,13 +158,13 @@ async function handleImport() {
             :disabled="isBusy"
             @click="handleExport"
           >
-            {{ isBusy ? 'Подготовка…' : `Скачать ${format.toUpperCase()}` }}
+            {{ isBusy ? t('transfer.preparing') : t('transfer.download', { format: format.toUpperCase() }) }}
           </button>
         </template>
 
         <template v-else>
           <p class="text-sm text-gray-500">
-            Загрузите файл, ранее экспортированный из DBCS. Новые визитки добавятся к существующим.
+            {{ t('transfer.importHint') }}
           </p>
           <div>
             <input
@@ -172,7 +175,7 @@ async function handleImport() {
               @change="onFileChange"
             />
             <p v-if="selectedFile" class="mt-2 text-xs text-gray-500">
-              Выбран файл: {{ selectedFile.name }}
+              {{ t('transfer.fileSelected', { name: selectedFile.name }) }}
             </p>
           </div>
           <button
@@ -181,7 +184,7 @@ async function handleImport() {
             :disabled="isBusy || !selectedFile"
             @click="handleImport"
           >
-            {{ isBusy ? 'Импорт…' : 'Импортировать' }}
+            {{ isBusy ? t('transfer.importing') : t('transfer.importBtn') }}
           </button>
 
           <div
@@ -189,8 +192,7 @@ async function handleImport() {
             class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm"
           >
             <p class="text-gray-800">
-              Создано: <span class="font-semibold text-teal-700">{{ importResult.created }}</span>,
-              ошибок: <span class="font-semibold" :class="importResult.failed ? 'text-red-600' : 'text-gray-700'">{{ importResult.failed }}</span>
+              {{ t('transfer.result', { created: importResult.created, failed: importResult.failed }) }}
             </p>
             <ul
               v-if="importResult.errors.length"

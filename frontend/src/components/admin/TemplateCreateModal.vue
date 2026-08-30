@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { adminApi } from '../../api/admin';
 import type { TemplateMeta } from '../../types/template';
 import { getAxiosErrorMessage } from '../../utils/apiError';
+
+const { t } = useI18n();
 
 defineProps<{
   open: boolean;
@@ -51,7 +54,7 @@ function onCssChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
   if (file && !file.name.endsWith('.css')) {
-    error.value = 'Нужен файл .css';
+    error.value = t('errors.cssRequired');
     input.value = '';
     cssFile.value = null;
     return;
@@ -72,11 +75,11 @@ async function handleSubmit() {
   error.value = '';
   const code = normalizeCode(form.code);
   if (!code || code.length < 2) {
-    error.value = 'Код шаблона: латиница, цифры, _ или - (мин. 2 символа).';
+    error.value = t('template.codeInvalid');
     return;
   }
   if (!form.name.trim()) {
-    error.value = 'Укажите название шаблона.';
+    error.value = t('template.nameRequired');
     return;
   }
 
@@ -105,7 +108,7 @@ async function handleSubmit() {
     emit('created');
     emit('close');
   } catch (e: unknown) {
-    error.value = getAxiosErrorMessage(e, 'Не удалось создать шаблон');
+    error.value = getAxiosErrorMessage(e, t('errors.templateCreate'));
   } finally {
     isSubmitting.value = false;
   }
@@ -120,7 +123,7 @@ async function handleSubmit() {
   >
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
       <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-        <h3 class="text-lg font-semibold text-gray-900">Новый шаблон</h3>
+        <h3 class="text-lg font-semibold text-gray-900">{{ t('template.newTitle') }}</h3>
         <button
           type="button"
           class="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -134,7 +137,7 @@ async function handleSubmit() {
       <form class="px-6 py-5 space-y-4 overflow-y-auto flex-1" @submit.prevent="handleSubmit">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">Код *</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('template.code') }}</label>
             <input
               v-model="form.code"
               type="text"
@@ -142,21 +145,21 @@ async function handleSubmit() {
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary font-mono text-sm"
               @blur="form.code = normalizeCode(form.code)"
             />
-            <p class="mt-1 text-xs text-gray-500">Латиница, цифры, _ и - — имя CSS-файла</p>
+            <p class="mt-1 text-xs text-gray-500">{{ t('template.codeHint') }}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">Название *</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('template.name') }}</label>
             <input
               v-model="form.name"
               type="text"
-              placeholder="Мой шаблон"
+              :placeholder="t('template.namePlaceholder')"
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
             />
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700">Описание</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('template.description') }}</label>
           <textarea
             v-model="form.description"
             rows="2"
@@ -166,7 +169,7 @@ async function handleSubmit() {
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700">Акцент</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('template.accent') }}</label>
             <input
               v-model="form.default_accent"
               type="color"
@@ -174,29 +177,29 @@ async function handleSubmit() {
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">Схема</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('template.scheme') }}</label>
             <select
               v-model="form.default_scheme"
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
             >
-              <option value="light">Светлая</option>
-              <option value="dark">Тёмная</option>
+              <option value="light">{{ t('cardForm.light') }}</option>
+              <option value="dark">{{ t('cardForm.dark') }}</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700">Эффект</label>
+            <label class="block text-sm font-medium text-gray-700">{{ t('template.effect') }}</label>
             <select
               v-model="form.effect"
               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
             >
-              <option value="">Нет</option>
+              <option value="">{{ t('template.none') }}</option>
               <option value="polygon">Polygon</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700">CSS-файл</label>
+          <label class="block text-sm font-medium text-gray-700">{{ t('template.cssFile') }}</label>
           <input
             ref="cssInput"
             type="file"
@@ -205,7 +208,7 @@ async function handleSubmit() {
             @change="onCssChange"
           />
           <p class="mt-1 text-xs text-gray-500">
-            Опционально. Можно загрузить позже. Стили должны быть под селектором
+            {{ t('template.cssOptional') }}
             <code class="font-mono">.tpl-{{ form.code || 'code' }}</code>.
           </p>
         </div>
@@ -216,17 +219,17 @@ async function handleSubmit() {
             type="checkbox"
             class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
           />
-          Активен сразу после создания
+          {{ t('template.activeOnCreate') }}
         </label>
 
         <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
 
         <div class="flex justify-end gap-3 pt-2">
           <button type="button" class="btn-secondary" :disabled="isSubmitting" @click="close">
-            Отмена
+            {{ t('common.cancel') }}
           </button>
           <button type="submit" class="btn-primary" :disabled="isSubmitting">
-            {{ isSubmitting ? 'Создание…' : 'Создать' }}
+            {{ isSubmitting ? t('common.creating') : t('common.create') }}
           </button>
         </div>
       </form>
