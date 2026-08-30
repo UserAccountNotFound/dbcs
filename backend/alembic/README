@@ -1,12 +1,30 @@
+# Alembic (миграции)
+
+Обычный рабочий цикл:
+
+```bash
 cd /opt/dbcs/backend
 source .venv/bin/activate
 set -a && source .env && set +a
 
-# Удаляем старые миграции
-rm -rf alembic/versions/*.py
-
-# Генерируем свежую миграцию на основе текущих моделей
-alembic revision --autogenerate -m "initial schema"
-
-# Применяем
+alembic revision --autogenerate -m "description"
 alembic upgrade head
+alembic current
+```
+
+## Только для пустой БД / greenfield
+
+Команды ниже **удаляют все файлы миграций** и генерят схему заново.
+На уже развёрнутой базе с данными так делать нельзя.
+
+```bash
+cd /opt/dbcs/backend
+source .venv/bin/activate
+set -a && source .env && set +a
+
+# Опасно: снимает историю миграций
+# rm -f alembic/versions/*.py
+
+# alembic revision --autogenerate -m "initial schema"
+# alembic upgrade head
+```

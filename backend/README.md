@@ -1,346 +1,231 @@
-#  Документация к backend
+# Документация backend
 
-## Обзор
+Backend DBCS: **FastAPI** + **SQLAlchemy 2.0** + **Alembic**, MySQL/MariaDB.
 
-Backend сервиса построен на **FastAPI** с использованием **SQLAlchemy 2.0** для работы с базой данных.
+Версия API (`app_version`): см. `app/core/config.py` (сейчас `1.4.1`).
 
-## Структура проекта
+## Структура
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py                 # Точка входа FastAPI приложения
-│   ├── api/                    # API endpoints
-│   │   ├── __init__.py
-│   │   ├── router.py           # Объединение всех роутеров
-│   │   ├── deps.py             # Зависимости (DI)
-│   │   ├── auth.py             # Аутентификация и авторизация
-│   │   ├── cards.py            # CRUD операции с визитками
-│   │   ├── public_cards.py     # Публичный доступ к визиткам
-│   │   ├── templates.py        # Управление шаблонами
-│   │   ├── files.py            # Загрузка и управление файлами
-│   │   ├── admin.py            # Админские эндпоинты
-│   │   ├── health.py           # Health check endpoint
-│   │   └── schemas/            # Pydantic схемы для API
-│   │       ├── __init__.py
-│   │       ├── auth.py
-│   │       ├── card.py
-│   │       ├── public_card.py
-│   │       ├── template.py
-│   │       ├── file.py
-│   │       ├── admin.py
-│   │       ├── stats.py
-│   │       └── common.py
-│   ├── core/                   # Ядро приложения
-│   │   ├── __init__.py
-│   │   ├── config.py           # Настройки приложения
-│   │   ├── security.py         # Хеширование, верификация
-│   │   ├── tokens.py           # JWT токены
-│   │   └── utils.py            # Утилиты
-│   ├── db/                     # Работа с БД
-│   │   ├── __init__.py
-│   │   ├── base.py             # Базовые классы ORM
-│   │   ├── session.py          # Сессии SQLAlchemy
-│   │   └── init_db.py          # Инициализация БД
-│   ├── models/                 # SQLAlchemy модели
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   ├── card.py
-│   │   ├── card_template.py
-│   │   ├── card_visit.py
-│   │   ├── auth_session.py
-│   │   ├── audit_log.py
-│   │   └── file.py
+│   ├── main.py                 # Точка входа FastAPI
+│   ├── api/
+│   │   ├── router.py           # Сборка роутеров
+│   │   ├── deps.py             # DI: db, current user / admin / superadmin
+│   │   ├── auth.py
+│   │   ├── cards.py
+│   │   ├── public_cards.py
+│   │   ├── templates.py
+│   │   ├── files.py
+│   │   ├── admin.py
+│   │   ├── health.py
+│   │   └── schemas/            # Pydantic-схемы
+│   ├── core/
+│   │   ├── config.py           # Settings из .env
+│   │   ├── security.py         # Argon2, dummy-hash для login timing
+│   │   ├── tokens.py           # JWT
+│   │   └── urls.py
+│   ├── db/                     # session, base, init
+│   ├── models/                 # ORM
 │   └── services/               # Бизнес-логика
-│       ├── __init__.py
-│       ├── user_service.py
-│       ├── card_service.py
-│       ├── auth_service.py
-│       ├── audit_service.py
-│       ├── file_service.py
-│       ├── template_service.py
-│       └── exceptions.py       # Кастомные исключения
-├── alembic/                    # Миграции БД
-│   ├── versions/
-│   └── env.py
-├── alembic.ini                 # Конфигурация Alembic
-├── requirements.txt            # Python зависимости
-├── create_SuperAdminUser.py    # Скрипт создания суперпользователя
-├── seed_templates_vCard.py     # Скрипт заполнения шаблонов
-└── README.md                   # Этот файл
+├── alembic/
+├── templates/css/              # CSS-шаблоны ({code}.css) + README
+├── additional_scripts/
+│   ├── deploy_backend.sh
+│   ├── create_SuperAdminUser.py
+│   ├── seed_templates_vCard.py
+│   └── run_backup.py
+├── requirements.txt
+├── .env.example
+├── README.md
+└── README_backend.md           # Права файлов и ops-заметки
 ```
 
-## Установка
-
-### Требования
-
-- Python 3.10+
-- MySQL 8.0+ или MariaDB 10.5+
-
-### Шаги установки
+## Установка (dev)
 
 ```bash
-# Создание виртуального окружения
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Установка зависимостей
 pip install -r requirements.txt
-
-# Копирование примера окружения
 cp .env.example .env
+# заполнить DATABASE_URL и SECRET_KEY (≥ 32 символов)
 
-# Редактирование .env
-nano .env
-
-# Инициализация БД
 alembic upgrade head
-
-# Создание суперпользователя
-python create_SuperAdminUser.py
-
-# Заполнение шаблонами
-python seed_templates_vCard.py
+python additional_scripts/create_SuperAdminUser.py
+python additional_scripts/seed_templates_vCard.py
 ```
 
 ## Конфигурация
 
-Основные переменные окружения в `.env`:
+См. `.env.example`. Важное:
 
 ```env
-# Database
-DATABASE_URL=mysql+pymysql://user:password@localhost:3306/dbcs_db
-
-# Security
-SECRET_KEY=your-secret-key-at-least-32-characters
-
-# Environment
-ENVIRONMENT=development
-DEBUG=True
-
-# CORS
+DATABASE_URL=mysql+pymysql://user:password@127.0.0.1:3306/e_cards?charset=utf8mb4
+SECRET_KEY=...at-least-32-chars...
 ALLOWED_ORIGINS=http://localhost:5173
+PUBLIC_BASE_URL=http://localhost:5173
 
-# Uploads
 UPLOADS_DIR=/var/lib/dbcs/uploads
-MAX_UPLOAD_SIZE_MB=5
+BACKUP_DIR_DEFAULT=/var/lib/dbcs/backups
+# TEMPLATES_CSS_DIR=/opt/dbcs/backend/templates/css
 
-# Tokens
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
+SELF_REGISTRATION_ENABLED=true
 
-# Registration
-SELF_REGISTRATION_ENABLED=False
-
-# Cookie Security
-REFRESH_COOKIE_SECURE=False
+REFRESH_COOKIE_SECURE=false          # prod: true (+ HTTPS)
 REFRESH_COOKIE_SAMESITE=lax
 
-# Documentation
-DOCS_ENABLED=True
-REDOC_ENABLED=True
+DOCS_ENABLED=true
+REDOC_ENABLED=true
 ```
+
+OpenAPI docs также переключаются из админки (SuperAdministrator → Settings).
 
 ## Запуск
 
-### Development
-
 ```bash
+# Development
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Production (типично через systemd + gunicorn; см. deploy_backend.sh)
 ```
 
-### Production
+## API (`/api/v1`)
 
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
+Health: `GET /api/v1/health` → `{ "status": "ok", "environment": "...", "version": "..." }`.
 
-## API Endpoints
+Docs (если включены): `/api/docs`, `/api/redoc`.
 
-### Аутентификация `/api/v1/auth`
+### Auth `/auth`
+| Method | Path | Описание |
+|--------|------|----------|
+| POST | `/register` | Регистрация |
+| POST | `/login` | Вход |
+| POST | `/refresh` | Silent refresh |
+| POST | `/logout` | Выход |
+| GET | `/me` | Текущий пользователь |
 
-| Endpoint | Method | Описание |
-|----------|--------|----------|
-| `/register` | POST | Регистрация |
-| `/login` | POST | Вход |
-| `/refresh` | POST | Обновление токена |
-| `/logout` | POST | Выход |
-| `/me` | GET | Текущий пользователь |
+### Cards `/cards` (auth)
+| Method | Path | Описание |
+|--------|------|----------|
+| GET/POST | `/` | Список / создание |
+| GET/PATCH/DELETE | `/{card_id}` | CRUD |
+| GET | `/{card_id}/qrcode.svg` | QR |
+| GET | `/{card_id}/vcard.vcf` | vCard |
+| GET | `/{card_id}/stats` | Статистика |
+| POST | `/{card_id}/regenerate-slug` | Новый slug |
+| GET | `/export` | Экспорт (`format=json\|csv`) |
+| POST | `/import` | Импорт |
 
-### Визитки `/api/v1/cards`
+### Public `/public/cards`
+| Method | Path | Описание |
+|--------|------|----------|
+| GET | `/{slug}` | Публичная визитка |
+| GET | `/{slug}/qrcode.svg` | QR |
+| GET | `/{slug}/vcard.vcf` | vCard |
+| GET | `/{slug}/avatar`, `/{slug}/logo` | Медиа |
 
-| Endpoint | Method | Описание | Auth |
-|----------|--------|----------|------|
-| `/` | GET | Список визиток | ✅ |
-| `/` | POST | Создание | ✅ |
-| `/{card_id}` | GET | Получение | ✅ |
-| `/{card_id}` | PUT | Обновление | ✅ |
-| `/{card_id}` | DELETE | Удаление | ✅ |
-| `/{card_id}/qr` | GET | QR код | ✅ |
-| `/{card_id}/vcard` | GET | Экспорт vCard | ✅ |
-| `/{card_id}/stats` | GET | Статистика | ✅ |
+### Templates `/templates`
+| Method | Path | Auth | Описание |
+|--------|------|------|----------|
+| GET | `/` | ✅ | Активные шаблоны |
+| GET | `/{template_id}` | ✅ | По id |
+| GET | `/{code}/css` | публично | CSS файл шаблона |
 
-### Публичные `/api/v1/public`
+### Files `/files` (auth)
+| Method | Path | Описание |
+|--------|------|----------|
+| POST | `/upload` | Загрузка |
+| GET/DELETE | `/{file_id}` | Получение / удаление |
 
-| Endpoint | Method | Описание |
-|----------|--------|----------|
-| `/cards/{public_id}` | GET | Публичная визитка |
-| `/cards/{public_id}/visit` | POST | Регистрация посещения |
+### Admin `/admin`
+| Method | Path | Роль | Описание |
+|--------|------|------|----------|
+| GET/POST | `/users` | Admin+ | Список / создание |
+| PATCH | `/users/{id}` | Admin+* | Обновление (*роли ADMIN/SUPERADMIN — только SuperAdmin) |
+| DELETE | `/users/{id}` | SuperAdmin | Удаление |
+| GET | `/cards` | Admin+ | Все визитки |
+| POST | `/cards/{id}/deactivate` | Admin+ | Деактивация |
+| GET/POST/PATCH/DELETE | `/templates...` | Admin+ | CRUD шаблонов, CSS, toggle |
+| GET | `/audit` | Admin+ | Журнал |
+| GET | `/analytics/extended`, `/stats/overview` | Admin+ | Аналитика |
+| GET/PATCH/POST | `/settings/backup...` | SuperAdmin | Бэкап / restore / run |
+| GET/PATCH/POST | `/settings/smtp...` | SuperAdmin | SMTP + test |
+| GET/PATCH | `/settings/docs` | SuperAdmin | Вкл/выкл docs |
 
-### Админка `/api/v1/admin`
-
-| Endpoint | Method | Описание | Роль |
-|----------|--------|----------|------|
-| `/users` | GET | Список пользователей | Admin |
-| `/users/{id}` | PUT | Обновление | Admin |
-| `/users/{id}` | DELETE | Удаление | SuperAdmin |
-| `/audit` | GET | Журнал аудита | Admin |
-| `/analytics` | GET | Аналитика | Admin |
-
-## Модели данных
+## Модели (кратко)
 
 ### User
-- `id`: UUID
-- `email`: String (unique)
-- `password_hash`: String
-- `full_name`: String
-- `role`: Enum (`USER` / User, `ADMIN` / Administrator, `SUPERADMIN` / SuperAdministrator)
-- `is_active`: Boolean
-- `created_at`, `updated_at`, `last_login_at`: DateTime
+`id`, `email`, `password_hash`, `full_name`, `role` (`USER`\|`ADMIN`\|`SUPERADMIN`), `is_active`, timestamps.
 
 ### Card
-- `id`: UUID
-- `user_id`: UUID (FK)
-- `template_id`: UUID (FK)
-- `public_id`: String (unique)
-- `title`, `first_name`, `last_name`, `email`, `phone`, `company`, `position`: String
-- `website`, `address`: String
-- `bio`: Text
-- `avatar_file_id`, `logo_file_id`: UUID (FK)
-- `social_links`: JSON
-- `is_active`: Boolean
-- `created_at`, `updated_at`: DateTime
+`id`, `user_id`, `template_id`, `slug`, `title`, `full_name`, `job_title`, `department`, `company`,  
+`phone`, `phone_additional`, messengers (`telegram`, `whatsapp`, `viber`, `wechat`, `messenger_max`, `discord`, `vk`),  
+`email`, `website`, `address`, `note`, `theme` (JSON), `avatar_file_id`, `logo_file_id`, `is_active`, `deleted_at`, timestamps.
+
+`theme`: `color_scheme`, `layout`, `font`, `accent_color`, `show_photo`, `show_qr`.
 
 ### CardTemplate
-- `id`: UUID
-- `name`: String
-- `description`: Text
-- `config`: JSON
-- `is_active`: Boolean
-- `created_at`: DateTime
+`code` (имя CSS-файла), `name`, `description`, `preview_image`, `schema_json` (meta: `default_accent`, `default_scheme`, `effect`), `is_active`.
 
-### CardVisit
-- `id`: UUID
-- `card_id`: UUID (FK)
-- `visited_at`: DateTime
-- `ip_hash`, `user_agent_hash`, `referer`: String
+CSS лежит в `templates/css/{code}.css` — контракт классов: [templates/css/README.md](templates/css/README.md).
 
-### AuthSession
-- `id`: UUID
-- `user_id`: UUID (FK)
-- `refresh_token_hash`: String
-- `user_agent_hash`, `ip_hash`: String
-- `created_at`, `expires_at`, `revoked_at`: DateTime
+### Прочее
+`CardVisit`, `AuthSession`, `AuditLog`, `File`, `BackupSettings`, `SmtpSettings`, `SystemSettings`.
 
-### AuditLog
-- `id`: UUID
-- `action`: String
-- `actor_user_id`: UUID
-- `entity_type`, `entity_id`: String
-- `timestamp`: DateTime
-- `ip_hash`, `user_agent_hash`: String
-- `details`: JSON
+## Шаблоны визиток
 
-### File
-- `id`: UUID
-- `user_id`: UUID (FK)
-- `filename`, `original_filename`, `mime_type`: String
-- `size_bytes`: Integer
-- `storage_path`: String
-- `created_at`: DateTime
+- HTML-каркас один (`PublicCardRenderer` на frontend).
+- Визуал — CSS на диске; раздача: `GET /api/v1/templates/{code}/css`.
+- Seed: `python additional_scripts/seed_templates_vCard.py`.
 
 ## Безопасность
 
-### Аутентификация
-- Access token: JWT, 15 минут, в памяти клиента
-- Refresh token: HttpOnly cookie, 7 дней, ротация при использовании
+- Access JWT + refresh HttpOnly cookie с ротацией
+- Пароли Argon2id; выравнивание времени login при неизвестном email
+- Роли: User / Administrator / SuperAdministrator
+- Валидация website и messenger URL (allowlist схем)
+- SMTP test не подставляет сохранённый пароль к «чужому» host/port/TLS
 
-### Хеширование
-- Пароли: Argon2id
-- PII данные: SHA-256 с солью
-
-### Роли
-- **User** (`USER`): Базовый доступ к своим визиткам
-- **Administrator** (`ADMIN`): + управление пользователями и шаблонами
-- **SuperAdministrator** (`SUPERADMIN`): + назначение администраторов, удаление пользователей, резервное копирование и системные настройки
-
-## Миграции БД
+## Миграции
 
 ```bash
-# Создать новую миграцию
-alembic revision --autogenerate -m "Description"
-
-# Применить миграции
+alembic revision --autogenerate -m "description"
 alembic upgrade head
-
-# Откатить последнюю миграцию
 alembic downgrade -1
-
-# Просмотреть статус
 alembic current
 ```
 
-## Тестирование
-
-```bash
-# Запуск тестов (будущая функциональность)
-pytest tests/ -v
-
-# Покрытие кода
-pytest --cov=app tests/
-```
-
-## Линтинг
-
-```bash
-# Проверка стиля
-flake8 app/
-
-# Форматирование
-black app/
-isort app/
-```
-
-## Логирование
-
-Логирование настроено через стандартный модуль `logging`. 
-В production рекомендуется настроить вывод в файлы или syslog.
-
-## Мониторинг
-
-Health check endpoint: `GET /api/health`
-
-Возвращает статус:
-```json
-{
-  "status": "healthy",
-  "version": "0.1.0",
-  "database": "connected"
-}
-```
+> `alembic/README` описывает **greenfield**-сценарий (удаление versions и генерация с нуля). На живой БД так не делать.
 
 ## Развёртывание
 
-См. скрипт `../deploy/deploy_backend.sh`
+```bash
+sudo bash additional_scripts/deploy_backend.sh
+```
+
+Обычно: пользователь `ecard`, unit `dbcs-backend.service`, gunicorn на `127.0.0.1:8000`, nginx проксирует `/api`.
 
 ### Production чеклист
+- [ ] `SECRET_KEY` уникальный и длинный
+- [ ] `DEBUG=false`, `ENVIRONMENT=production`
+- [ ] `ALLOWED_ORIGINS` и `PUBLIC_BASE_URL` корректны
+- [ ] `REFRESH_COOKIE_SECURE=true` при HTTPS
+- [ ] HTTPS / TLS
+- [ ] Бэкапы (админка или cron + `run_backup.py`)
+- [ ] Docs отключены снаружи при необходимости
 
-- [ ] SECRET_KEY установлен и безопасен
-- [ ] DEBUG = False
-- [ ] ALLOWED_ORIGINS настроен
-- [ ] REFRESH_COOKIE_SECURE = True
-- [ ] HTTPS настроен
-- [ ] Бэкапы БД настроены
-- [ ] Логи настроены
-- [ ] Мониторинг настроен
+## Ops: SuperAdmin и seed
+
+См. также [README_backend.md](README_backend.md):
+
+```bash
+cd /opt/dbcs/backend
+source .venv/bin/activate
+set -a && source .env && set +a
+python additional_scripts/create_SuperAdminUser.py
+python additional_scripts/seed_templates_vCard.py
+```

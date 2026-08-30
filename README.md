@@ -8,7 +8,7 @@
 
 По факту просто попытка изобрести свой - "аналогов нет" велосипед с преферансом и поэтессами
 
-
+Версии (примерно): backend `1.4.1`, frontend `1.4.5`.
 
 ![Linux](https://img.shields.io/badge/-Linux-6C6694.svg?logo=linux&style=flat)
 ![Python](https://img.shields.io/badge/-Python-F9DC3E.svg?logo=Python&style=flat)
@@ -21,7 +21,7 @@
 - [Архитектура](#-архитектура)
 - [Быстрый старт](#-быстрый-старт)
 - [Конфигурация](#-конфигурация)
-- [API Документация](#-api-документация)
+- [API](#-api)
 - [Модели данных](#-модели-данных)
 - [Безопасность](#-безопасность)
 - [Развёртывание](#-развёртывание)
@@ -29,28 +29,31 @@
 
 ## Возможности
 
-
 ### Для пользователей
 - Создание и редактирование цифровых визиток
-- Выбор шаблонов оформления
-- Генерация QR-кодов для быстрого доступа
-- Экспорт визитки в формате vCard (.vcf)
-- Просмотр статистики посещений
-- Загрузка аватаров и логотипов
+- CSS-шаблоны оформления (каркас HTML фиксирован, визуал — CSS на диске)
+- Персонализация темы: акцент, светлая/тёмная схема, шрифт, фото и QR
+- Контакты: телефоны, email, сайт, адрес, заметка
+- Мессенджеры и соцсети: Telegram, WhatsApp, Viber, WeChat, Max, Discord, VK
+- Генерация QR-кодов и экспорт в vCard (`.vcf`)
+- Статистика просмотров своей визитки
+- Загрузка аватара и логотипа
+- Экспорт / импорт визиток (JSON / CSV)
+- Интерфейс на русском и английском (`vue-i18n`, переключатель в UI)
 
 ### Для администраторов
-- Управление пользователями
-- Управление шаблонами визиток
-- Общая аналитика системы
-- Журнал аудита действий
+- Управление пользователями (создание, роли, деактивация; удаление — только SuperAdministrator)
+- Управление шаблонами и загрузка CSS
+- Обзор визиток и деактивация
+- Аналитика и журнал аудита
+- SuperAdministrator: резервное копирование / восстановление, SMTP, включение/выключение OpenAPI docs
 
 ### Технические особенности
-- JWT аутентификация с refresh токенами
-- HttpOnly cookies для безопасного хранения refresh токенов
-- Ролевая модель (User, Administrator, SuperAdministrator)
-- Логирование всех значимых действий
-- REST API с автоматической документацией
-- PWA (Progressive Web App) поддержка
+- JWT access + refresh в HttpOnly cookie с ротацией
+- Роли: `USER` / `ADMIN` / `SUPERADMIN` (в UI: User, Administrator, SuperAdministrator)
+- Публичные визитки по slug без авторизации
+- PWA (vite-plugin-pwa)
+- REST API; Swagger/ReDoc можно отключить в админ-настройках
 
 ## Архитектура
 
@@ -58,18 +61,20 @@
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   Frontend      │────▶│     Backend      │────▶│   Database      │
 │   Vue 3 + TS    │◀────│     FastAPI      │◀────│   MySQL/MariaDB │
-│   Pinia + Axios │     │   SQLAlchemy     │     │                 │
+│   Pinia + Axios │     │   SQLAlchemy 2   │     │                 │
+│   vue-i18n      │     │   Gunicorn       │     │                 │
 └─────────────────┘     └──────────────────┘     └─────────────────┘
+         ▲                        ▲
+         └──────── nginx ─────────┘
 ```
-
-**Стек технологий:**
 
 | Компонент | Технология |
 |-----------|------------|
-| Backend | Python 3.10+, FastAPI, SQLAlchemy 2.0 |
-| Frontend | Vue 3, TypeScript, Pinia, Vue Router |
+| Backend | Python 3.10+, FastAPI, SQLAlchemy 2.0, Alembic |
+| Frontend | Vue 3, TypeScript, Pinia, Vue Router, vue-i18n, TailwindCSS, Vite |
 | Database | MySQL 8.0+ / MariaDB 10.5+ |
-| Authentication | JWT (PyJWT), Argon2 для хеширования паролей |
+| Auth | JWT (PyJWT), Argon2id |
+| Proxy | nginx (статика frontend + `/api` → backend) |
 
 ## Быстрый старт
 
@@ -85,125 +90,162 @@ curl -fsSL https://raw.githubusercontent.com/UserAccountNotFound/dbcs/main/insta
 DBCS_BRANCH=main curl -fsSL https://raw.githubusercontent.com/UserAccountNotFound/dbcs/main/install.sh | sudo bash
 ```
 
-> URL должен быть `raw.githubusercontent.com` (или `curl -fsSL` с редиректом). Без `-L`/`-f` старый URL `github.com/.../raw/...` может отдать пустой 302.
+> URL должен быть `raw.githubusercontent.com`. Без `-L`/`-f` старый URL `github.com/.../raw/...` может отдать пустой 302.
 
 ### Предварительные требования
-- Python 3.10 или выше
+- Python 3.10+
 - Node.js 18+ и npm
 - MySQL 8.0+ или MariaDB 10.5+
 
-### Backend
+### Backend (dev)
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # заполнить SECRET_KEY и DATABASE_URL
 alembic upgrade head
-python create_SuperAdminUser.py
-uvicorn app.main:app --reload
+python additional_scripts/create_SuperAdminUser.py
+python additional_scripts/seed_templates_vCard.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Frontend
+### Frontend (dev)
 ```bash
 cd frontend
 npm install
-cp .env.example .env
-npm run dev
+cp .env.example .env   # VITE_API_BASE_URL=/api/v1
+npm run dev            # http://localhost:5173 (proxy /api → :8000)
 ```
+
+Подробнее: [backend/README.md](backend/README.md), [frontend/README.md](frontend/README.md).
 
 ## Конфигурация
 
-| Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| DATABASE_URL | URL подключения к БД | - |
-| SECRET_KEY | Секретный ключ для JWT | - |
-| ALLOWED_ORIGINS | Разрешённые CORS origin | "" |
-| ACCESS_TOKEN_TTL_MINUTES | Время жизни access token | 15 |
-| REFRESH_TOKEN_TTL_DAYS | Время жизни refresh token | 7 |
+Основные переменные backend (см. `backend/.env.example`):
 
-## API Документация
+| Переменная | Описание |
+|------------|----------|
+| `DATABASE_URL` | URL БД (`mysql+pymysql://...`) |
+| `SECRET_KEY` | Секрет JWT (≥ 32 символов) |
+| `ALLOWED_ORIGINS` | CORS origins (через запятую или JSON-массив) |
+| `PUBLIC_BASE_URL` | Базовый URL для публичных ссылок визиток |
+| `ACCESS_TOKEN_TTL_MINUTES` | TTL access token (по умолчанию 15) |
+| `REFRESH_TOKEN_TTL_DAYS` | TTL refresh cookie (по умолчанию 7) |
+| `UPLOADS_DIR` | Каталог загрузок |
+| `TEMPLATES_CSS_DIR` | Каталог CSS-шаблонов (по умолчанию `backend/templates/css`) |
+| `DOCS_ENABLED` / `REDOC_ENABLED` | OpenAPI UI (можно менять и из админки) |
+| `SELF_REGISTRATION_ENABLED` | Самостоятельная регистрация |
+| `REFRESH_COOKIE_SECURE` | Secure-флаг cookie (в prod обычно `true`) |
 
-После запуска backend документация доступна по адресам:
-- **Swagger UI:** http://{Backend-IP}:8000/api/docs
-- **ReDoc:** http://{Backend-IP}:8000/api/redoc
+Frontend: `VITE_API_BASE_URL=/api/v1` (`frontend/.env.example`).
 
-### Основные эндпоинты
+## API
 
-#### Аутентификация `/api/v1/auth`
-| Метод | Эндпоинт | Описание |
-|-------|----------|----------|
-| POST | `/register` | Регистрация |
+Префикс: `/api/v1`. Документация (если включена):
+- Swagger: `{origin}/api/docs`
+- ReDoc: `{origin}/api/redoc`
+- Health: `GET /api/v1/health`
+
+### Auth `/api/v1/auth`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/register` | Регистрация (если разрешена) |
 | POST | `/login` | Вход |
-| POST | `/refresh` | Обновление токена |
+| POST | `/refresh` | Обновление access token |
+| POST | `/logout` | Выход |
 | GET | `/me` | Текущий пользователь |
 
-#### Визитки `/api/v1/cards`
-| Метод | Эндпоинт | Описание |
-|-------|----------|----------|
-| GET | `/` | Список визиток |
+### Cards `/api/v1/cards`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/` | Список своих визиток |
 | POST | `/` | Создание |
 | GET | `/{id}` | Получение |
-| PUT | `/{id}` | Обновление |
+| PATCH | `/{id}` | Обновление |
 | DELETE | `/{id}` | Удаление |
-| GET | `/{id}/qr` | QR код |
-| GET | `/{id}/vcard` | Экспорт vCard |
+| GET | `/{id}/qrcode.svg` | QR |
+| GET | `/{id}/vcard.vcf` | vCard |
+| GET | `/{id}/stats` | Статистика |
+| POST | `/{id}/regenerate-slug` | Новый slug |
+| GET | `/export` | Экспорт JSON/CSV |
+| POST | `/import` | Импорт |
+
+### Public `/api/v1/public/cards`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/{slug}` | Публичная визитка |
+| GET | `/{slug}/qrcode.svg` | QR |
+| GET | `/{slug}/vcard.vcf` | vCard |
+| GET | `/{slug}/avatar` / `/logo` | Медиа |
+
+### Templates `/api/v1/templates`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/` | Список активных шаблонов (auth) |
+| GET | `/{id}` | Шаблон по id (auth) |
+| GET | `/{code}/css` | CSS шаблона (публично) |
+
+Админские эндпоинты: `/api/v1/admin/...` (users, cards, templates, audit, analytics, backup, smtp, docs) — см. [backend/README.md](backend/README.md).
 
 ## Модели данных
 
-- **User**: Пользователь (email, password_hash, role)
-- **Card**: Визитка (title, name, contact info, social links)
-- **CardTemplate**: Шаблон визитки (name, config)
-- **CardVisit**: Посещение (card_id, timestamp, ip_hash)
-- **AuthSession**: Сессия аутентификации (user_id, refresh_token_hash)
-- **AuditLog**: Журнал аудита (action, actor, entity)
-- **File**: Файл (filename, mime_type, storage_path)
+- **User** — email, password_hash, role, is_active
+- **Card** — slug, контакты, мессенджеры, theme (JSON), template_id, avatar/logo
+- **CardTemplate** — code, name, schema_json (meta: accent/scheme/effect), CSS на диске по `code`
+- **CardVisit** — статистика просмотров (хэши PII)
+- **AuthSession** — refresh-сессии
+- **AuditLog** — журнал действий
+- **File** — загруженные файлы
+- **BackupSettings** / **SmtpSettings** / **SystemSettings** — системные настройки
 
 ## Безопасность
 
-- Access token: JWT, 15 минут, в памяти клиента
-- Refresh token: HttpOnly cookie, 7 дней, ротация при использовании
+- Access token: JWT ~15 мин (localStorage / память клиента)
+- Refresh token: HttpOnly cookie, ротация
 - Пароли: Argon2id
-- PII данные: SHA-256 с солью
+- PII в визитах/аудите: хэширование
+- Ссылки мессенджеров/сайта: allowlist схем (`http`/`https`/`viber`/`tg`/…)
+- Назначение ролей `ADMIN`/`SUPERADMIN` — только SuperAdministrator
 
 ## Развёртывание
 
-```bash
-# Backend
-chmod +x ./deploy/deploy_backend.sh
-./deploy/deploy_backend.sh
+Скрипты лежат рядом с приложениями (каталога `deploy/` нет):
 
-# Frontend
-chmod +x ./deploy/deploy_frontend.sh
-./deploy/deploy_frontend.sh
+```bash
+# Backend (systemd unit dbcs-backend, миграции, права)
+sudo bash backend/additional_scripts/deploy_backend.sh
+
+# Frontend (build → /var/www/dbcs/frontend, nginx)
+sudo bash frontend/additional_scripts/deploy_frontend.sh
 ```
+
+Установка «с нуля» на сервер: корневой `install.sh`.
 
 ## Структура проекта
 
 ```
 dbcs/
+├── install.sh
 ├── backend/
-│   ├── app/
-│   │   ├── api/              # API endpoints
-│   │   ├── core/             # Конфигурация, безопасность
-│   │   ├── db/               # Работа с БД
-│   │   ├── models/           # SQLAlchemy модели
-│   │   └── services/         # Бизнес-логика
-│   └── README.md             # Документация backend
+│   ├── app/                    # FastAPI приложение
+│   ├── alembic/                # Миграции
+│   ├── templates/css/          # CSS-шаблоны визиток
+│   ├── additional_scripts/     # deploy, seed, create SuperAdmin, backup runner
+│   └── README.md
 ├── frontend/
-│   └── src/
-│       ├── api/              # API клиенты
-│       ├── components/       # Vue компоненты
-│       ├── stores/           # Pinia stores
-│       └── views/            # Views/Pages
-├── deploy/                   # Скрипты развёртывания
-└── README.md                 # Этот файл
+│   ├── src/                    # Vue 3 приложение
+│   ├── additional_scripts/     # deploy_frontend.sh
+│   └── README.md
+├── backups/                    # Локальные бэкапы (не в git)
+└── README.md
 ```
 
 # Contributing
 Кроме меня этот говнокод ни кому не нужон. =)
 
 # License
-Проект распространяется под MIT - подробности смотрите в файле LICENSE.
+Проект распространяется под MIT — подробности в файле [LICENSE](LICENSE).
 
 # Acknowledgments
-Особая благодарность всем проектам с открытым исходным кодом, и людям что готовы делиться знаниями.
+Особая благодарность всем проектам с открытым исходным кодом и людям, что готовы делиться знаниями.
