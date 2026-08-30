@@ -161,15 +161,22 @@ function prevPage() {
                 :value="user.role"
                 @change="changeRole(user, ($event.target as HTMLSelectElement).value)"
                 class="text-sm border border-gray-300 rounded px-2 py-1"
+                :disabled="!isSuperAdmin && (user.role === 'ADMIN' || user.role === 'SUPERADMIN')"
               >
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
+                <option value="USER">{{ t('admin.roleUser') }}</option>
+                <option
+                  v-if="isSuperAdmin || user.role === 'ADMIN'"
+                  value="ADMIN"
+                  :disabled="!isSuperAdmin"
+                >
+                  {{ t('admin.roleAdmin') }}
+                </option>
                 <option
                   v-if="isSuperAdmin || user.role === 'SUPERADMIN'"
                   value="SUPERADMIN"
                   :disabled="!isSuperAdmin"
                 >
-                  SUPERADMIN
+                  {{ t('admin.roleSuperAdmin') }}
                 </option>
               </select>
             </td>

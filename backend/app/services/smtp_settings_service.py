@@ -153,10 +153,25 @@ def _resolve_connection_params(
     resolved_tls = use_tls if use_tls is not None else row.use_tls
     resolved_ssl = use_ssl if use_ssl is not None else row.use_ssl
     resolved_user = (username if username is not None else row.username).strip()
-    if password is not None and password != "":
+
+    password_provided = password is not None and password != ""
+    endpoint_differs = (
+        resolved_host.lower() != (row.host or "").strip().lower()
+        or int(resolved_port) != int(row.port)
+        or bool(resolved_tls) != bool(row.use_tls)
+        or bool(resolved_ssl) != bool(row.use_ssl)
+    )
+
+    if password_provided:
         resolved_password = password
+    elif endpoint_differs:
+        raise SmtpSettingsError(
+            "При проверке с другим SMTP-сервером (host/port/TLS) укажите пароль явно. "
+            "Сохранённый пароль используется только для текущих настроек подключения."
+        )
     else:
         resolved_password = row.password
+
     resolved_from = (from_email if from_email is not None else row.from_email).strip()
     resolved_from_name = (
         (from_name if from_name is not None else row.from_name).strip() or "DBCS"

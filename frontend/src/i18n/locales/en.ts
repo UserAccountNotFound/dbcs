@@ -155,7 +155,8 @@ export default {
     showPhoto: 'Show photo',
     showQr: 'Show QR code',
     messengerPlaceholders: {
-      telegram: '@username or t.me/...',
+      // {'@'} — literal @; otherwise vue-i18n treats it as linked message syntax
+      telegram: "{'@'}username or t.me/...",
       whatsapp: '+1 555 000-0000',
       viber: '+1 555 000-0000',
       wechat: 'WeChat ID',
@@ -248,7 +249,7 @@ export default {
     backup: 'Backup',
     settings: 'Settings',
     backToDashboard: '← Dashboard',
-    superAdminOnly: 'This section is available to super-admin only.',
+    superAdminOnly: 'This section is available to SuperAdministrator only.',
     settingsSubtitle: 'System service parameters',
     docsSaved: 'Documentation settings saved.',
     smtpSaved: 'SMTP settings saved.',
@@ -327,7 +328,7 @@ export default {
     role: 'Role',
     roleUser: 'User',
     roleAdmin: 'Administrator',
-    roleSuperAdmin: 'Super-administrator',
+    roleSuperAdmin: 'SuperAdministrator',
     fillEmailName: 'Fill in email and name',
     passwordTooShort: 'Password must be at least 12 characters',
     overviewTitle: 'Overview & analytics',
