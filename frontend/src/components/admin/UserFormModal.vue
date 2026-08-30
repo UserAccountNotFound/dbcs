@@ -2,8 +2,11 @@
 import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AdminUser, AdminUserCreate, AdminUserUpdate } from '../../types/admin';
+import { useAuthStore } from '../../stores/auth';
 
 const { t } = useI18n();
+const auth = useAuthStore();
+const isSuperAdmin = computed(() => auth.user?.role === 'SUPERADMIN');
 
 const props = defineProps<{
   user: AdminUser | null;
@@ -16,6 +19,7 @@ const emit = defineEmits<{
 }>();
 
 const isEdit = computed(() => props.user !== null);
+const canAssignPrivilegedRoles = isSuperAdmin;
 
 const form = ref({
   email: '',
@@ -63,6 +67,14 @@ function handleSubmit() {
 
   if (isEdit.value && form.value.password && form.value.password.length < 12) {
     error.value = t('admin.passwordTooShort');
+    return;
+  }
+
+  if (
+    !canAssignPrivilegedRoles.value
+    && (form.value.role === 'ADMIN' || form.value.role === 'SUPERADMIN')
+  ) {
+    error.value = t('errors.roleChangeFailed');
     return;
   }
 
@@ -138,10 +150,15 @@ function handleSubmit() {
           <select
             v-model="form.role"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            :disabled="!canAssignPrivilegedRoles && (form.role === 'ADMIN' || form.role === 'SUPERADMIN')"
           >
             <option value="USER">{{ t('admin.roleUser') }}</option>
-            <option value="ADMIN">{{ t('admin.roleAdmin') }}</option>
-            <option value="SUPERADMIN">{{ t('admin.roleSuperAdmin') }}</option>
+            <option v-if="canAssignPrivilegedRoles || form.role === 'ADMIN'" value="ADMIN">
+              {{ t('admin.roleAdmin') }}
+            </option>
+            <option v-if="canAssignPrivilegedRoles || form.role === 'SUPERADMIN'" value="SUPERADMIN">
+              {{ t('admin.roleSuperAdmin') }}
+            </option>
           </select>
         </div>
 

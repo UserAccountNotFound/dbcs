@@ -327,7 +327,7 @@ export default {
     role: 'Role',
     roleUser: 'User',
     roleAdmin: 'Administrator',
-    roleSuperAdmin: 'Super-administrator',
+    roleSuperAdmin: 'SuperAdministrator',
     fillEmailName: 'Fill in email and name',
     passwordTooShort: 'Password must be at least 12 characters',
     overviewTitle: 'Overview & analytics',

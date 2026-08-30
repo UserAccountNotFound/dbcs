@@ -327,7 +327,7 @@ export default {
     role: 'Роль',
     roleUser: 'Пользователь',
     roleAdmin: 'Администратор',
-    roleSuperAdmin: 'Суперадминистратор',
+    roleSuperAdmin: 'СуперАдминистратор',
     fillEmailName: 'Заполните email и имя',
     passwordTooShort: 'Пароль должен быть не менее 12 символов',
     overviewTitle: 'Обзор и аналитика',
