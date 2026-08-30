@@ -19,7 +19,7 @@ _PRIVILEGED_ROLES = frozenset({UserRole.ADMIN, UserRole.SUPERADMIN})
 
 def _require_superadmin_for_superadmin_target(admin: User, target: User) -> None:
     if target.role == UserRole.SUPERADMIN and admin.role != UserRole.SUPERADMIN:
-        raise AdminError("Недостаточно прав для изменения SUPERADMIN.")
+        raise AdminError("Недостаточно прав для изменения СуперАдминистратора.")
 
 
 def _require_superadmin_for_privileged_role(
@@ -28,13 +28,13 @@ def _require_superadmin_for_privileged_role(
     new_role: UserRole,
     current_role: UserRole | None = None,
 ) -> None:
-    """Только SUPERADMIN может назначать/снимать роли ADMIN и SUPERADMIN."""
+    """Только SuperAdministrator может назначать/снимать роли Administrator и SuperAdministrator."""
     if admin.role == UserRole.SUPERADMIN:
         return
     if new_role in _PRIVILEGED_ROLES:
-        raise AdminError("Недостаточно прав для назначения роли администратора.")
+        raise AdminError("Недостаточно прав для назначения роли Администратора.")
     if current_role is not None and current_role in _PRIVILEGED_ROLES:
-        raise AdminError("Недостаточно прав для изменения административных ролей.")
+        raise AdminError("Недостаточно прав для изменения ролей Администратора.")
 
 
 def _deactivate_user_cards(db: Session, user_id: str, *, soft_delete: bool = False) -> None:

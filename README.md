@@ -47,7 +47,7 @@
 ### Технические особенности
 - JWT аутентификация с refresh токенами
 - HttpOnly cookies для безопасного хранения refresh токенов
-- Ролевая модель (USER, ADMIN, SUPERADMIN)
+- Ролевая модель (User, Administrator, SuperAdministrator)
 - Логирование всех значимых действий
 - REST API с автоматической документацией
 - PWA (Progressive Web App) поддержка

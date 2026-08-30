@@ -78,7 +78,7 @@ def get_current_admin(
     if user.role not in {UserRole.ADMIN, UserRole.SUPERADMIN}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required.",
+            detail="Administrator access required.",
         )
 
     return user
@@ -90,7 +90,7 @@ def get_current_superadmin(
     if user.role != UserRole.SUPERADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Superadmin access required.",
+            detail="SuperAdministrator access required.",
         )
 
     return user

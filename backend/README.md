@@ -205,7 +205,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 - `email`: String (unique)
 - `password_hash`: String
 - `full_name`: String
-- `role`: Enum (USER, ADMIN, SUPERADMIN)
+- `role`: Enum (`USER` / User, `ADMIN` / Administrator, `SUPERADMIN` / SuperAdministrator)
 - `is_active`: Boolean
 - `created_at`, `updated_at`, `last_login_at`: DateTime
 
@@ -271,9 +271,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 - PII данные: SHA-256 с солью
 
 ### Роли
-- **USER**: Базовый доступ к своим визиткам
-- **ADMIN**: + управление пользователями и шаблонами
-- **SUPERADMIN**: + удаление пользователей
+- **User** (`USER`): Базовый доступ к своим визиткам
+- **Administrator** (`ADMIN`): + управление пользователями и шаблонами
+- **SuperAdministrator** (`SUPERADMIN`): + назначение администраторов, удаление пользователей, резервное копирование и системные настройки
 
 ## Миграции БД
 

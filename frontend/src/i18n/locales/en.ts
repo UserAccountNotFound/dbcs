@@ -248,7 +248,7 @@ export default {
     backup: 'Backup',
     settings: 'Settings',
     backToDashboard: '← Dashboard',
-    superAdminOnly: 'This section is available to super-admin only.',
+    superAdminOnly: 'This section is available to SuperAdministrator only.',
     settingsSubtitle: 'System service parameters',
     docsSaved: 'Documentation settings saved.',
     smtpSaved: 'SMTP settings saved.',
