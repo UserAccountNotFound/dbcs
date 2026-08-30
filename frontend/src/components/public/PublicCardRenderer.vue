@@ -5,6 +5,7 @@ import type { PublicCard } from '../../types/publicCard';
 import type { CardTheme } from '../../types/card';
 import {
   buildMessengerHref,
+  safeWebsiteHref,
   type MessengerKind,
 } from '../../utils/messengerLinks';
 import PolygonNetworkBackground from './PolygonNetworkBackground.vue';
@@ -127,12 +128,13 @@ const linkItems = computed<LinkItem[]>(() => {
   }
   if (c.email) items.push({ key: 'email', label: c.email, href: `mailto:${c.email}`, icon: '✉️' });
   if (c.website) {
+    const websiteHref = safeWebsiteHref(c.website);
     items.push({
       key: 'website',
       label: formatWebsite(c.website),
-      href: c.website,
+      href: websiteHref,
       icon: '🔗',
-      external: true,
+      external: Boolean(websiteHref),
     });
   }
   if (c.address) {

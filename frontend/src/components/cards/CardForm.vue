@@ -239,6 +239,7 @@ function normalizeWebsite(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return '';
   return `https://${trimmed}`;
 }
 

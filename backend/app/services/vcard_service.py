@@ -50,14 +50,23 @@ def _digits_only(value: str) -> str:
     return re.sub(r"\D", "", value)
 
 
+_ALLOWED_ABSOLUTE_SCHEMES = frozenset(
+    {"http", "https", "viber", "tg", "telegram", "whatsapp"}
+)
+
+
 def _as_absolute_url(value: str) -> str | None:
     v = value.strip()
     if not v:
         return None
-    if re.match(r"^[a-z][a-z0-9+.-]*:", v, re.I):
-        return v
     if v.startswith("//"):
         return f"https:{v}"
+    match = re.match(r"^([a-z][a-z0-9+.-]*):", v, re.I)
+    if match:
+        scheme = match.group(1).lower()
+        if scheme not in _ALLOWED_ABSOLUTE_SCHEMES:
+            return None
+        return v
     return None
 
 
@@ -99,7 +108,11 @@ def build_messenger_url(kind: MessengerKind, raw: str) -> str | None:
     if kind == "discord":
         u = value.strip()
         if "discord.gg" in u or "discord.com" in u:
-            return u if u.startswith("http") else f"https://{u}"
+            if re.match(r"^https?://", u, re.I):
+                return u
+            if re.match(r"^[a-z][a-z0-9+.-]*:", u, re.I):
+                return None
+            return f"https://{u}"
         return None
 
     if kind == "vk":
@@ -204,12 +217,19 @@ def build_vcard(card: Card) -> str:
         )
 
     if card.website:
-        item_index = _append_labeled_url(
-            lines,
-            item_index,
-            "Сайт",
-            card.website.strip(),
-        )
+        site = card.website.strip()
+        if not re.match(r"^https?://", site, re.I):
+            if re.match(r"^[a-z][a-z0-9+.-]*:", site, re.I):
+                site = ""
+            else:
+                site = f"https://{site}"
+        if site:
+            item_index = _append_labeled_url(
+                lines,
+                item_index,
+                "Сайт",
+                site,
+            )
 
     messenger_fields: list[tuple[MessengerKind, str | None]] = [
         ("telegram", card.telegram),

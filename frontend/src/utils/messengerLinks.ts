@@ -2,12 +2,38 @@
  * Сборка deep-link / URL для мессенджеров из пользовательского ввода.
  */
 
-function asHttpsUrl(value: string): string | null {
+/** Разрешённые схемы для абсолютных ссылок (без javascript:, data: и т.п.). */
+const ALLOWED_SCHEMES = new Set([
+  'http:',
+  'https:',
+  'viber:',
+  'tg:',
+  'telegram:',
+  'whatsapp:',
+]);
+
+function asAllowedAbsoluteUrl(value: string): string | null {
   const v = value.trim();
   if (!v) return null;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
   if (v.startsWith('//')) return `https:${v}`;
+
+  const match = /^([a-z][a-z0-9+.-]*:)/i.exec(v);
+  if (match) {
+    const scheme = match[1].toLowerCase();
+    if (!ALLOWED_SCHEMES.has(scheme)) return null;
+    return v;
+  }
   return null;
+}
+
+/** Безопасный href для поля website: только http(s). */
+export function safeWebsiteHref(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return null;
+  return `https://${v}`;
 }
 
 function stripAt(value: string): string {
@@ -31,7 +57,7 @@ export function buildMessengerHref(kind: MessengerKind, raw: string): string | n
   const value = raw.trim();
   if (!value) return null;
 
-  const existing = asHttpsUrl(value);
+  const existing = asAllowedAbsoluteUrl(value);
   if (existing) return existing;
 
   switch (kind) {
@@ -61,7 +87,9 @@ export function buildMessengerHref(kind: MessengerKind, raw: string): string | n
     case 'discord': {
       const u = value.trim();
       if (u.includes('discord.gg') || u.includes('discord.com')) {
-        return u.startsWith('http') ? u : `https://${u}`;
+        if (/^https?:\/\//i.test(u)) return u;
+        if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return null;
+        return `https://${u}`;
       }
       return null;
     }

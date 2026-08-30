@@ -155,7 +155,8 @@ export default {
     showPhoto: 'Show photo',
     showQr: 'Show QR code',
     messengerPlaceholders: {
-      telegram: '@username or t.me/...',
+      // {'@'} — literal @; otherwise vue-i18n treats it as linked message syntax
+      telegram: "{'@'}username or t.me/...",
       whatsapp: '+1 555 000-0000',
       viber: '+1 555 000-0000',
       wechat: 'WeChat ID',

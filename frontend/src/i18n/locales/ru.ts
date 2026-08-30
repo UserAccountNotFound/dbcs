@@ -155,7 +155,8 @@ export default {
     showPhoto: 'Показывать фото',
     showQr: 'Показывать QR-код',
     messengerPlaceholders: {
-      telegram: '@username или t.me/...',
+      // {'@'} — литеральный @; иначе vue-i18n парсит linked-message и падает
+      telegram: "{'@'}username или t.me/...",
       whatsapp: '+7 900 000-00-00',
       viber: '+7 900 000-00-00',
       wechat: 'WeChat ID',

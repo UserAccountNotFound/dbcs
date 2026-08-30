@@ -46,14 +46,33 @@ def _validate_phone_value(value: str | None) -> str | None:
     return value
 
 
+_MESSENGER_ALLOWED_SCHEMES = frozenset(
+    {"http", "https", "viber", "tg", "telegram", "whatsapp"}
+)
+
+
 def _validate_messenger_value(value: str | None) -> str | None:
-    return _normalize_optional_string(value)
+    value = _normalize_optional_string(value)
+    if value is None:
+        return None
+    match = re.match(r"^([a-z][a-z0-9+.-]*):", value, re.I)
+    if match:
+        scheme = match.group(1).lower()
+        if scheme not in _MESSENGER_ALLOWED_SCHEMES:
+            raise ValueError(
+                "Messenger URL must use an allowed scheme "
+                "(http, https, viber, tg, telegram, whatsapp)."
+            )
+    return value
 
 
 def _validate_website_value(value: str | None) -> str | None:
     value = _normalize_optional_string(value)
     if value is None:
         return None
+    # Без схемы — добавляем https, чтобы отклонить javascript: и т.п. на входе без схемы
+    if not re.match(r"^[a-z][a-z0-9+.-]*:", value, re.I):
+        value = f"https://{value}"
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("Website must use http or https scheme.")
